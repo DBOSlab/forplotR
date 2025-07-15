@@ -22,13 +22,21 @@ The goal of forplotR is to ...
 
 ## Installation
 
-You can install the development version of forplotR like so:
+You can install the development version of `forplotR` from [GitHub](https://github.com/DBOSlab/forplotR) with:
 
 ``` r
-# FILL THIS IN! HOW CAN PEOPLE INSTALL YOUR DEV PACKAGE?
+# install.packages("devtools")
+devtools::install_github("DBOSlab/forplotR")
 ```
 
-## Example
+```r
+library(forplotR)
+```
+\
+\
+
+## Usage
+
 
 This is a basic example which shows you how to solve a common problem:
 
