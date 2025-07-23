@@ -531,7 +531,7 @@ options(tinytex.pdflatex.args = "--no-crop")
 }
 
 
-#' Prepare RMarkdown sections for each subplot with navigation and page breaks
+# Prepare RMarkdown sections for each subplot with navigation and page breaks ####
 .create_rmd_content <- function(subplot_plots, tf_col, tf_uncol, tf_palm, plot_name, plot_code) {
 
   # Compose the RMarkdown document content as a character vector

@@ -28,7 +28,6 @@
 #'                      subplot_size = 10,
 #'                      map_type = c("satellite", "street"),
 #'                      voucher_imgs = NULL,
-#'                      dir = "Results_plot_map_html",
 #'                      filename = "plot_map.html")
 #'
 #' @param fp_file_path Character. Path to the Excel file containing tree data.
@@ -39,9 +38,6 @@
 #' @param plot_size Numeric. Total plot size in hectares (default is 1).
 #'
 #' @param subplot_size Numeric. Subplot size in meters (default is 10).
-#'
-#' @param dir Character. Directory to save the output HTML file
-#' (default is "Results_plot_map_html").
 #'
 #' @param filename Character. Name of the output HTML file (default is
 #' "plot_map.html").
@@ -81,7 +77,6 @@ plot_html_map <- function(fp_file_path = NULL,
                           subplot_size = 10,
                           map_type = c("satellite", "street"),
                           voucher_imgs = NULL,
-                          dir = "Results_plot_map_html",
                           filename = "plot_map.html") {
 
   # Check input file
@@ -169,7 +164,12 @@ plot_html_map <- function(fp_file_path = NULL,
   p3 <- c(vertex_coords$longitude[3], vertex_coords$latitude[3])
   p4 <- c(vertex_coords$longitude[4], vertex_coords$latitude[4])
 
-  coords_geo <- mapply(.get_latlon, fp_coords$global_x, fp_coords$global_y)
+  coords_geo <- mapply(
+    .get_latlon,
+    x = fp_coords$global_x,
+    y = fp_coords$global_y,
+    MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4)
+  )
   fp_coords$Latitude <- coords_geo[1, ]
   fp_coords$Longitude <- coords_geo[2, ]
 
@@ -193,6 +193,7 @@ plot_html_map <- function(fp_file_path = NULL,
   plot_popup <- paste0("<b>Plot Name:</b> ",
                        plot_name, "<br/>",
                        "<b>Team:</b> ", team)
+
 
   # Define the base folder where the original images are stored
   original_image_base <- here(voucher_imgs)
@@ -297,63 +298,53 @@ document.addEventListener('click', function(e) {
 </script>
 ")
   sidebar_css_js <- htmltools::HTML("
-<!-- ---------- SIDEBAR + SEARCH ------------ -->
 <style>
+/* ---------- SIDEBAR STYLES ---------- */
 #sidebar {
-  position: absolute; top: 0; right: 0;
-  width: 280px; height: 100%;
-  background: rgba(255,255,255,0.97);
-  box-shadow: -4px 0 10px rgba(0,0,0,0.3);
-  overflow-y: auto; padding: 12px 14px;
-  transform: translateX(100%);
-  transition: transform .28s ease-in-out;
-  z-index: 1001;
-  font-size: 14px;
+  position:absolute; top:0; right:0;
+  width:280px; height:100%;
+  background:rgba(255,255,255,0.97);
+  box-shadow:-4px 0 10px rgba(0,0,0,.3);
+  overflow-y:auto; padding:12px 14px;
+  transform:translateX(100%);
+  transition:transform .28s ease-in-out;
+  z-index:1001; font-size:14px;
 }
-#sidebar.open { transform: translateX(0); }
+#sidebar.open { transform:translateX(0); }
 
 #sidebarToggle {
-  position: absolute; top: 10px; right: 15px;
-  width: 34px; height: 34px;
-  border-radius: 4px; background: #fff; color: #333;
-  box-shadow: 0 0 5px rgba(0,0,0,.35);
-  cursor: pointer; z-index: 1100;
+  position:absolute; top:10px; right:15px;
+  width:34px; height:34px;
+  border-radius:4px; background:#fff; color:#333;
+  box-shadow:0 0 5px rgba(0,0,0,.35);
+  cursor:pointer; z-index:1100;
   display:flex; align-items:center; justify-content:center;
-  font-size: 20px; user-select:none;
+  font-size:20px; user-select:none;
 }
 
 #searchInput {
-  width: 100%; padding: 6px 8px; margin-bottom: 8px;
-  border: 1px solid #999; border-radius: 4px;
+  width:100%; padding:6px 8px; margin-bottom:8px;
+  border:1px solid #999; border-radius:4px;
 }
 
-.leaflet-popup-content { max-width: 260px; padding: 4px; }
-.leaflet-popup-content img { width: 100%; height: auto; border-radius: 4px; }
+.leaflet-popup-content { max-width:260px; padding:4px; }
+.leaflet-popup-content img { width:100%; height:auto; border-radius:4px; }
 
-.mySlides { display:none; }
-.prev,.next { cursor:pointer; font-size:18px; color:#444; }
+.mySlides{display:none;}
+.prev,.next{cursor:pointer;font-size:18px;color:#444;}
 </style>
 
 <script>
-function addFilterControl(el, x) {
-  // Create slide-out sidebar elements
-  var map = this,
-      mapDiv = map.getContainer(),
-      sb   = document.createElement('div'),
-      btn  = document.createElement('div');
+function addFilterControl(el,x){
+  /* ---------- BUILD SIDEBAR ---------- */
+  const map=this, mapDiv=map.getContainer(),
+        sb=document.createElement('div'),
+        btn=document.createElement('div');
+  sb.id='sidebar'; btn.id='sidebarToggle'; btn.innerHTML='&#9776;';
+  mapDiv.appendChild(sb); mapDiv.appendChild(btn);
+  btn.addEventListener('click',()=>sb.classList.toggle('open'));
 
-  sb.id = 'sidebar';
-  btn.id = 'sidebarToggle';
-  btn.innerHTML = '&#9776;';  // hamburger icon
-
-  mapDiv.appendChild(sb);
-  mapDiv.appendChild(btn);
-
-  // Toggle sidebar
-  btn.addEventListener('click',()=> sb.classList.toggle('open'));
-
-  // Sidebar HTML content
-  sb.innerHTML = `
+  sb.innerHTML=`
     <input id='searchInput' type='text' placeholder='Search family or species'/>
     <div style='margin-bottom:6px;'><b>Enable Filters:</b><br/>
       <label><input type='checkbox' id='toggleFamily' checked> Family</label><br/>
@@ -379,146 +370,134 @@ function addFilterControl(el, x) {
     </div>
   `;
 
-  // Gather marker info
-  var markers = [];
-  map.eachLayer(l=>{
-     if(l instanceof L.CircleMarker){ markers.push(l); }
-  });
+  /* ---------- COLLECT MARKER DATA ---------- */
+  const markers=[];
+  map.eachLayer(l=>{ if(l instanceof L.CircleMarker) markers.push(l); });
 
-  var famSet = new Set(), spSet  = new Set(),
-      sp2fam = {}, fam2sp = {}, photoVouchers = new Set();
+  const famSet=new Set(), spSet=new Set(),
+        fam2sp={}, sp2fam={};
 
   markers.forEach(m=>{
-    var html = m.getPopup().getContent(),
-        fam  = /<b>Family:<\\/b>\\s*(.*?)<br\\/>/.exec(html)?.[1]?.trim() || '',
-        sp   = /<b>Species:<\\/b>\\s*<i[^>]*>\\s*(.*?)<\\/i>/.exec(html)?.[1]?.trim() || '',
-        vou  = /<b>Voucher:<\\/b>\\s*(.*?)</.exec(html)?.[1]?.trim() || '',
-        photo= html.includes('slideshow-container');
+    const html=m.getPopup().getContent();
+    const fam =(html.match(/<b>Family:<\\/b>\\s*(.*?)<br\\/>/)||[])[1]||'';
+    const sp  =(html.match(/<b>Species:<\\/b>\\s*<i[^>]*>\\s*(.*?)<\\/i>/)||[])[1]||'';
 
     if(fam) famSet.add(fam);
     if(sp)  spSet.add(sp);
-    if(photo && vou) photoVouchers.add(vou);
 
     sp2fam[sp]=fam;
-    fam2sp[fam] = fam2sp[fam] || new Set();
-    fam2sp[fam].add(sp);
+    (fam2sp[fam]=fam2sp[fam]||new Set()).add(sp);
 
-    Object.assign(m,{ _fam:fam, _sp:sp, _vou:vou, _hasPhoto:photo, _stat:getStatus(m) });
+    Object.assign(m,{ _fam:fam, _sp:sp, _stat:getStatus(m),
+                      _hasPhoto:html.includes('slideshow-container') });
   });
 
+  /* ---------- UTILS ---------- */
   const famSel=document.getElementById('familyFilter'),
         spSel =document.getElementById('speciesFilter'),
-        csSel =document.getElementById('collFilter');
+        csSel =document.getElementById('collFilter'),
+        search=document.getElementById('searchInput');
 
-  function fill(sel, set, italic=false){
-     sel.innerHTML='';
-     Array.from(set).sort().forEach(v=>{
-        var o=document.createElement('option');
-        o.value=v; o.selected=true;
-        o.innerHTML=italic?`<i>${v}</i>`:v;
-        sel.appendChild(o);
-     });
+  const fill=(sel,set,italic=false)=>{
+    sel.innerHTML='';
+    Array.from(set).sort().forEach(v=>{
+      const o=document.createElement('option');
+      o.value=v; o.selected=true; o.innerHTML=italic?`<i>${v}</i>`:v;
+      sel.appendChild(o);
+    });
+  };
+
+  fill(famSel,famSet);               // keep full family list always
+  fill(spSel ,spSet ,true);          // initial full species list
+  Array.from(csSel.options).forEach(o=>o.selected=true);
+
+  const getSel=sel=>Array.from(sel.selectedOptions).map(o=>o.value);
+  function getStatus(m){
+    const c=m.options.fillColor.toLowerCase();
+    if(['gray','#808080'].includes(c)) return 'collected';
+    if(['red','#ff0000'].includes(c)) return 'missing';
+    if(['gold','yellow','#ffd700'].includes(c)) return 'palm';
+    return '';
   }
 
-  fill(famSel,famSet); fill(spSel,spSet,true);
-
-  const searchBox=document.getElementById('searchInput');
-  searchBox.addEventListener('keyup',updateMarkers);
-
+  /* ---------- EVENT LISTENERS ---------- */
   famSel.addEventListener('change',()=>{
-     if(document.getElementById('toggleSpecies').checked){
-        let famChosen=getSel(famSel);
-        let tmp=new Set();
-        famChosen.forEach(f=>fam2sp[f]?.forEach(s=>tmp.add(s)));
-        fill(spSel,tmp,true);
-     }
-     updateMarkers();
+    if(document.getElementById('toggleSpecies').checked){
+      const chosen=getSel(famSel);
+      const subset=new Set();
+      chosen.forEach(f=>fam2sp[f]?.forEach(sp=>subset.add(sp)));
+      fill(spSel,subset,true);       // rebuild species list only
+    }
+    updateMarkers();
   });
+
   spSel.addEventListener('change',updateMarkers);
   csSel.addEventListener('change',updateMarkers);
+  search.addEventListener('keyup',updateMarkers);
 
   ['Family','Species','Coll','Photos'].forEach(k=>{
-     var cb=document.getElementById('toggle'+k),
-         block=document.getElementById(k.toLowerCase()+'FilterContainer');
-     if(block) block.style.display='block';
-     cb.addEventListener('change',()=>{
-        if(block) block.style.display=cb.checked?'block':'none';
-        if(!cb.checked){
-           if(k==='Family') fill(famSel,famSet);
-           if(k==='Species') fill(spSel,spSet,true);
-           if(k==='Coll') Array.from(csSel.options).forEach(o=>o.selected=true);
-        }
-        updateMarkers();
-     });
+    const cb=document.getElementById('toggle'+k),
+          block=document.getElementById(k.toLowerCase()+'FilterContainer');
+    cb.addEventListener('change',()=>{
+      if(block) block.style.display=cb.checked?'block':'none';
+      if(!cb.checked){
+        if(k==='Species') fill(spSel,spSet,true);
+        if(k==='Coll')    Array.from(csSel.options).forEach(o=>o.selected=true);
+      }
+      updateMarkers();
+    });
   });
 
-  function getSel(sel){ return Array.from(sel.selectedOptions).map(o=>o.value); }
-  function getStatus(m){
-      var c=m.options.fillColor.toLowerCase();
-      if(['gray','#808080'].includes(c)) return 'collected';
-      if(['red','#ff0000'].includes(c)) return 'missing';
-      if(['gold','yellow','#ffd700'].includes(c)) return 'palm';
-      return '';
-  }
-
-  // Filter both markers and dropdowns based on all active filters + search term
+  /* ---------- FILTER FUNCTION ---------- */
   function updateMarkers(){
-     var fOn=document.getElementById('toggleFamily').checked,
-         sOn=document.getElementById('toggleSpecies').checked,
-         cOn=document.getElementById('toggleColl').checked,
-         pOn=document.getElementById('togglePhotos').checked,
-         term=searchBox.value.trim().toLowerCase();
+    const fOn=document.getElementById('toggleFamily').checked,
+          sOn=document.getElementById('toggleSpecies').checked,
+          cOn=document.getElementById('toggleColl').checked,
+          pOn=document.getElementById('togglePhotos').checked,
+          term=search.value.trim().toLowerCase();
 
-     var selFam=fOn?getSel(famSel):Array.from(famSet),
-         selSp =sOn?getSel(spSel):Array.from(spSet),
-         selSt =cOn?getSel(csSel):['collected','missing','palm'];
+    const selFam=fOn?getSel(famSel):Array.from(famSet),
+          selSp =sOn?getSel(spSel):Array.from(spSet),
+          selSt =cOn?getSel(csSel):['collected','missing','palm'];
 
-     var filteredMarkers = [];
+    markers.forEach(m=>{
+      const txt=m._fam.toLowerCase()+m._sp.toLowerCase();
+      const show= selFam.includes(m._fam) &&
+                  selSp .includes(m._sp ) &&
+                  selSt .includes(m._stat) &&
+                  (!pOn || m._hasPhoto) &&
+                  txt.includes(term);
 
-     markers.forEach(m=>{
-        var matchText = term === '' || m._fam.toLowerCase().includes(term) ||
-                                       m._sp.toLowerCase().includes(term);
-        var show = selFam.includes(m._fam) &&
-                   selSp.includes(m._sp) &&
-                   selSt.includes(m._stat) &&
-                   (!pOn || m._hasPhoto) &&
-                   matchText;
+      if(show){ if(!map.hasLayer(m)) m.addTo(map); }
+      else     { if(map.hasLayer(m)) map.removeLayer(m); }
+    });
 
-        if(show){
-           if(!map.hasLayer(m)) m.addTo(map);
-           filteredMarkers.push(m);
-        } else {
-           if(map.hasLayer(m)) map.removeLayer(m);
-        }
-     });
-
-     // Update dropdowns to reflect only options in visible markers
-     let visibleFams = new Set(), visibleSps = new Set();
-     filteredMarkers.forEach(m => {
-        visibleFams.add(m._fam);
-        visibleSps.add(m._sp);
-     });
-
-     if(fOn) fill(famSel, visibleFams);
-     if(sOn) fill(spSel, visibleSps, true);
+    /* rebuild species list (but NOT family list) */
+    if(sOn){
+      const visibleSp=new Set();
+      markers.filter(m=>map.hasLayer(m)).forEach(m=>visibleSp.add(m._sp));
+      fill(spSel,visibleSp,true);
+    }
   }
 }
 </script>
 ")
 
+
   # End JavaScript and CSS code
   #_____________________________________________________________________________
 
   map <- leaflet(fp_coords) %>%
-    addProviderTiles(base_tiles, options = providerTileOptions(maxZoom = 31,
-                                                               maxNativeZoom = 17  )) %>%
-    addPolygons(
+    leaflet::addProviderTiles(base_tiles,
+                              options = leaflet::providerTileOptions(maxZoom = 31,
+                                                                     maxNativeZoom = 17  )) %>%
+    leaflet::addPolygons(
       lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
       lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
       color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
       popup = plot_popup
     ) %>%
-    addCircleMarkers(
+    leaflet::addCircleMarkers(
       lng = ~Longitude,
       lat = ~Latitude,
       radius = rescale(fp_coords$D, to = c(2, 8), from = range(fp_coords$D, na.rm = TRUE)),
@@ -528,10 +507,10 @@ function addFilterControl(el, x) {
       fillOpacity = 0.8,
       popup = ~popup
     ) %>%
-    setView(lng = mean(vertex_coords$longitude),
+    leaflet::setView(lng = mean(vertex_coords$longitude),
             lat = mean(vertex_coords$latitude),
             zoom = 18) %>%
-    addControl(
+    leaflet::addControl(
       html = paste0(
         "<div style='text-align:center;'>",
         "<div style='font-size:22px; font-weight:bold;'>", plot_name, "</div>",
@@ -575,10 +554,9 @@ function addFilterControl(el, x) {
     "))
     )
   filename <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
-
-  message("Saving HTML map in: ", file.path(paste0(filename, ".html")))
-  htmlwidgets::saveWidget(map, file = file.path(paste0(filename, ".html")), selfcontained = TRUE)
-  unlink(file.path(paste0(filename, "_files")), recursive = TRUE)
+  message("Saving HTML map: '", file.path(paste0(filename, ".html'")))
+  output_path <- paste0(filename, ".html")
+  htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
 
   # End function
 }
@@ -587,9 +565,10 @@ function addFilterControl(el, x) {
 #_______________________________________________________________________________
 # Auxiliary function for coordinate interpolation ####
 
-.get_latlon <- function(x, y) {
-  left <- geosphere::destPoint(p1, geosphere::bearing(p1, p2), y)
-  right <- geosphere::destPoint(p3, geosphere::bearing(p3, p4), y)
+.get_latlon <- function(x, y, p1, p2, p3, p4) {
+  left   <- geosphere::destPoint(p1, geosphere::bearing(p1, p2), y)
+  right  <- geosphere::destPoint(p3, geosphere::bearing(p3, p4), y)
   interp <- geosphere::destPoint(left, geosphere::bearing(left, right), x)
   return(interp[1, c("lat", "lon")])
 }
+

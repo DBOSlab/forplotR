@@ -10,7 +10,6 @@ plot_html_map(fp_file_path = NULL,
                      subplot_size = 10,
                      map_type = c("satellite", "street"),
                      voucher_imgs = NULL,
-                     dir = "Results_plot_map_html",
                      filename = "plot_map.html")
 }
 \arguments{
@@ -27,9 +26,6 @@ and `Longitude` for the four plot corners.}
 is "satellite").}
 
 \item{voucher_imgs}{Character. Directory path where voucher images are stored.}
-
-\item{dir}{Character. Directory to save the output HTML file
-(default is "Results_plot_map_html").}
 
 \item{filename}{Character. Name of the output HTML file (default is
 "plot_map.html").}
