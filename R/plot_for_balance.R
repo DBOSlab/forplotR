@@ -48,12 +48,10 @@
 #'   - tag numbers for collected and not collected individuals.
 #'
 #' @importFrom readxl read_excel
-#' @importFrom ggplot2 ggplot aes geom_point geom_text geom_rect
-#' @importFrom ggplot2 scale_x_continuous scale_y_continuous coord_fixed
-#' @importFrom ggplot2 scale_size_continuous scale_fill_identity labs theme
-#' @importFrom ggplot2 element_line element_blank element_text ggsave
-#' @importFrom dplyr mutate group_by summarise filter select arrange ungroup
-#' @importFrom dplyr tibble if_else %>%
+#' @import ggplot2
+#' @importFrom dplyr mutate group_by summarise filter select
+#' @importFrom dplyr tibble if_else
+#' @importFrom magrittr %>%
 #' @importFrom grDevices pdf dev.off colorRampPalette
 #' @importFrom utils capture.output
 #' @importFrom rmarkdown render
@@ -125,11 +123,11 @@ plot_for_balance <- function(fp_file_path = NULL,
   # Clean data and compute coordinates
   fp_clean <- .clean_fp_data(data, subplot_size)
   fp_coords <- .compute_global_coordinates(fp_clean, plot_size, subplot_size)
-  fp_coords <- fp_coords %>% mutate(diameter = (D / 100) * 2)
+  fp_coords <- fp_coords %>% dplyr::mutate(diameter = (D / 100) * 2)
 
   # Calculate exact subplot centers based on subplot_size and subplot number (T1)
   subplot_labels <- tibble(T1 = sort(unique(fp_coords$T1))) %>%
-    mutate(
+    dplyr::mutate(
       n_subplots_per_col = 100 / subplot_size,  # number of rows (assumed square plot)
       col_index = (T1 - 1) %/% n_subplots_per_col,
       row_index = (T1 - 1) %% n_subplots_per_col,
@@ -141,25 +139,24 @@ plot_for_balance <- function(fp_file_path = NULL,
       center_x = subplot_x + subplot_size / 2,
       center_y = subplot_y + subplot_size / 2
     ) %>%
-    select(T1, center_x, center_y)
+    dplyr::select(T1, center_x, center_y)
 
 
-# Base plot
-  base_plot <- ggplot(fp_coords, aes(x = global_x, y = global_y)) +
-    geom_vline(xintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
-    geom_hline(yintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
-    geom_rect(aes(xmin = 0, xmax = 100, ymin = 0, ymax = 100),
-              fill = NA, color = "black", linewidth = 0.6) +
-
-    geom_text(
+  # Base plot
+  base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
+    ggplot2::geom_vline(xintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
+    ggplot2::geom_hline(yintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
+    ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = 100, ymin = 0, ymax = 100),
+                       fill = NA, color = "black", linewidth = 0.6) +
+    ggplot2::geom_text(
       data = subplot_labels,
-      aes(x = center_x, y = center_y, label = T1),
+      ggplot2::aes(x = center_x, y = center_y, label = T1),
       color = "gray",
       size = 2,
       fontface = "bold",
       inherit.aes = FALSE
     ) +
-    geom_point(aes(
+    ggplot2::geom_point(aes(
       size = diameter,
       fill = factor(case_when(
         highlight_palms & Family == "Arecaceae" ~ "Palms",
@@ -172,25 +169,25 @@ plot_for_balance <- function(fp_file_path = NULL,
     color = "black",
     alpha = 0.9
     ) +
-    geom_text(aes(label = `New Tag No`),
-              vjust = 0.5,
-              hjust = 0.5,
-              size = 0.6) +
-    scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
-    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
-    coord_fixed(ratio = 1, clip = "off") +
-    scale_fill_manual(
+    ggplot2::geom_text(ggplot2::aes(label = `New Tag No`),
+                       vjust = 0.5,
+                       hjust = 0.5,
+                       size = 0.6) +
+    ggplot2::scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
+    ggplot2::scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
+    ggplot2::coord_fixed(ratio = 1, clip = "off") +
+    ggplot2::scale_fill_manual(
       values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
       name = "Status"
     ) +
-    scale_size_continuous(range = c(2, 6), guide = "none") +
-    labs(
+    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
+    ggplot2::labs(
       x = "X (m)", y = "Y (m)",
       title = paste0("Collection Balance ", plot_name),
       subtitle = paste0("Plot Code: ", plot_code)
     ) +
-    theme_bw() +
-    theme(legend.position = "right")
+    ggplot2::theme_bw() +
+    ggplot2::theme(legend.position = "right")
 
 
   # Create a temporary .Rmd file path to save the report
@@ -237,10 +234,10 @@ plot_for_balance <- function(fp_file_path = NULL,
     sp_data <- fp_coords %>% filter(T1 == sp)
 
     # Build ggplot for each subplot
-    p <- ggplot(sp_data, aes(x = X, y = Y)) +
-      geom_rect(aes(xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size),
-                fill = NA, color = "black", linewidth = 0.6) +
-      geom_point(aes(
+    p <- ggplot(sp_data, ggplot2::aes(x = X, y = Y)) +
+      ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size),
+                         fill = NA, color = "black", linewidth = 0.6) +
+      ggplot2::geom_point(ggplot2::aes(
         size = diameter,
         fill = case_when(
           highlight_palms & Family == "Arecaceae" ~ "Palms",
@@ -249,26 +246,25 @@ plot_for_balance <- function(fp_file_path = NULL,
         )
       ),
       shape = 21, color = "black", alpha = 0.9, show.legend = c(size = FALSE)) +
-      scale_fill_manual(
+      ggplot2::scale_fill_manual(
         values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
         name = "Status"
       ) +
-      scale_size_continuous(range = c(4, 10)) +
-      geom_text(aes(label = `New Tag No`), size = 1.5) +
-      labs(
+      ggplot2::scale_size_continuous(range = c(4, 10)) +
+      ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.5) +
+      ggplot2::labs(
         title = paste("Subplot", sp),
         subtitle = paste("Plot Name:", plot_name),
         caption = paste("Team:", team),
         x = "X (m)", y = "Y (m)"
       ) +
-      coord_fixed() +
-      theme_bw() +
-      theme(legend.position = "right")
+      ggplot2::coord_fixed() +
+      ggplot2::theme_bw() +
+      ggplot2::theme(legend.position = "right")
 
     # Add the subplot ggplot object to the list
     subplot_plots[[length(subplot_plots) + 1]] <- p
   }
-
 
   # Calculate plot statistics
   total_specimens <- nrow(fp_coords)
@@ -280,13 +276,13 @@ plot_for_balance <- function(fp_file_path = NULL,
   rmd_content <- .create_rmd_content(subplot_plots, tf_col, tf_uncol, tf_palm, plot_name, plot_code)
 
   # Write Rmd content to file
-  writeLines(rmd_content, rmd_path)
+  writeLines(c(rmd_content, ""), rmd_path)
 
-options(tinytex.pdflatex.args = "--no-crop")
+  options(tinytex.pdflatex.args = "--no-crop")
 
   # Render the Rmd file to PDF using rmarkdown::render with params
   invisible(
-    capture.output(
+    utils::capture.output(
       suppressMessages(
         suppressWarnings(
           rmarkdown::render(
@@ -361,7 +357,7 @@ options(tinytex.pdflatex.args = "--no-crop")
   n_rows <- floor(max_coord / subplot_size)
 
   fp_clean %>%
-    mutate(
+    dplyr::mutate(
       T1 = as.numeric(T1),
       X = as.numeric(X),
       Y = as.numeric(Y),
@@ -374,7 +370,7 @@ options(tinytex.pdflatex.args = "--no-crop")
         (n_rows - row - 1) * subplot_size + Y
       )
     ) %>%
-    filter(
+    dplyr::filter(
       global_x < max_coord,
       global_y < max_coord,
       global_x >= 0,
@@ -393,15 +389,15 @@ options(tinytex.pdflatex.args = "--no-crop")
 
   # Clean Family column
   fp_sheet <- fp_sheet %>%
-    mutate(
+    dplyr::mutate(
       Family = trimws(Family),
       Family = ifelse(is.na(Family) | Family == "", "Indet", Family)
     )
 
   # Summary by subplot
   resume <- fp_sheet %>%
-    group_by(subplot = as.character(T1)) %>%
-    summarise(
+    dplyr::group_by(subplot = as.character(T1)) %>%
+    dplyr::summarise(
       total_individuals = n(),
       total_non_arecaceae = sum(Family != "Arecaceae"),
       collected = sum(!is.na(Collected) & Collected != ""),
@@ -416,7 +412,7 @@ options(tinytex.pdflatex.args = "--no-crop")
     )
 
   total <- resume %>%
-    summarise(
+    dplyr::summarise(
       subplot = "TOTAL",
       total_individuals = sum(total_individuals),
       total_non_arecaceae = sum(total_non_arecaceae),
@@ -425,7 +421,7 @@ options(tinytex.pdflatex.args = "--no-crop")
       arecaceae_count = sum(arecaceae_count),
 
     ) %>%
-    mutate(
+    dplyr::mutate(
       collected_percentual = round(100 * collected / total_individuals, 1),
       collected_percentual_without_arecaceae = round(
         100 * sum(!is.na(fp_sheet$Collected) & fp_sheet$Collected != "" & fp_sheet$Family != "Arecaceae") /
@@ -437,16 +433,16 @@ options(tinytex.pdflatex.args = "--no-crop")
 
   # Not collected (non-palms only)
   uncollected_df <- fp_sheet %>%
-    filter((is.na(Collected) | Collected == "") & Family != "Arecaceae") %>%
-    group_by(subplot = as.character(T1)) %>%
-    summarise(
+    dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae") %>%
+    dplyr::group_by(subplot = as.character(T1)) %>%
+    dplyr::summarise(
       n_uncollected = n(),
       tagno_uncollected = paste(sort(unique(`New Tag No`)), collapse = "|"),
       .groups = "drop"
     )
 
   total_uncollected <- uncollected_df %>%
-    summarise(
+    dplyr::summarise(
       subplot = "TOTAL",
       n_uncollected = sum(n_uncollected),
       tagno_uncollected = paste(
@@ -459,16 +455,16 @@ options(tinytex.pdflatex.args = "--no-crop")
 
   # Collected
   collected_df <- fp_sheet %>%
-    filter(!is.na(Collected) & Collected != "") %>%
-    group_by(subplot = as.character(T1)) %>%
-    summarise(
+    dplyr::filter(!is.na(Collected) & Collected != "") %>%
+    dplyr::group_by(subplot = as.character(T1)) %>%
+    dplyr::summarise(
       n_collected = n(),
       tagno_collected = paste(sort(unique(`New Tag No`)), collapse = "|"),
       .groups = "drop"
     )
 
   total_collected <- collected_df %>%
-    summarise(
+    dplyr::summarise(
       subplot = "TOTAL",
       n_collected = sum(n_collected),
       tagno_collected = paste(
@@ -501,7 +497,7 @@ options(tinytex.pdflatex.args = "--no-crop")
   openxlsx::writeData(wb, "COLLECTED", final_collected, startRow = 3)
 
   # Color formatting on percentual columns
-  color <- colorRampPalette(c("red", "yellow", "green"))(101)
+  color <- grDevices::colorRampPalette(c("red", "yellow", "green"))(101)
   for (i in seq_len(nrow(resume))) {
     for (col_name in c("collected_percentual", "collected_percentual_without_arecaceae")) {
       valor <- final_resume[[col_name]][i]
