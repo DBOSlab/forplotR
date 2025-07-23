@@ -2,11 +2,25 @@
 #'
 #' @author Giulia Ottino & Domingos Cardoso
 #'
-#' @description Generates an interactive Leaflet map of a forest plot with
-#' coordinates transformed from local subplot coordinates to geographic
-#' coordinates, using four corner vertices. The polygon is built using angular
-#' ordering to prevent self-intersecting shapes. The function saves the resulting
-#' map as a date-stamped self-contained HTML file in working directory.
+#' @description
+#' Generates an interactive and self-contained HTML map following the
+#' \href{https://forestplots.net/}{ForestPlots plot protocol}, using Leaflet
+#' and based on vouchered tree data and the geographical coordinates of the
+#' plot corners. The function:(i) Converts local subplot coordinates (X, Y) to
+#' geographic coordinates using geospatial interpolation from four corner vertices;
+#' (ii) automatically extracts metadata like team name, plot name, and plot code
+#' from the input xlsx file; (iii) draws the plot boundary polygon with angular
+#' ordering to prevent self-intersection, over a selectable basemap ("satellite"
+#' or "street"); (iv) colors tree points based on collection status and palms:
+#' palms (yellow), collected (gray), and missing (red); (v) embeds image
+#' carousels in the popups for vouchers when corresponding images are available
+#' in the specified folder; (vi) adds an interactive filter sidebar with
+#' checkboxes, multi-select inputs, and search box for filtering by family,
+#' species, collection status, and presence of photos; (vii) displays informative
+#' popups for each tree,showing tag number, subplot,family, species, DBH,
+#' voucher code, and photos (if present); (viii) saves the resulting map
+#' as a date-stamped standalone HTML file to the specified directory for easy
+#' sharing, archiving, or field consultation.
 #'
 #' @usage plot_html_map(fp_file_path = NULL,
 #'                      vertex_coords = NULL,
@@ -43,7 +57,9 @@
 #'   Latitude = c(-3.123, -3.123, -3.125, -3.125),
 #'   Longitude = c(-60.012, -60.010, -60.012, -60.010)
 #' )
-#' plot_html_map("data/tree_data.xlsx", vertex_coords = vertex_df)
+#' plot_html_map("data/tree_data.xlsx",
+#'                vertex_coords = vertex_df,
+#'                voucher_imgs = "voucher_imgs")
 #' }
 #'
 #' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers setView addControl
@@ -168,7 +184,8 @@ plot_html_map <- function(fp_file_path = NULL,
     "<b>Tag:</b> ", fp_coords[[ "New Tag No" ]], "<br/>",
     "<b>Subplot:</b> ", fp_coords$T1, "<br/>",
     "<b>Family:</b> ", fp_coords$Family, "<br/>",
-    "<b>Species:</b> <i> ", fp_coords[["Original determination"]], "</i><br/>",
+    "<b>Species:</b> <i class='taxon'>",
+    fp_coords[["Original determination"]],   "</i><br/>",
     "<b>DBH (mm):</b> ", round(fp_coords$D, 2), "<br/>",
     "<b>Voucher:</b> ", fp_coords$Voucher
   )
@@ -224,212 +241,12 @@ plot_html_map <- function(fp_file_path = NULL,
     )
   }
 
-  base_tiles <- if (map_type == "satellite") "Esri.WorldImagery" else "OpenStreetMap"
-
-  #_____________________________________________________________________________
-  # Filter code in JavaScript + CSS
-  filter_script <- htmltools::HTML("
-function addFilterControl(el, x) {
-  var map = this;
-
-  // Create the filter container positioned in the top right corner
-  var filterContainer = L.control({position: 'topright'});
-
-  filterContainer.onAdd = function () {
-    var div = L.DomUtil.create('div', 'info legend');
-
-    // HTML filter structure: checkboxes and dropdowns
-    div.innerHTML = `
-      <div style='margin-bottom:5px;'>
-        <b>Enable Filters:</b><br/>
-        <label><input type='checkbox' id='toggleFamily'> Family</label><br/>
-        <label><input type='checkbox' id='toggleSpecies'> Species</label><br/>
-        <label><input type='checkbox' id='toggleColl'> Collection Status</label><br/>
-        <label><input type='checkbox' id='togglePhotos'> With Photos Only</label>
-      </div>
-      <div id='familyFilterContainer' style='display:none; margin-bottom:5px;'>
-        <label><b>Filter by Family:</b></label><br/>
-        <select id='familyFilter' multiple size='5'></select>
-      </div>
-      <div id='speciesFilterContainer' style='display:none; margin-bottom:5px;'>
-        <label><b>Filter by Species:</b></label><br/>
-        <select id='speciesFilter' multiple size='5' style='width:100%; line-height:1.5em; font-size:13px;'></select>
-      </div>
-      <div id='collFilterContainer' style='display:none; margin-bottom:5px;'>
-        <label><b>Filter by Collection Status:</b></label><br/>
-        <select id='collFilter' multiple size='3'>
-          <option value='collected'>Collected (Gray)</option>
-          <option value='missing'>Not Collected (Red)</option>
-          <option value='palm'>Palm (Yellow)</option>
-        </select>
-      </div>
-    `;
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-  };
-
-  filterContainer.addTo(map);
-
-  // Collect all CircleMarkers on the map
-  var allMarkers = [];
-  map.eachLayer(function(layer) {
-    if (layer instanceof L.CircleMarker) {
-      allMarkers.push(layer);
-    }
-  });
-
-  // Initialize structures for filters
-  var speciesToFamily = {};
-  var familyToSpecies = {};
-  var speciesSet = new Set();
-  var familySet = new Set();
-  var markersWithPhotos = new Set();
-
-  // Extract species, family, voucher, and photo status for each marker
-  allMarkers.forEach(marker => {
-    var html = marker.getPopup()?.getContent?.() || '';
-    var speciesMatch = html.match(/<b>Species:<\\/b>\\s*<i>\\s*(.*?)<\\/i><br\\/>/);
-    var familyMatch = html.match(/<b>Family:<\\/b>\\s*(.*?)<br\\/>/);
-    var voucherMatch = html.match(/<b>Voucher:<\\/b>\\s*(.*?)</);
-    var hasPhoto = html.includes('slideshow-container');
-
-    var species = speciesMatch?.[1]?.trim() || '';
-    var family = familyMatch?.[1]?.trim() || '';
-    var voucher = voucherMatch?.[1]?.trim() || '';
-
-    if (species) speciesSet.add(species);
-    if (family) familySet.add(family);
-    if (hasPhoto && voucher) markersWithPhotos.add(voucher);
-
-    if (species && family) {
-      speciesToFamily[species] = family;
-      if (!familyToSpecies[family]) familyToSpecies[family] = new Set();
-      familyToSpecies[family].add(species);
-    }
-
-    // Store marker data as custom properties
-    marker._voucher = voucher;
-    marker._species = species;
-    marker._family = family;
-    marker._status = getMarkerStatus(marker);
-    marker._hasPhoto = hasPhoto;
-  });
-
-  // DOM references
-  var familyFilter = document.getElementById('familyFilter');
-  var speciesFilter = document.getElementById('speciesFilter');
-  var collFilter = document.getElementById('collFilter');
-  var photoCheckbox = document.getElementById('togglePhotos');
-
-  // Populate dropdown with options
-  function populateSelect(selectElement, items, italicize = false) {
-    selectElement.innerHTML = '';
-    Array.from(items).sort().forEach(item => {
-      var option = document.createElement('option');
-      option.value = item;
-      option.selected = true;
-      option.innerHTML = italicize ? `<i>${item}</i>` : item;
-      selectElement.appendChild(option);
-    });
+  # replace the old choice logic
+  base_tiles <- if (map_type == "satellite") {
+    "Esri.WorldImagery"
+  } else {
+    "OpenTopoMap"   # verde, sem ícones de árvore, gratuito
   }
-
-  // Get selected values from a <select>
-  function getSelectedOptions(select) {
-    return Array.from(select.selectedOptions).map(opt => opt.value);
-  }
-
-  // Define collection status from marker color
-  function getMarkerStatus(marker) {
-    var fill = marker.options.fillColor.toLowerCase();
-    if (['gray', '#808080'].includes(fill)) return 'collected';
-    if (['red', '#ff0000'].includes(fill)) return 'missing';
-    if (['yellow', 'gold', '#ffd700'].includes(fill)) return 'palm';
-    return '';
-  }
-
-  // Filter species options based on selected families
-  function updateSpeciesOptions(selectedFamilies) {
-    let filteredSpecies = new Set();
-    selectedFamilies.forEach(fam => {
-      if (familyToSpecies[fam]) {
-        familyToSpecies[fam].forEach(sp => filteredSpecies.add(sp));
-      }
-    });
-    populateSelect(speciesFilter, filteredSpecies, true);
-  }
-
-  // Populate dropdowns on initial load
-  populateSelect(familyFilter, familySet);
-  populateSelect(speciesFilter, speciesSet, true);
-  Array.from(collFilter.options).forEach(opt => opt.selected = true);
-
-  // Update visibility of markers based on filters
-  function updateMarkers() {
-    var useFamily = document.getElementById('toggleFamily').checked;
-    var useSpecies = document.getElementById('toggleSpecies').checked;
-    var useColl = document.getElementById('toggleColl').checked;
-    var usePhotos = document.getElementById('togglePhotos').checked;
-
-    var selectedFamilies = useFamily ? getSelectedOptions(familyFilter) : Array.from(familySet);
-    var selectedSpecies = useSpecies ? getSelectedOptions(speciesFilter) : Array.from(speciesSet);
-    var selectedStatus = useColl ? getSelectedOptions(collFilter) : ['collected', 'missing', 'palm'];
-
-    allMarkers.forEach(marker => {
-      var show = selectedFamilies.includes(marker._family) &&
-                 selectedSpecies.includes(marker._species) &&
-                 selectedStatus.includes(marker._status) &&
-                 (!usePhotos || marker._hasPhoto);
-
-      marker.setStyle({
-        opacity: show ? 1 : 0,
-        fillOpacity: show ? 0.8 : 0
-      });
-    });
-  }
-
-  // Toggle filter visibility and reset selections when disabled
-  ['Family','Species','Coll','Photos'].forEach(key => {
-    var checkbox = document.getElementById('toggle' + key);
-    var container = document.getElementById(key.toLowerCase() + 'FilterContainer');
-
-    if (container) {
-      checkbox.addEventListener('change', () => {
-        container.style.display = checkbox.checked ? 'block' : 'none';
-
-        if (!checkbox.checked) {
-          if (key === 'Family') {
-            populateSelect(familyFilter, familySet);
-          } else if (key === 'Species') {
-            populateSelect(speciesFilter, speciesSet, true);
-          } else if (key === 'Coll') {
-            Array.from(collFilter.options).forEach(opt => opt.selected = true);
-          }
-        }
-
-        // If family filter is active and species filter is also active, update species list
-        if (key === 'Family' && checkbox.checked && document.getElementById('toggleSpecies').checked) {
-          updateSpeciesOptions(getSelectedOptions(familyFilter));
-        }
-
-        updateMarkers();
-      });
-    } else if (key === 'Photos') {
-      checkbox.addEventListener('change', updateMarkers);
-    }
-  });
-
-  // React to dropdown changes
-  familyFilter.addEventListener('change', () => {
-    if (document.getElementById('toggleSpecies').checked) {
-      updateSpeciesOptions(getSelectedOptions(familyFilter));
-    }
-    updateMarkers();
-  });
-
-  speciesFilter.addEventListener('change', updateMarkers);
-  collFilter.addEventListener('change', updateMarkers);
-}
-")
 
 #-------------------------------------------------------------------------------
   # Carousel-like navigation code in JavaScript + CSS
@@ -479,12 +296,222 @@ document.addEventListener('click', function(e) {
 });
 </script>
 ")
+  sidebar_css_js <- htmltools::HTML("
+<!-- ---------- SIDEBAR + SEARCH ------------ -->
+<style>
+#sidebar {
+  position: absolute; top: 0; right: 0;
+  width: 280px; height: 100%;
+  background: rgba(255,255,255,0.97);
+  box-shadow: -4px 0 10px rgba(0,0,0,0.3);
+  overflow-y: auto; padding: 12px 14px;
+  transform: translateX(100%);
+  transition: transform .28s ease-in-out;
+  z-index: 1001;
+  font-size: 14px;
+}
+#sidebar.open { transform: translateX(0); }
+
+#sidebarToggle {
+  position: absolute; top: 10px; right: 15px;
+  width: 34px; height: 34px;
+  border-radius: 4px; background: #fff; color: #333;
+  box-shadow: 0 0 5px rgba(0,0,0,.35);
+  cursor: pointer; z-index: 1100;
+  display:flex; align-items:center; justify-content:center;
+  font-size: 20px; user-select:none;
+}
+
+#searchInput {
+  width: 100%; padding: 6px 8px; margin-bottom: 8px;
+  border: 1px solid #999; border-radius: 4px;
+}
+
+.leaflet-popup-content { max-width: 260px; padding: 4px; }
+.leaflet-popup-content img { width: 100%; height: auto; border-radius: 4px; }
+
+.mySlides { display:none; }
+.prev,.next { cursor:pointer; font-size:18px; color:#444; }
+</style>
+
+<script>
+function addFilterControl(el, x) {
+  // Create slide-out sidebar elements
+  var map = this,
+      mapDiv = map.getContainer(),
+      sb   = document.createElement('div'),
+      btn  = document.createElement('div');
+
+  sb.id = 'sidebar';
+  btn.id = 'sidebarToggle';
+  btn.innerHTML = '&#9776;';  // hamburger icon
+
+  mapDiv.appendChild(sb);
+  mapDiv.appendChild(btn);
+
+  // Toggle sidebar
+  btn.addEventListener('click',()=> sb.classList.toggle('open'));
+
+  // Sidebar HTML content
+  sb.innerHTML = `
+    <input id='searchInput' type='text' placeholder='Search family or species'/>
+    <div style='margin-bottom:6px;'><b>Enable Filters:</b><br/>
+      <label><input type='checkbox' id='toggleFamily' checked> Family</label><br/>
+      <label><input type='checkbox' id='toggleSpecies' checked> Species</label><br/>
+      <label><input type='checkbox' id='toggleColl' checked> Collection&nbsp;Status</label><br/>
+      <label><input type='checkbox' id='togglePhotos'> With&nbsp;Photos&nbsp;Only</label>
+    </div>
+    <div id='familyFilterContainer'>
+      <b>Filter by Family:</b><br/>
+      <select id='familyFilter' multiple size='6' style='width:100%;'></select>
+    </div><br/>
+    <div id='speciesFilterContainer'>
+      <b>Filter by Species:</b><br/>
+      <select id='speciesFilter' multiple size='6' style='width:100%;'></select>
+    </div><br/>
+    <div id='collFilterContainer'>
+      <b>Filter by Collection Status:</b><br/>
+      <select id='collFilter' multiple size='3' style='width:100%;'>
+        <option value='collected'>Collected (Gray)</option>
+        <option value='missing'>Not Collected (Red)</option>
+        <option value='palm'>Palm (Yellow)</option>
+      </select>
+    </div>
+  `;
+
+  // Gather marker info
+  var markers = [];
+  map.eachLayer(l=>{
+     if(l instanceof L.CircleMarker){ markers.push(l); }
+  });
+
+  var famSet = new Set(), spSet  = new Set(),
+      sp2fam = {}, fam2sp = {}, photoVouchers = new Set();
+
+  markers.forEach(m=>{
+    var html = m.getPopup().getContent(),
+        fam  = /<b>Family:<\\/b>\\s*(.*?)<br\\/>/.exec(html)?.[1]?.trim() || '',
+        sp   = /<b>Species:<\\/b>\\s*<i[^>]*>\\s*(.*?)<\\/i>/.exec(html)?.[1]?.trim() || '',
+        vou  = /<b>Voucher:<\\/b>\\s*(.*?)</.exec(html)?.[1]?.trim() || '',
+        photo= html.includes('slideshow-container');
+
+    if(fam) famSet.add(fam);
+    if(sp)  spSet.add(sp);
+    if(photo && vou) photoVouchers.add(vou);
+
+    sp2fam[sp]=fam;
+    fam2sp[fam] = fam2sp[fam] || new Set();
+    fam2sp[fam].add(sp);
+
+    Object.assign(m,{ _fam:fam, _sp:sp, _vou:vou, _hasPhoto:photo, _stat:getStatus(m) });
+  });
+
+  const famSel=document.getElementById('familyFilter'),
+        spSel =document.getElementById('speciesFilter'),
+        csSel =document.getElementById('collFilter');
+
+  function fill(sel, set, italic=false){
+     sel.innerHTML='';
+     Array.from(set).sort().forEach(v=>{
+        var o=document.createElement('option');
+        o.value=v; o.selected=true;
+        o.innerHTML=italic?`<i>${v}</i>`:v;
+        sel.appendChild(o);
+     });
+  }
+
+  fill(famSel,famSet); fill(spSel,spSet,true);
+
+  const searchBox=document.getElementById('searchInput');
+  searchBox.addEventListener('keyup',updateMarkers);
+
+  famSel.addEventListener('change',()=>{
+     if(document.getElementById('toggleSpecies').checked){
+        let famChosen=getSel(famSel);
+        let tmp=new Set();
+        famChosen.forEach(f=>fam2sp[f]?.forEach(s=>tmp.add(s)));
+        fill(spSel,tmp,true);
+     }
+     updateMarkers();
+  });
+  spSel.addEventListener('change',updateMarkers);
+  csSel.addEventListener('change',updateMarkers);
+
+  ['Family','Species','Coll','Photos'].forEach(k=>{
+     var cb=document.getElementById('toggle'+k),
+         block=document.getElementById(k.toLowerCase()+'FilterContainer');
+     if(block) block.style.display='block';
+     cb.addEventListener('change',()=>{
+        if(block) block.style.display=cb.checked?'block':'none';
+        if(!cb.checked){
+           if(k==='Family') fill(famSel,famSet);
+           if(k==='Species') fill(spSel,spSet,true);
+           if(k==='Coll') Array.from(csSel.options).forEach(o=>o.selected=true);
+        }
+        updateMarkers();
+     });
+  });
+
+  function getSel(sel){ return Array.from(sel.selectedOptions).map(o=>o.value); }
+  function getStatus(m){
+      var c=m.options.fillColor.toLowerCase();
+      if(['gray','#808080'].includes(c)) return 'collected';
+      if(['red','#ff0000'].includes(c)) return 'missing';
+      if(['gold','yellow','#ffd700'].includes(c)) return 'palm';
+      return '';
+  }
+
+  // Filter both markers and dropdowns based on all active filters + search term
+  function updateMarkers(){
+     var fOn=document.getElementById('toggleFamily').checked,
+         sOn=document.getElementById('toggleSpecies').checked,
+         cOn=document.getElementById('toggleColl').checked,
+         pOn=document.getElementById('togglePhotos').checked,
+         term=searchBox.value.trim().toLowerCase();
+
+     var selFam=fOn?getSel(famSel):Array.from(famSet),
+         selSp =sOn?getSel(spSel):Array.from(spSet),
+         selSt =cOn?getSel(csSel):['collected','missing','palm'];
+
+     var filteredMarkers = [];
+
+     markers.forEach(m=>{
+        var matchText = term === '' || m._fam.toLowerCase().includes(term) ||
+                                       m._sp.toLowerCase().includes(term);
+        var show = selFam.includes(m._fam) &&
+                   selSp.includes(m._sp) &&
+                   selSt.includes(m._stat) &&
+                   (!pOn || m._hasPhoto) &&
+                   matchText;
+
+        if(show){
+           if(!map.hasLayer(m)) m.addTo(map);
+           filteredMarkers.push(m);
+        } else {
+           if(map.hasLayer(m)) map.removeLayer(m);
+        }
+     });
+
+     // Update dropdowns to reflect only options in visible markers
+     let visibleFams = new Set(), visibleSps = new Set();
+     filteredMarkers.forEach(m => {
+        visibleFams.add(m._fam);
+        visibleSps.add(m._sp);
+     });
+
+     if(fOn) fill(famSel, visibleFams);
+     if(sOn) fill(spSel, visibleSps, true);
+  }
+}
+</script>
+")
 
   # End JavaScript and CSS code
   #_____________________________________________________________________________
 
   map <- leaflet(fp_coords) %>%
-    addProviderTiles(base_tiles, options = providerTileOptions(maxZoom = 31)) %>%
+    addProviderTiles(base_tiles, options = providerTileOptions(maxZoom = 31,
+                                                               maxNativeZoom = 17  )) %>%
     addPolygons(
       lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
       lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
@@ -503,7 +530,7 @@ document.addEventListener('click', function(e) {
     ) %>%
     setView(lng = mean(vertex_coords$longitude),
             lat = mean(vertex_coords$latitude),
-            zoom = 19) %>%
+            zoom = 18) %>%
     addControl(
       html = paste0(
         "<div style='text-align:center;'>",
@@ -514,9 +541,39 @@ document.addEventListener('click', function(e) {
       ),
       position = "topleft"
     ) %>%
-    htmlwidgets::onRender(filter_script) %>%
-    htmlwidgets::prependContent(carousel_js_css)
+    htmlwidgets::onRender(
+      "function(el, x){ this.whenReady(function(){ addFilterControl.call(this, el, x); }); }"
+    ) %>%
 
+    htmlwidgets::prependContent(
+      carousel_js_css,
+      sidebar_css_js
+    )
+
+  map <- map %>%
+    # 1) Load the Roboto family (light, regular, medium, bold)
+    htmlwidgets::prependContent(
+      htmltools::tags$link(
+        href = "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap",
+        rel  = "stylesheet"
+      ),
+      # 2) Apply Roboto everywhere and set some helper classes
+      htmltools::tags$style(htmltools::HTML("
+      /* Global font replacement */
+      .leaflet-container,
+      .leaflet-popup-content,
+      #sidebar {
+        font-family: 'Roboto', sans-serif;
+      }
+
+      /* Italic for scientific names */
+      .taxon { font-style: italic; }
+
+      /* Map title and subtitle helpers */
+      .mapTitle    { font-size: 22px; font-weight: 700; }
+      .mapSubtitle { font-size: 16px; font-weight: 400; }
+    "))
+    )
   filename <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
 
   message("Saving HTML map in: ", file.path(paste0(filename, ".html")))

@@ -2,23 +2,21 @@
 #'
 #' @author Giulia Ottino & Domingos Cardoso
 #'
-#' @description Processes field data collected using the [Forestplots format]
-#' (https://forestplots.net/) and generates a specimen map (2D plot) with
-#' collection status and spatial distribution of individuals  across subplots.
-#' Optionally, it can generate a PDF with separate maps for each subplot and a
-#' spreadsheet summarizing the percentage of collected specimens per subplot.
-#' The function performs the following steps: (i) validates all input arguments
-#' and checks/create output folders; (ii) reads the xlsx [Forestplots format]
-#' sheet, extracts metadata (team, plot name, plot code), and cleans the data;
-#' (iii) normalizes and cleans coordinate and diameter values, computing global
-#' plot coordinates from subplot-relative positions; (iv) generates a main 2D
-#' ggplot object showing all individuals, colored by collection status and
-#' optionally highlighting palms (Arecaceae); (v) optionally, creates a PDF
-#' report is generated, including plot metadata, the main map, collected and
-#' uncollected specimen maps, and navigable individual subplot  maps. (vi)
-#' optionally, generates a spreadsheet with the collection percentage per
-#' subplot (including totals), distinguishing collected vs. uncollected, and
-#' palms specimen.
+#' @description Processes field data collected using the \href {https://forestplots.net/}{Forestplots format}
+#' and generates a specimen map (2D plot) with collection status and spatial
+#' distribution of individuals across subplots. Generate a PDF with a full plot
+#' report with separate maps, for each subplot and a spreadsheet summarizing the
+#' percentage of collected specimens per subplot. The function performs the
+#' following steps: (i) validates all input arguments and checks/create output
+#' folders; (ii) reads the xlsx {Forestplots format} sheet, extracts metadata
+#' (team, plot name, plot code), and cleans the data; (iii) normalizes and cleans
+#' coordinate and diameter values, computing global plot coordinates from
+#' subplot-relative positions; (iv) creates a PDF report, including plot metadata,
+#' the main map, collected and uncollected specimen maps, optionally a map
+#' highlighting palms (Arecaceae) and navigable individual subplot  maps; (v)
+#' optionally generates a xlsx spreadsheet with the collection
+#' percentage per subplot (including totals), distinguishing collected vs.
+#' uncollected, and palms specimen.
 #'
 #' @usage
 #' plot_for_balance(fp_file_path = NULL,
@@ -62,8 +60,6 @@
 #' @importFrom tools file_path_sans_ext
 #' @importFrom openxlsx createWorkbook addWorksheet writeData saveWorkbook
 #' @importFrom openxlsx createStyle addStyle
-#' @importFrom grid textGrob gpar unit
-#' @importFrom gridExtra grid.arrange tableGrob
 #'
 #' @examples
 #' \dontrun{
@@ -148,177 +144,193 @@ plot_for_balance <- function(fp_file_path = NULL,
     select(T1, center_x, center_y)
 
 
-  # Base plot
+# Base plot
   base_plot <- ggplot(fp_coords, aes(x = global_x, y = global_y)) +
+    geom_vline(xintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
+    geom_hline(yintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
+    geom_rect(aes(xmin = 0, xmax = 100, ymin = 0, ymax = 100),
+              fill = NA, color = "black", linewidth = 0.6) +
+
     geom_text(
       data = subplot_labels,
       aes(x = center_x, y = center_y, label = T1),
       color = "gray",
-      size = 1,
+      size = 2,
       fontface = "bold",
       inherit.aes = FALSE
-    )+
-    geom_point(aes(size = diameter,
-                   fill = case_when(highlight_palms & Family == "Arecaceae" ~ "gold",
-                                    !is.na(Collected) & Collected != "" ~ "gray",
-                                    TRUE ~ "red")),
-               shape = 21,
-               stroke = 0.2,
-               color = "black",
-               alpha = 0.9) +
+    ) +
+    geom_point(aes(
+      size = diameter,
+      fill = factor(case_when(
+        highlight_palms & Family == "Arecaceae" ~ "Palms",
+        !is.na(Collected) & Collected != "" ~ "Collected",
+        TRUE ~ "Uncollected"
+      ), levels = c("Collected", "Uncollected", "Palms"))
+    ),
+    shape = 21,
+    stroke = 0.2,
+    color = "black",
+    alpha = 0.9
+    ) +
     geom_text(aes(label = `New Tag No`),
               vjust = 0.5,
               hjust = 0.5,
-              size = 0.4) +
-    scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size), expand = c(0, 0)) +
-    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size), expand = c(0, 0)) +
+              size = 0.6) +
+    scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
+    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
     coord_fixed(ratio = 1, clip = "off") +
-    scale_size_continuous(range = c(0.5, 2)) +
-    scale_fill_identity() +
-    labs(x = "X (m)", y = "Y (m)",
-         title = paste0("Collection Balance ", plot_name),
-         subtitle = paste0("Plot Code: ", plot_code),
-         caption = paste0("Team: ", team)) +
+    scale_fill_manual(
+      values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
+      name = "Status"
+    ) +
+    scale_size_continuous(range = c(2, 6), guide = "none") +
+    labs(
+      x = "X (m)", y = "Y (m)",
+      title = paste0("Collection Balance ", plot_name),
+      subtitle = paste0("Plot Code: ", plot_code)
+    ) +
     theme_bw() +
-    theme(
-      panel.grid.major = element_line(color = "gray80", linewidth = 0.3),
-      panel.grid.minor = element_blank(),
-      panel.border = element_blank(),
-      plot.margin = unit(c(2, 2, 2, 2), "cm"),
-      legend.position = "none"
-    )
+    theme(legend.position = "right")
 
 
-    # Create a temporary .Rmd file path to save the report
-    rmd_path <- tempfile(fileext = ".Rmd")
+  # Create a temporary .Rmd file path to save the report
+  rmd_path <- tempfile(fileext = ".Rmd")
 
-    # Define the final PDF output path
-    final_pdf <- file.path(foldername, paste0(filename, "_full_report.pdf"))
+  # Define the final PDF output path
+  final_pdf <- file.path(foldername, paste0(filename, "_full_report.pdf"))
 
-    # Filter data for collected specimens (excluding family Arecaceae)
-    tf_col <- !is.na(fp_coords$Collected)
-    if (any(tf_col)) {
-      filtered_collected_data <- fp_coords %>%
-        filter(!is.na(Collected) & Family != "Arecaceae")
+  # Filter data for collected specimens (excluding family Arecaceae)
+  tf_col <- !is.na(fp_coords$Collected)
+  if (any(tf_col)) {
+    filtered_collected_data <- fp_coords %>%
+      filter(!is.na(Collected) & Family != "Arecaceae")
 
-      # Create collected plot based on base_plot with filtered data
-      collected_plot <- base_plot %+% filtered_collected_data
-    }
+    # Create collected plot based on base_plot with filtered data
+    collected_plot <- base_plot %+% filtered_collected_data
+  }
 
-    # Filter data for not collected specimens (excluding family Arecaceae)
-    tf_uncol <- is.na(fp_coords$Collected)
-    if (any(tf_uncol)) {
+  # Filter data for not collected specimens (excluding family Arecaceae)
+  tf_uncol <- is.na(fp_coords$Collected)
+  if (any(tf_uncol)) {
     filtered_uncollected_data <- fp_coords %>%
       filter((is.na(Collected)) & Family != "Arecaceae")
 
     # Create not collected plot based on base_plot with filtered data
     uncollected_plot <- base_plot %+% filtered_uncollected_data
-    }
+  }
 
-    # Filter data for not collected palm specimens
-    tf_palm <- fp_coords$Family %in% "Arecaceae"
-    if (any(tf_palm)) {
-      filtered_uncollected_palm_data <- fp_coords %>%
-        filter((is.na(Collected)) & Family == "Arecaceae")
+  # Filter data for not collected palm specimens
+  tf_palm <- fp_coords$Family %in% "Arecaceae"
+  if (any(tf_palm)) {
+    filtered_uncollected_palm_data <- fp_coords %>%
+      filter((is.na(Collected)) & Family == "Arecaceae")
 
-      # Create not collected plot for palms based on base_plot with filtered data
-      uncollected_palm_plot <- base_plot %+% filtered_uncollected_palm_data
-    }
+    # Create not collected plot for palms based on base_plot with filtered data
+    uncollected_palm_plot <- base_plot %+% filtered_uncollected_palm_data
+  }
 
-    # Generate subplot plots for each unique subplot (T1)
-    subplot_plots <- list()
-    unique_subplots <- sort(unique(fp_coords$T1))
+  # Generate subplot plots for each unique subplot (T1)
+  subplot_plots <- list()
+  unique_subplots <- sort(unique(fp_coords$T1))
 
-    for (sp in unique_subplots) {
-      sp_data <- fp_coords %>% filter(T1 == sp)
+  for (sp in unique_subplots) {
+    sp_data <- fp_coords %>% filter(T1 == sp)
 
-      # Build ggplot for each subplot
-      p <- ggplot(sp_data, aes(x = X, y = Y)) +
-        geom_rect(aes(xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size),
-                  fill = NA, color = "black", linewidth = 0.6) +
-        geom_point(aes(size = diameter,
-                       fill = case_when(
-                         highlight_palms & Family == "Arecaceae" ~ "gold",
-                         !is.na(Collected) & Collected != "" ~ "gray",
-                         TRUE ~ "red")),
-                   shape = 21, color = "black", alpha = 0.9) +
-        geom_text(aes(label = `New Tag No`), size = 1.5) +
-        scale_x_continuous(limits = c(0, subplot_size)) +
-        scale_y_continuous(limits = c(0, subplot_size)) +
-        scale_fill_identity() +
-        scale_size_continuous(range = c(4, 10)) +
-        labs(
-          title = paste("Subplot", sp),
-          subtitle = paste("Plot Name:", plot_name),
-          caption = paste("Team:", team),
-          x = "X (m)", y = "Y (m)"
-        ) +
-        coord_fixed() +
-        theme_bw() +
-        theme(legend.position = "right")
+    # Build ggplot for each subplot
+    p <- ggplot(sp_data, aes(x = X, y = Y)) +
+      geom_rect(aes(xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size),
+                fill = NA, color = "black", linewidth = 0.6) +
+      geom_point(aes(
+        size = diameter,
+        fill = case_when(
+          highlight_palms & Family == "Arecaceae" ~ "Palms",
+          !is.na(Collected) & Collected != "" ~ "Collected",
+          TRUE ~ "Uncollected"
+        )
+      ),
+      shape = 21, color = "black", alpha = 0.9, show.legend = c(size = FALSE)) +
+      scale_fill_manual(
+        values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
+        name = "Status"
+      ) +
+      scale_size_continuous(range = c(4, 10)) +
+      geom_text(aes(label = `New Tag No`), size = 1.5) +
+      labs(
+        title = paste("Subplot", sp),
+        subtitle = paste("Plot Name:", plot_name),
+        caption = paste("Team:", team),
+        x = "X (m)", y = "Y (m)"
+      ) +
+      coord_fixed() +
+      theme_bw() +
+      theme(legend.position = "right")
 
-      # Add the subplot ggplot object to the list
-      subplot_plots[[length(subplot_plots) + 1]] <- p
-    }
+    # Add the subplot ggplot object to the list
+    subplot_plots[[length(subplot_plots) + 1]] <- p
+  }
 
-    # Calculate summary statistics
-    total_specimens <- nrow(fp_coords)
-    collected_count <- sum(!is.na(fp_coords$Collected) & fp_coords$Collected != "" & fp_coords$Family != "Arecaceae")
-    uncollected_count <- sum((is.na(fp_coords$Collected) | fp_coords$Collected == "") & fp_coords$Family != "Arecaceae")
-    palms_count <- sum(fp_coords$Family == "Arecaceae")
 
-    # Prepare RMarkdown sections for each subplot with navigation and page breaks
-    rmd_content <- .create_rmd_content(subplot_plots, tf_col, tf_uncol, tf_palm)
+  # Calculate plot statistics
+  total_specimens <- nrow(fp_coords)
+  collected_count <- sum(!is.na(fp_coords$Collected) & fp_coords$Collected != "" & fp_coords$Family != "Arecaceae")
+  uncollected_count <- sum((is.na(fp_coords$Collected) | fp_coords$Collected == "") & fp_coords$Family != "Arecaceae")
+  palms_count <- sum(fp_coords$Family == "Arecaceae")
 
-    # Write Rmd content to file
-    writeLines(rmd_content, rmd_path)
+  # Prepare RMarkdown sections for each subplot with navigation and page breaks
+  rmd_content <- .create_rmd_content(subplot_plots, tf_col, tf_uncol, tf_palm, plot_name, plot_code)
 
-    # Render the Rmd file to PDF using rmarkdown::render with params
-    invisible(
-      capture.output(
-        suppressMessages(
-          suppressWarnings(
-            rmarkdown::render(
-              input = rmd_path,
-              output_file = basename(final_pdf),
-              output_dir = foldername,
-              params = list(
-                metadata = list(plot_name = plot_name, plot_code = plot_code, team = team),
-                main_plot = base_plot,
-                collected_plot = collected_plot,
-                uncollected_plot = uncollected_plot,
-                subplots_list = subplot_plots,
-                subplot_size = subplot_size,
-                stats = list(
-                  total = total_specimens,
-                  collected = collected_count,
-                  uncollected = uncollected_count,
-                  palms = palms_count
-                )
-              ),
-              envir = new.env(parent = globalenv())
-            )
+  # Write Rmd content to file
+  writeLines(rmd_content, rmd_path)
+
+options(tinytex.pdflatex.args = "--no-crop")
+
+  # Render the Rmd file to PDF using rmarkdown::render with params
+  invisible(
+    capture.output(
+      suppressMessages(
+        suppressWarnings(
+          rmarkdown::render(
+            input = rmd_path,
+            output_file = basename(final_pdf),
+            output_dir = foldername,
+            params = list(
+              metadata = list(plot_name = plot_name, plot_code = plot_code, team = team),
+              main_plot = base_plot,
+              collected_plot = collected_plot,
+              uncollected_plot = uncollected_plot,
+              uncollected_palm_plot = uncollected_palm_plot,
+              subplots_list = subplot_plots,
+              subplot_size = subplot_size,
+              stats = list(
+                total = total_specimens,
+                collected = collected_count,
+                uncollected = uncollected_count,
+                palms = palms_count
+              )
+            ),
+            envir = new.env(parent = globalenv())
           )
-        ),
-        type = "output"
-      )
+        )
+      ),
+      type = "output"
     )
+  )
 
-    # Cleanup temporary files/folders created by knitting
-    unlink(rmd_path)
-    unlink(file.path(foldername, paste0(tools::file_path_sans_ext(basename(final_pdf)), "_files")), recursive = TRUE)
+  # Cleanup temporary files/folders created by knitting
+  unlink(rmd_path)
+  unlink(file.path(foldername, paste0(tools::file_path_sans_ext(basename(final_pdf)), "_files")), recursive = TRUE)
 
-    cat(paste0("✅ Full report saved to: ", final_pdf, "\n"))
+  cat(paste0("✅ Full report saved to: ", final_pdf, "\n"))
 
 
   # Generate collection summary table
-    .collection_percentual(
-      fp_sheet = fp_coords,
-      dir = foldername,
-      plot_name = plot_name,
-      plot_code = plot_code,
-      team = team
-    )
+  .collection_percentual(
+    fp_sheet = fp_coords,
+    dir = foldername,
+    plot_name = plot_name,
+    plot_code = plot_code,
+    team = team
+  )
 }
 
 
@@ -519,17 +531,18 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 
-# Prepare RMarkdown sections for each subplot with navigation and page breaks
-.create_rmd_content <- function(subplot_plots, tf_col, tf_uncol, tf_palm) {
-
+#' Prepare RMarkdown sections for each subplot with navigation and page breaks
+.create_rmd_content <- function(subplot_plots, tf_col, tf_uncol, tf_palm, plot_name, plot_code) {
 
   # Compose the RMarkdown document content as a character vector
   rmd_content <- c(
     "---",
-    "title: \"Full Plot Specimen Report\"",
+    "title: \"ForplotR Full Report\"",
+    "subtitle: \"`r paste0(params$metadata$plot_name, ' | Plot Code: ', params$metadata$plot_code)`\"",
     "output:",
     "  pdf_document:",
     "    toc: true",
+    "    toc_depth: 2",
     "    number_sections: true",
     "fontsize: 11pt",
     "params:",
@@ -537,110 +550,115 @@ plot_for_balance <- function(fp_file_path = NULL,
     "  main_plot: NULL"
   )
 
-  mid_section <- c("  subplots_list: NULL",
-                   "  subplot_size: NULL",
-                   "  stats: NULL",
-                   "---",
-                   "",
-                   "```{r setup, include=FALSE}",
-                   "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)",
-                   "library(ggplot2)",
-                   "library(dplyr)",
-                   "```",
-                   "",
-                   "\\newpage",
-                   "# Metadata {#metadata}",
-                   "",
-                   "**Plot Name:** `r params$metadata$plot_name`",
-                   "",
-                   "**Plot Code:** `r params$metadata$plot_code`",
-                   "",
-                   "**Team:** `r params$metadata$team`",
-                   "\\",
-                   "",
-                   "\\hrule",
-                   "",
-                   "# Specimen Counts {#counts}",
-                   "",
-                   "- **Total Specimens:** `r params$stats$total`",
-                   "- **Collected (excluding palms):** `r params$stats$collected`",
-                   "- **Not Collected (excluding palms):** `r params$stats$uncollected`",
-                   "- **Palms (Arecaceae):** `r params$stats$palms`",
-                   "",
-                   "\\hrule",
-                   "",
-                   "# Summary & Navigation {#summary}",
-                   "",
-                   "Navigate to report sections below:",
-                   "",
-                   "I.  [Subplot Index](#subplot-index)",
-                   "II. [General Plot](#general-plot)"
+  mid_section <- c(
+    "  subplots_list: NULL",
+    "  subplot_size: NULL",
+    "  stats: NULL",
+    "---",
+    "# Table of Contents {#contents}",
+    "\\newpage",
+    "",
+    "```{r setup, include=FALSE}",
+    "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)",
+    "library(ggplot2)",
+    "library(dplyr)",
+    "```",
+    "",
+    "\\newpage",
+    "# Metadata {#metadata}",
+    "",
+    "**Plot Name:** `r params$metadata$plot_name`",
+    "",
+    "**Plot Code:** `r params$metadata$plot_code`",
+    "",
+    "**Team:** `r params$metadata$team`",
+    "\\",
+    "",
+    "\\hrule",
+    "",
+    "# Specimen Counts {#counts}",
+    "",
+    "- **Total Specimens:** `r params$stats$total`",
+    "- **Collected (excluding palms):** `r params$stats$collected`",
+    "- **Not Collected (excluding palms):** `r params$stats$uncollected`",
+    "- **Palms (Arecaceae):** `r params$stats$palms`",
+    "",
+    "\\hrule"
   )
 
-  index_section <- c("",
-                     "\\newpage",
-                     "",
-                     "# Subplot Index {#subplot-index}",
-                     "",
-                     "```{r toc, results='asis', echo=FALSE}",
-                     "cols <- 5",
-                     "n <- length(params$subplots_list)",
-                     "per_col <- ceiling(n / cols)",
-                     "header <- paste(rep('Subplots', cols), collapse = ' | ')",
-                     "separator <- paste(rep('---', cols), collapse = ' | ')",
-                     "toc_lines <- c(header, separator)",
-                     "for (i in 1:per_col) {",
-                     "  row <- character(cols)",
-                     "  for (j in 0:(cols - 1)) {",
-                     "    idx <- i + j * per_col",
-                     "    if (idx <= n) {",
-                     "      row[j + 1] <- paste0('[Subplot ', idx, '](#subplot-', idx, ')')",
-                     "    } else {",
-                     "      row[j + 1] <- ' '",
-                     "    }",
-                     "  }",
-                     "  toc_lines <- c(toc_lines, paste(row, collapse = ' | '))",
-                     "}",
-                     "cat(paste(toc_lines, collapse = '\\n'))",
-                     "```",
-                     "",
-                     "\\newpage",
-                     "# General Plot {#general-plot}",
-                     "```{r general-plot, fig.width=12, fig.height=9}",
-                     "print(params$main_plot)",
-                     "```",
-                     "[Back to summary](#summary)",
-                     "",
-                     "\\newpage"
+  index_section <- c(
+    "",
+    "\\newpage",
+    "",
+    "# Subplot Index {#subplot-index}",
+    "",
+    "```{r toc, results='asis', echo=FALSE}",
+    "cols <- 5",
+    "n <- length(params$subplots_list)",
+    "per_col <- ceiling(n / cols)",
+    "header <- paste(rep('Subplots', cols), collapse = ' | ')",
+    "separator <- paste(rep('---', cols), collapse = ' | ')",
+    "toc_lines <- c(header, separator)",
+    "for (i in 1:per_col) {",
+    "  row <- character(cols)",
+    "  for (j in 0:(cols - 1)) {",
+    "    idx <- i + j * per_col",
+    "    if (idx <= n) {",
+    "      row[j + 1] <- paste0('[Subplot ', idx, '](#subplot-', idx, ')')",
+    "    } else {",
+    "      row[j + 1] <- ' '",
+    "    }",
+    "  }",
+    "  toc_lines <- c(toc_lines, paste(row, collapse = ' | '))",
+    "}",
+    "cat(paste(toc_lines, collapse = '\\n'))",
+    "```",
+    "",
+    "\\newpage",
+    "# General Plot {#general-plot}",
+    "```{r general-plot, fig.width=14, fig.height=11}",
+    "print(params$main_plot)",
+    "```",
+    "[Back to contents](#contents)",
+    "",
+    "\\newpage"
   )
 
-  col_section <- c("# Collected Only {#collected-only}",
-                   "```{r collected-only, fig.width=12, fig.height=9}",
-                   "print(params$collected_plot)",
-                   "```",
-                   "[Back to summary](#summary)",
-                   "",
-                   "\\newpage")
-  uncol_section <- c("# Not Collected {#uncollected}",
-                     "```{r uncollected, fig.width=12, fig.height=9}",
-                     "print(params$uncollected_plot)",
-                     "```",
-                     "[Back to summary](#summary)",
-                     "",
-                     "\\newpage")
-  palm_section <- c("# Not Collected Palms {#uncollected-palm}",
-                    "```{r uncollected-palm, fig.width=12, fig.height=9}",
-                    "print(params$uncollected_palm_plot)",
-                    "```",
-                    "[Back to summary](#summary)",
-                    "",
-                    "\\newpage")
+  col_section <- c(
+    "# Collected Only {#collected-only}",
+    "```{r collected-only, fig.width=14, fig.height=11}",
+    "print(params$collected_plot)",
+    "```",
+    "[Back to contents](#contents)",
+    "",
+    "\\newpage"
+  )
+
+  uncol_section <- c(
+    "# Not Collected {#uncollected}",
+    "```{r uncollected, fig.width=14, fig.height=11}",
+    "print(params$uncollected_plot)",
+    "```",
+    "[Back to contents](#contents)",
+    "",
+    "\\newpage"
+  )
+
+  palm_section <- c(
+    "# Not Collected Palms {#uncollected-palm}",
+    "```{r uncollected-palm, fig.width=14, fig.height=11}",
+    "print(params$uncollected_palm_plot)",
+    "```",
+    "[Back to contents](#contents)",
+    "",
+    "\\newpage"
+  )
 
   subplot_sections <- unlist(lapply(seq_along(subplot_plots), function(i) {
     c(
-      sprintf("## Subplot %d {#subplot-%d}", i, i),
+      sprintf("\\subsection*{\\footnotesize Subplot %d} \\label{subplot-%d}", i, i),
       "",
-      sprintf("```{r subplot-%d, fig.width=8, fig.height=8}", i),
+      sprintf("```{r subplot-%d, fig.width=12, fig.height=9}", i),
       sprintf("print(params$subplots_list[[%d]])", i),
       "```",
       "",
@@ -650,88 +668,59 @@ plot_for_balance <- function(fp_file_path = NULL,
     )
   }))
 
-
-  # Completing the rmd file
-
+  # Add conditionally the correct sections
   if (any(tf_col) && !any(tf_uncol) && !any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      mid_section,
-                     "III. [Collected Only](#collected-only)",
-                     "IV. [Individual Subplots](#individual-subplots)",
                      index_section,
                      col_section)
-  }
-
-  if (!any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
+  } else if (!any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  uncollected_plot: NULL",
                      mid_section,
-                     "III. [Not Collected](#uncollected)",
-                     "IV. [Individual Subplots](#individual-subplots)",
                      index_section,
                      uncol_section)
-  }
-
-  if (any(tf_col) && any(tf_uncol) && any(tf_palm)) {
+  } else if (any(tf_col) && any(tf_uncol) && any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      "  uncollected_plot: NULL",
                      "  uncollected_palm_plot: NULL",
                      mid_section,
-                     "III. [Collected Only](#collected-only)",
-                     "IV. [Not Collected](#uncollected)",
-                     "V. [Not Collected Palms](#uncollected-palm)",
-                     "VI. [Individual Subplots](#individual-subplots)",
                      index_section,
                      col_section,
                      uncol_section,
                      palm_section)
-  }
-
-  if (any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
+  } else if (any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      "  uncollected_plot: NULL",
                      mid_section,
-                     "III. [Collected Only](#collected-only)",
-                     "IV. [Not Collected](#uncollected)",
-                     "V. [Individual Subplots](#individual-subplots)",
                      index_section,
                      col_section,
                      uncol_section)
-  }
-
-  if (any(tf_col) && !any(tf_uncol) && any(tf_palm)) {
+  } else if (any(tf_col) && !any(tf_uncol) && any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      "  uncollected_palm_plot: NULL",
                      mid_section,
-                     "III. [Collected Only](#collected-only)",
-                     "IV. [Not Collected Palms](#uncollected-palm)",
-                     "V. [Individual Subplots](#individual-subplots)",
                      index_section,
                      col_section,
                      palm_section)
-  }
-
-  if (!any(tf_col) && any(tf_uncol) && any(tf_palm)) {
+  } else if (!any(tf_col) && any(tf_uncol) && any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  uncollected_plot: NULL",
                      "  uncollected_palm_plot: NULL",
                      mid_section,
-                     "III. [Not Collected](#uncollected)",
-                     "IV. [Not Collected Palms](#uncollected-palm)",
-                     "V. [Individual Subplots](#individual-subplots)",
                      index_section,
                      uncol_section,
                      palm_section)
   }
 
+  # Final section with subplots
   rmd_content <- c(rmd_content,
                    "# Individual Subplots {#individual-subplots}",
-                   subplot_sections
-  )
+                   subplot_sections)
 
   return(rmd_content)
 }

@@ -13,7 +13,27 @@
 #' provided;(iii) Processes taxonomic, spatial, and additional metadata to fill
 #' the herbarium format sheet; (iv) Generates a new xlsx file with the converted
 #' data, saved in a directory named after the current date.
+#' This function automatically converts field codes from the Rainfor protocol
+#' (e.g., tree condition codes and light exposure codes) into their full
+#' descriptive meanings, and incorporates them into the final herbarium notes.
+#' For example, the code "A" is converted to "alive normal" (or "árvore viva
+#' normal" in Portuguese). These translations are integrated into a standardized
+#' descriptive text alongside other information extracted directly from the
+#' forestplots sheet, such as DBH, field notes, and subplot coordinates.
+#' For instance, a final note in English might read:
 #'
+#' "Tree, 24.83cm DBH, with peeling bark, small buttress roots, bark with tiny
+#'  reddish plates, crown completely exposed to vertical and lateral light in a
+#'  45 degree curve. Individual #3 in the subplot 1, x = 1.5m, y = 2.5m."
+#'
+#' The phrases "with peeling bark" and "crown completely exposed to vertical
+#' and lateral light..." are automatically generated from the Rainfor codes,
+#' while phrases such as "small buttress roots" and "bark with  reddish plates"
+#' come from the original field notes recorded in the Forestplots sheet.The
+#' conversion of Rainfor codes and the construction of this descriptive text
+#' are supported in three languages: English, Portuguese, and Spanish, depending
+#' on the value set in the `language` argument.
+
 #' @usage
 #' fp_herb_converter(forestplots_file_path = NULL,
 #'                   herb_file_path = NULL,

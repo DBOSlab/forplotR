@@ -1,20 +1,49 @@
 Package: forplotR
 Type: Package
-Title: What the Package Does (Title Case)
-Version: 1.0
-Authors@R: c(
-    person(
-      "Jane", "Doe",
-      email = "jane@example.com",
-      role = c("aut", "cre")
+Title: Streamlined Forest Plot Data Management and Visualization in R
+Version: 1.0.0
+Authors@R: 
+    c(
+      person(given = "Giulia C.",
+             family = "Ottino",
+             email = "botgiuc@gmail.com",
+             role = c("aut", "cre", "cph"),
+             comment = c(ORCID = "0009-0001-4352-1733")),
+      person(given = "Domingos",
+             family = "Cardoso",
+             email = "cardosobot@gmail.com",
+             role = c("aut", "ths", "cph"),
+             comment = c(ORCID = "0000-0001-7072-2656"))
     )
-  )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
-License: What license is it under?
+Maintainer: Giulia Ottino <botgiuc@gmail.com>
+Description: Tools for managing and visualizing forest plot data collected in the ForestPlots format. Functions are provided to generate static and interactive specimen maps, organize voucher image directories based on updated taxonomy, fill herbarium spreadsheets (e.g., JABOT, BRAHMS) from field data, and export HTML maps with filters for taxonomy, collection status, and image availability. Designed to streamline post-collection workflows for field botanists and ecologists.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Suggests: 
+Depends: R (>= 3.5.0)
+Imports:
+    dplyr,
+    geodata,
+    geosphere,
+    ggplot2,
+    grDevices,
+    here,
+    htmltools,
+    htmlwidgets,
+    leaflet,
+    openxlsx,
+    readxl,
+    rmarkdown,
+    scales,
+    stringi,
+    terra,
+    tools,
+    utils
+Suggests:
     testthat (>= 3.0.0)
 RoxygenNote: 7.3.2
+URL:
+    https://dboslab.github.io/forplotR-website/
+    https://github.com/DBOSlab/forplotR
+BugReports: https://github.com/DBOSlab/forplotR/issues
 Config/testthat/edition: 3

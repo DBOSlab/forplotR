@@ -13,23 +13,23 @@ mk_voucher_dirs(fp_file_path = NULL, output_dir = "voucher_imgs")
 Default is "voucher_imgs".}
 }
 \description{
-Organizes image folders of voucher specimens based on their 
-updated taxonomic identification provided [Forestplots format]
-(https://forestplots.net/). It is designed to be safely rerun multiple times, 
-adapting its behavior depending on the existing directory structure.On the 
-**first execution**, the function will read the voucher information from 
-the Forestplots standardized file, (i) create a main folder (default: 
-`"voucher_imgs"`), if it does not already exist.(ii) For each voucher marked 
-as "Collected", it will create a directory structure following the format 
-`Family/Genus/Voucher` to receive the corresponding images. On **subsequent 
+Organizes image folders of voucher specimens based on their
+updated taxonomic identification provided in \href{https://forestplots.net/}{Forestplots format}
+template. It is designed to be safely rerun multiple times,
+adapting its behavior depending on the existing directory structure.On the
+**first execution**, the function will read the voucher information from
+the Forestplots standardized file, (i) create a main folder (default:
+`"voucher_imgs"`), if it does not already exist.(ii) For each voucher marked
+as "Collected", it will create a directory structure following the format
+`Family/Genus/Voucher` to receive the corresponding images. On **subsequent
 executions**, the function performs a reorganization: identifies and compares
-existing folders that may have outdated or incorrect genus assignments. If it 
-finds that a voucher is in the wrong genus folder (e.g., due to taxonomic 
+existing folders that may have outdated or incorrect genus assignments. If it
+finds that a voucher is in the wrong genus folder (e.g., due to taxonomic
 reidentification),it moves the images to the correct folder. In case the
 correct folder already contains images, the function avoids overwriting and
-keeps the content intact.Once images are moved (or verified), the function 
-deletes any empty,outdated voucher directories.This ensures that the 
-directory structure always reflects the most up-to-date taxonomic information, 
+keeps the content intact.Once images are moved (or verified), the function
+deletes any empty,outdated voucher directories.This ensures that the
+directory structure always reflects the most up-to-date taxonomic information,
 making image organization robust, repeatable, and easy to maintain.
 }
 \examples{

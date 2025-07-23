@@ -35,11 +35,24 @@ is "satellite").}
 "plot_map.html").}
 }
 \description{
-Generates an interactive Leaflet map of a forest plot with
-coordinates transformed from local subplot coordinates to geographic
-coordinates, using four corner vertices. The polygon is built using angular
-ordering to prevent self-intersecting shapes. The function saves the resulting
-map as a date-stamped self-contained HTML file in working directory.
+Generates an interactive and self-contained HTML map following the
+\href{https://forestplots.net/}{ForestPlots plot protocol}, using Leaflet
+and based on vouchered tree data and the geographical coordinates of the
+plot corners. The function:(i) Converts local subplot coordinates (X, Y) to
+geographic coordinates using geospatial interpolation from four corner vertices;
+(ii) automatically extracts metadata like team name, plot name, and plot code
+from the input xlsx file; (iii) draws the plot boundary polygon with angular
+ordering to prevent self-intersection, over a selectable basemap ("satellite"
+or "street"); (iv) colors tree points based on collection status and palms:
+palms (yellow), collected (gray), and missing (red); (v) embeds image
+carousels in the popups for vouchers when corresponding images are available
+in the specified folder; (vi) adds an interactive filter sidebar with
+checkboxes, multi-select inputs, and search box for filtering by family,
+species, collection status, and presence of photos; (vii) displays informative
+popups for each tree,showing tag number, subplot,family, species, DBH,
+voucher code, and photos (if present); (viii) saves the resulting map
+as a date-stamped standalone HTML file to the specified directory for easy
+sharing, archiving, or field consultation.
 }
 \examples{
 \dontrun{
@@ -47,7 +60,9 @@ vertex_df <- data.frame(
   Latitude = c(-3.123, -3.123, -3.125, -3.125),
   Longitude = c(-60.012, -60.010, -60.012, -60.010)
 )
-plot_html_map("data/tree_data.xlsx", vertex_coords = vertex_df)
+plot_html_map("data/tree_data.xlsx",
+               vertex_coords = vertex_df,
+               voucher_imgs = "voucher_imgs")
 }
 
 }
