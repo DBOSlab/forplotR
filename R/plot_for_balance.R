@@ -2,13 +2,13 @@
 #'
 #' @author Giulia Ottino & Domingos Cardoso
 #'
-#' @description Processes field data collected using the \href {https://forestplots.net/}{Forestplots format}
+#' @description Processes field data collected using the \href{https://forestplots.net/}{Forestplots format}
 #' and generates a specimen map (2D plot) with collection status and spatial
 #' distribution of individuals across subplots. Generate a PDF with a full plot
 #' report with separate maps, for each subplot and a spreadsheet summarizing the
 #' percentage of collected specimens per subplot. The function performs the
 #' following steps: (i) validates all input arguments and checks/create output
-#' folders; (ii) reads the xlsx {Forestplots format} sheet, extracts metadata
+#' folders; (ii) reads the Forestplots-formatted xlsx sheet, extracts metadata
 #' (team, plot name, plot code), and cleans the data; (iii) normalizes and cleans
 #' coordinate and diameter values, computing global plot coordinates from
 #' subplot-relative positions; (iv) creates a PDF report, including plot metadata,
@@ -16,7 +16,7 @@
 #' highlighting palms (Arecaceae) and navigable individual subplot  maps; (v)
 #' optionally generates a xlsx spreadsheet with the collection
 #' percentage per subplot (including totals), distinguishing collected vs.
-#' uncollected, and palms specimen.
+#' uncollected, and palm individuals.
 #'
 #' @usage
 #' plot_for_balance(fp_file_path = NULL,
@@ -39,13 +39,7 @@
 #'
 #' @param filename Name of the output file for the main plot (without extension).
 #'
-#' @return
-#' - A full PDF report with:
-#'   - plot metadata,
-#'   - navigable sections including subplot maps;
-#' - An Excel spreadsheet with:
-#'   - collection percentages (overall and per subplot),
-#'   - tag numbers for collected and not collected individuals.
+#' @return A PDF report and a summary Excel file with collection statistics.
 #'
 #' @importFrom readxl read_excel
 #' @import ggplot2
@@ -245,7 +239,7 @@ plot_for_balance <- function(fp_file_path = NULL,
           TRUE ~ "Uncollected"
         )
       ),
-      shape = 21, color = "black", alpha = 0.9, show.legend = c(size = FALSE)) +
+      shape = 21, color = "black", stroke = 0.2, alpha = 0.9, show.legend = c(size = FALSE)) +
       ggplot2::scale_fill_manual(
         values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
         name = "Status"
@@ -253,8 +247,8 @@ plot_for_balance <- function(fp_file_path = NULL,
       ggplot2::scale_size_continuous(range = c(4, 10)) +
       ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.5) +
       ggplot2::labs(
-        title = paste("Subplot", sp),
-        subtitle = paste("Plot Name:", plot_name),
+        title = paste("Plot Name:", plot_name),
+        subtitle = paste0("Plot Code: ", plot_code),
         caption = paste("Team:", team),
         x = "X (m)", y = "Y (m)"
       ) +
@@ -281,43 +275,31 @@ plot_for_balance <- function(fp_file_path = NULL,
   options(tinytex.pdflatex.args = "--no-crop")
 
   # Render the Rmd file to PDF using rmarkdown::render with params
-  invisible(
-    utils::capture.output(
-      suppressMessages(
-        suppressWarnings(
-          rmarkdown::render(
-            input = rmd_path,
-            output_file = basename(final_pdf),
-            output_dir = foldername,
-            params = list(
-              metadata = list(plot_name = plot_name, plot_code = plot_code, team = team),
-              main_plot = base_plot,
-              collected_plot = collected_plot,
-              uncollected_plot = uncollected_plot,
-              uncollected_palm_plot = uncollected_palm_plot,
-              subplots_list = subplot_plots,
-              subplot_size = subplot_size,
-              stats = list(
-                total = total_specimens,
-                collected = collected_count,
-                uncollected = uncollected_count,
-                palms = palms_count
-              )
-            ),
-            envir = new.env(parent = globalenv())
-          )
-        )
-      ),
-      type = "output"
-    )
+  .render_plot_report(
+    rmd_path = rmd_path,
+    output_pdf_path = foldername,
+    output_pdf_name = final_pdf,
+    params = list(
+      metadata = list(plot_name = plot_name, plot_code = plot_code, team = team),
+      main_plot = base_plot,
+      collected_plot = collected_plot,
+      uncollected_plot = uncollected_plot,
+      uncollected_palm_plot = uncollected_palm_plot,
+      subplots_list = subplot_plots,
+      subplot_size = subplot_size,
+      stats = list(
+        total = total_specimens,
+        collected = collected_count,
+        uncollected = uncollected_count,
+        palms = palms_count
+      )
+    ),
+    verbose = TRUE
   )
 
   # Cleanup temporary files/folders created by knitting
-  unlink(rmd_path)
-  unlink(file.path(foldername, paste0(tools::file_path_sans_ext(basename(final_pdf)), "_files")), recursive = TRUE)
-
-  cat(paste0("✅ Full report saved to: ", final_pdf, "\n"))
-
+  #unlink(rmd_path)
+  #unlink(file.path(foldername, paste0(tools::file_path_sans_ext(basename(final_pdf)), "_files")), recursive = TRUE)
 
   # Generate collection summary table
   .collection_percentual(
@@ -327,6 +309,76 @@ plot_for_balance <- function(fp_file_path = NULL,
     plot_code = plot_code,
     team = team
   )
+
+}
+
+
+# Rendering PDF with full plot report
+.render_plot_report <- function(
+    rmd_path,
+    output_pdf_path,
+    output_pdf_name,
+    params,
+    verbose = FALSE
+) {
+  render_env <- new.env(parent = globalenv())
+
+  # Temp output name
+  temp_pdf <- tempfile(fileext = ".pdf")
+
+  if (verbose) message("Rendering Rmd to PDF...")
+
+  rmarkdown::render(
+    input = rmd_path,
+    output_file = basename(temp_pdf),
+    output_dir = tempdir(),
+    params = params,
+    envir = render_env,
+    clean = FALSE,
+    output_format = rmarkdown::pdf_document(
+      keep_tex = TRUE,
+      latex_engine = "pdflatex",
+      fig_caption = TRUE
+    )
+  )
+
+  # Write the LaTeX preamble commands
+  preamble_lines <- c(
+    "\\makeatletter",
+    "\\providecommand{\\vcenteredhbox}[1]{\\begingroup",
+    "  \\setbox0=\\hbox{#1}\\parbox{\\wd0}{\\box0}\\endgroup}",
+    "\\renewcommand{\\@dotsep}{4}",
+    "\\renewcommand{\\contentsname}{\\hspace*{-1cm}}",
+    "\\makeatother"
+  )
+
+  # Locate .tex file
+  tex_candidates <- list.files(tempdir(), pattern = "\\.tex$", full.names = TRUE)
+  tex_file <- tex_candidates[which.max(file.info(tex_candidates)$mtime)]
+
+  # Recompile .tex
+  if (file.exists(tex_file)) {
+    if (verbose) message("Re-compiling: ", tex_file)
+    # Insert preamble before \begin{document}
+    tex_lines <- readLines(tex_file)
+    insert_idx <- grep("\\\\begin\\{document\\}", tex_lines)[1]
+    new_tex_lines <- append(tex_lines, preamble_lines, after = insert_idx - 1)
+    writeLines(new_tex_lines, tex_file)
+
+    tinytex::latexmk(tex_file)
+  }
+
+  # Move output PDF to final location
+  if (!dir.exists(output_pdf_path)) dir.create(output_pdf_path, recursive = TRUE)
+  final_pdf_path <- file.path(output_pdf_path, basename(output_pdf_name))
+  file.copy(sub("\\.tex$", ".pdf", tex_file), final_pdf_path, overwrite = TRUE)
+
+  if (file.exists(final_pdf_path)) {
+    message("✅ Full PDF report saved to: ", final_pdf_path)
+  } else {
+    warning("⚠️ PDF generation failed.")
+  }
+
 }
 
 
@@ -334,7 +386,6 @@ plot_for_balance <- function(fp_file_path = NULL,
 .clean_fp_data <- function(fp_sheet, subplot_size) {
   fp_sheet %>%
     mutate(
-
       # Convert to numeric, replace NA or invalid entries with 0
       X = suppressWarnings(as.numeric(X)),
       X = if_else(is.na(X), 0, X),
@@ -379,7 +430,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 
-#
+# Get percentual values
 .collection_percentual <- function(fp_sheet, dir = getwd(),
                                    plot_name = plot_name, plot_code = plot_name,
                                    team = "") {
@@ -522,7 +573,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     }
   }
 
-  # Save Excel
+  # Save Excel sheet
   openxlsx::saveWorkbook(wb, file = output_file, overwrite = TRUE)
 }
 
@@ -533,8 +584,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   # Compose the RMarkdown document content as a character vector
   rmd_content <- c(
     "---",
-    "title: \"ForplotR Full Report\"",
-    "subtitle: \"`r paste0(params$metadata$plot_name, ' | Plot Code: ', params$metadata$plot_code)`\"",
     "output:",
     "  pdf_document:",
     "    toc: true",
@@ -551,8 +600,11 @@ plot_for_balance <- function(fp_file_path = NULL,
     "  subplot_size: NULL",
     "  stats: NULL",
     "---",
-    "# Table of Contents {#contents}",
-    "\\newpage",
+    "\\begin{center}",
+    "\\Huge\\textbf{Full Plot Report} \\\\",
+    "\\vspace{0.5em}",
+    "\\normalsize `r paste0(params$metadata$plot_name, ' | Plot Code: ', params$metadata$plot_code)`",
+    "\\end{center}",
     "",
     "```{r setup, include=FALSE}",
     "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)",
@@ -560,8 +612,26 @@ plot_for_balance <- function(fp_file_path = NULL,
     "library(dplyr)",
     "```",
     "",
+    "```{r logo, echo=FALSE, results='asis'}",
+    "forplotr_logo_path <- system.file('figures', 'forplotR_hex_sticker.png', package = 'forplotR')",
+    "forestplots_logo_path <- system.file('figures', 'forestplotsnet_logo.png', package = 'forplotR')",
+    "cat('\\\\vspace*{1cm}\n')",  # Add space before logos,
+    "cat('\\n\\\\begin{center}')",
+    "cat(paste0('\\n\\\\includegraphics[width=0.2\\\\linewidth]{', forplotr_logo_path, '}'))",
+    "cat('\\n\\\\end{center}')",
+    "cat('\\n\\\\begin{center}')",
+    "cat(paste0('\\n\\\\includegraphics[width=0.4\\\\linewidth]{', forestplots_logo_path, '}'))",
+    "cat('\\n\\\\end{center}')",
+    "cat('\\\\vspace*{2cm}\n')",  # Add space after logos
+    "```",
+    "",
+    "## Contents {#contents}",
+    "\\vspace*{-1cm}",
+    "\\thispagestyle{plain}",
+    "\\tableofcontents",
     "\\newpage",
-    "# Metadata {#metadata}",
+    "",
+    "## Metadata {#metadata}",
     "",
     "**Plot Name:** `r params$metadata$plot_name`",
     "",
@@ -572,7 +642,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     "",
     "\\hrule",
     "",
-    "# Specimen Counts {#counts}",
+    "## Specimen Counts {#counts}",
     "",
     "- **Total Specimens:** `r params$stats$total`",
     "- **Collected (excluding palms):** `r params$stats$collected`",
@@ -582,11 +652,68 @@ plot_for_balance <- function(fp_file_path = NULL,
     "\\hrule"
   )
 
+  nav_links <- c(
+    "\\vspace{1em}",
+    "\\begingroup\\small\\color{gray}",
+    "« [Back to Contents](#contents)",
+    "\n",
+    "[Metadata](#metadata) | [Specimen Counts](#counts) | [General Plot](#general-plot) | [Collected Only](#collected-only) | [Not Collected](#uncollected) | [Palms](#uncollected-palm) | [Subplot Index](#subplot-index)",
+    "\\endgroup"
+  )
+
+  gencol_section <- c(
+    "## General Plot {#general-plot}",
+    "```{r general-plot, fig.width=14, fig.height=11}",
+    "print(params$main_plot)",
+    "```",
+    "\n",
+    "\n",
+    nav_links,
+    "",
+    "\\newpage"
+  )
+
+  col_section <- c(
+    "## Collected Only {#collected-only}",
+    "```{r collected-only, fig.width=14, fig.height=11}",
+    "print(params$collected_plot)",
+    "```",
+    "\n",
+    "\n",
+    nav_links,
+    "",
+    "\\newpage"
+  )
+
+  uncol_section <- c(
+    "## Not Collected {#uncollected}",
+    "```{r uncollected, fig.width=14, fig.height=11}",
+    "print(params$uncollected_plot)",
+    "```",
+    "\n",
+    "\n",
+    nav_links,
+    "",
+    "\\newpage"
+  )
+
+  palm_section <- c(
+    "## Not Collected Palms {#uncollected-palm}",
+    "```{r uncollected-palm, fig.width=14, fig.height=11}",
+    "print(params$uncollected_palm_plot)",
+    "```",
+    "\n",
+    "\n",
+    nav_links,
+    "",
+    "\\newpage"
+  )
+
   index_section <- c(
     "",
     "\\newpage",
     "",
-    "# Subplot Index {#subplot-index}",
+    "## Subplot Index {#subplot-index}",
     "",
     "```{r toc, results='asis', echo=FALSE}",
     "cols <- 5",
@@ -609,43 +736,9 @@ plot_for_balance <- function(fp_file_path = NULL,
     "}",
     "cat(paste(toc_lines, collapse = '\\n'))",
     "```",
-    "",
-    "\\newpage",
-    "# General Plot {#general-plot}",
-    "```{r general-plot, fig.width=14, fig.height=11}",
-    "print(params$main_plot)",
-    "```",
-    "[Back to contents](#contents)",
-    "",
-    "\\newpage"
-  )
-
-  col_section <- c(
-    "# Collected Only {#collected-only}",
-    "```{r collected-only, fig.width=14, fig.height=11}",
-    "print(params$collected_plot)",
-    "```",
-    "[Back to contents](#contents)",
-    "",
-    "\\newpage"
-  )
-
-  uncol_section <- c(
-    "# Not Collected {#uncollected}",
-    "```{r uncollected, fig.width=14, fig.height=11}",
-    "print(params$uncollected_plot)",
-    "```",
-    "[Back to contents](#contents)",
-    "",
-    "\\newpage"
-  )
-
-  palm_section <- c(
-    "# Not Collected Palms {#uncollected-palm}",
-    "```{r uncollected-palm, fig.width=14, fig.height=11}",
-    "print(params$uncollected_palm_plot)",
-    "```",
-    "[Back to contents](#contents)",
+    "\n",
+    "\n",
+    nav_links,
     "",
     "\\newpage"
   )
@@ -658,7 +751,9 @@ plot_for_balance <- function(fp_file_path = NULL,
       sprintf("print(params$subplots_list[[%d]])", i),
       "```",
       "",
-      "[Back to subplot index](#subplot-index)",
+      "\\begingroup\\small\\color{gray}",
+      "« [Back to Subplot Index](#subplot-index)",
+      "\\endgroup",
       if (i < length(subplot_plots)) "\\newpage" else NULL,
       ""
     )
@@ -669,53 +764,59 @@ plot_for_balance <- function(fp_file_path = NULL,
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      mid_section,
-                     index_section,
-                     col_section)
+                     gencol_section,
+                     col_section,
+                     index_section)
   } else if (!any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  uncollected_plot: NULL",
                      mid_section,
-                     index_section,
-                     uncol_section)
+                     gencol_section,
+                     uncol_section,
+                     index_section)
   } else if (any(tf_col) && any(tf_uncol) && any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      "  uncollected_plot: NULL",
                      "  uncollected_palm_plot: NULL",
                      mid_section,
-                     index_section,
+                     gencol_section,
                      col_section,
                      uncol_section,
-                     palm_section)
+                     palm_section,
+                     index_section)
   } else if (any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      "  uncollected_plot: NULL",
                      mid_section,
-                     index_section,
+                     gencol_section,
                      col_section,
-                     uncol_section)
+                     uncol_section,
+                     index_section)
   } else if (any(tf_col) && !any(tf_uncol) && any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  collected_plot: NULL",
                      "  uncollected_palm_plot: NULL",
                      mid_section,
-                     index_section,
+                     gencol_section,
                      col_section,
-                     palm_section)
+                     palm_section,
+                     index_section)
   } else if (!any(tf_col) && any(tf_uncol) && any(tf_palm)) {
     rmd_content <- c(rmd_content,
                      "  uncollected_plot: NULL",
                      "  uncollected_palm_plot: NULL",
                      mid_section,
-                     index_section,
+                     gencol_section,
                      uncol_section,
-                     palm_section)
+                     palm_section,
+                     index_section)
   }
 
   # Final section with subplots
   rmd_content <- c(rmd_content,
-                   "# Individual Subplots {#individual-subplots}",
+                   "## Individual Subplots {#individual-subplots}",
                    subplot_sections)
 
   return(rmd_content)

@@ -18,15 +18,14 @@
 #' checkboxes, multi-select inputs, and search box for filtering by family,
 #' species, collection status, and presence of photos; (vii) displays informative
 #' popups for each tree,showing tag number, subplot,family, species, DBH,
-#' voucher code, and photos (if present); (viii) saves the resulting map
-#' as a date-stamped standalone HTML file to the specified directory for easy
-#' sharing, archiving, or field consultation.
+#' voucher code, and photos; (viii) saves the resulting map as a date-stamped
+#' standalone HTML file with multiple interactive leaflet map options to the
+#' specified directory for easy sharing, archiving, or field consultation.
 #'
 #' @usage plot_html_map(fp_file_path = NULL,
 #'                      vertex_coords = NULL,
 #'                      plot_size = 1,
 #'                      subplot_size = 10,
-#'                      map_type = c("satellite", "street"),
 #'                      voucher_imgs = NULL,
 #'                      filename = "plot_map.html")
 #'
@@ -40,10 +39,7 @@
 #' @param subplot_size Numeric. Subplot size in meters (default is 10).
 #'
 #' @param filename Character. Name of the output HTML file (default is
-#' "plot_map.html").
-#'
-#' @param map_type Character. Base map type: "satellite" or "street" (default
-#' is "satellite").
+#' "plot_map.html")..
 #'
 #' @param voucher_imgs Character. Directory path where voucher images are stored.
 #'
@@ -75,7 +71,6 @@ plot_html_map <- function(fp_file_path = NULL,
                           vertex_coords = NULL,
                           plot_size = 1,
                           subplot_size = 10,
-                          map_type = c("satellite", "street"),
                           voucher_imgs = NULL,
                           filename = "plot_map.html") {
 
@@ -112,7 +107,7 @@ plot_html_map <- function(fp_file_path = NULL,
 
   # Clean and convert necessary columns with suppressed warnings
   fp_clean <- fp_sheet %>%
-    mutate(
+    dplyr::mutate(
       T1 = suppressWarnings(as.numeric(T1)),
       X = suppressWarnings(as.numeric(X)),
       Y = suppressWarnings(as.numeric(Y)),
@@ -126,11 +121,11 @@ plot_html_map <- function(fp_file_path = NULL,
 
   # Convert local to global coordinates
   fp_coords <- fp_clean %>%
-    mutate(
+    dplyr::mutate(
       col = floor((T1 - 1) / n_rows),
       row = (T1 - 1) %% n_rows,
       global_x = col * subplot_size + X,
-      global_y = if_else(
+      global_y = dplyr::if_else(
         col %% 2 == 0,
         row * subplot_size + Y,
         (n_rows - row - 1) * subplot_size + Y
@@ -144,16 +139,16 @@ plot_html_map <- function(fp_file_path = NULL,
 
   # Standardize and clean vertex coordinates
   vertex_coords <- vertex_coords %>%
-    rename_with(~tolower(gsub("\\s*\\(.*?\\)", "", .x)), everything()) %>%
-    rename(latitude = latitude, longitude = longitude) %>%
-    mutate(
+    dplyr::rename_with(~tolower(gsub("\\s*\\(.*?\\)", "", .x)), everything()) %>%
+    dplyr::rename(latitude = latitude, longitude = longitude) %>%
+    dplyr::mutate(
       longitude = as.numeric(gsub(",", ".", longitude)),
       latitude  = as.numeric(gsub(",", ".", latitude))
     )
 
   # Correct signals to ensure coordinates are in southern hemisphere
   vertex_coords <- vertex_coords %>%
-    mutate(
+    dplyr::mutate(
       longitude = ifelse(longitude > 0, -longitude, longitude),
       latitude  = ifelse(latitude > 0, -latitude, latitude)
     )
@@ -174,7 +169,7 @@ plot_html_map <- function(fp_file_path = NULL,
   fp_coords$Longitude <- coords_geo[2, ]
 
   # Assign color by collection status
-  fp_coords$color <- case_when(
+  fp_coords$color <- dplyr::case_when(
     fp_coords$Family == "Arecaceae" ~ "gold",
     !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ "gray",
     TRUE ~ "red"
@@ -192,11 +187,12 @@ plot_html_map <- function(fp_file_path = NULL,
 
   plot_popup <- paste0("<b>Plot Name:</b> ",
                        plot_name, "<br/>",
+                       "<b>Plot Code:</b> ", plot_code, "<br/>",
                        "<b>Team:</b> ", team)
 
 
   # Define the base folder where the original images are stored
-  original_image_base <- here(voucher_imgs)
+  original_image_base <- here::here(voucher_imgs)
 
   # List all subdirectories once to improve performance
   leaf_dirs <- list.dirs(original_image_base, recursive = TRUE, full.names = TRUE)
@@ -208,48 +204,50 @@ plot_html_map <- function(fp_file_path = NULL,
 
   leaf_dirs <- sub(paste0(".*(", voucher_imgs, "/.*)"), "\\1", leaf_dirs)
 
-  for (i in seq_along(leaf_dirs)) {
-    # List only image files in the current leaf directory
-    img_files <- list.files(leaf_dirs[i], full.names = TRUE, pattern = "\\.(jpg|jpeg|png|gif)$", ignore.case = TRUE)
+  # -------------------------------------------------
+  #  build pop-ups with photo carousels
+  handled <- character(0)
 
-    # Skip if no images found
-    if (length(img_files) == 0) next
+  for (dir_path in leaf_dirs) {
+    voucher_id <- basename(dir_path)
 
-    rel_paths <- file.path(leaf_dirs[i], basename(img_files))
+    # skip if this voucher was already handled
+    if (voucher_id %in% handled) next
+    handled <- c(handled, voucher_id)
 
-    # Build HTML carousel slides
+    # list image files in this directory
+    img_files <- list.files(
+      dir_path, full.names = TRUE,
+      pattern = "\\.(jpg|jpeg|png|gif)$", ignore.case = TRUE
+    )
+    if (!length(img_files)) next      # no photos → nothing to add
+
+    rel_paths <- file.path(dir_path, basename(img_files))
+
+    # build HTML slides for the carousel
     slides <- paste0(
       "<div class='mySlides'>",
       "<a href='", rel_paths, "' target='_blank'>",
-      "<img src='", rel_paths, "' style='max-width:200px; max-height:200px; display:block; margin:auto;'></a></div>",
+      "<img src='", rel_paths,
+      "' style='max-width:200px; max-height:200px; display:block; margin:auto;'></a></div>",
       collapse = "\n"
     )
 
-    # Match the voucher
-    tf <- fp_coords$Voucher %in% basename(leaf_dirs[i])
-
-    # Append popup content and flag for hasPhoto
+    # Append the carousel to the correct tree
+    tf <- fp_coords$Voucher == voucher_id
     fp_coords$popup[tf] <- paste0(
       fp_coords$popup[tf],
-      "<br/><b>HasPhoto:</b> yes<br/>",
-      "<div class='slideshow-container' data-slide='1'>",
-      slides,
-      "</div>
-    <div style='text-align:center;'>
-      <a class='prev' onclick='plusSlides(-1)' style='margin-right:10px;'>&#10094;</a>
-      <a class='next' onclick='plusSlides(1)'>&#10095;</a>
-    </div>"
+      "<br>
+      <span class='hasPhotoBadge'>Has Photo</span>",
+      "<div class='slideshow-container' data-slide='1'>", slides, "</div>",
+      "<div style='text-align:center;'>",
+      "<a class='prev' onclick='plusSlides(-1)' style='margin-right:10px;'>&#10094;</a>",
+      "<a class='next' onclick='plusSlides(1)'>&#10095;</a>",
+      "</div>"
     )
   }
 
-  # replace the old choice logic
-  base_tiles <- if (map_type == "satellite") {
-    "Esri.WorldImagery"
-  } else {
-    "OpenTopoMap"   # verde, sem ícones de árvore, gratuito
-  }
-
-#-------------------------------------------------------------------------------
+  #-------------------------------------------------------------------------------
   # Carousel-like navigation code in JavaScript + CSS
   carousel_js_css <- htmltools::HTML("
 <style>
@@ -486,40 +484,31 @@ function addFilterControl(el,x){
 
   # End JavaScript and CSS code
   #_____________________________________________________________________________
+  # Define initial centre/zoom
+  initial_zoom <- 18   # keep your current value
+  lat0 <- mean(vertex_coords$latitude)
+  lon0 <- mean(vertex_coords$longitude)
 
-  map <- leaflet(fp_coords) %>%
-    leaflet::addProviderTiles(base_tiles,
-                              options = leaflet::providerTileOptions(maxZoom = 31,
-                                                                     maxNativeZoom = 17  )) %>%
-    leaflet::addPolygons(
-      lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
-      lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
-      color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
-      popup = plot_popup
-    ) %>%
-    leaflet::addCircleMarkers(
-      lng = ~Longitude,
-      lat = ~Latitude,
-      radius = rescale(fp_coords$D, to = c(2, 8), from = range(fp_coords$D, na.rm = TRUE)),
-      color = "black",
-      weight = 0.5,
-      fillColor = ~color,
-      fillOpacity = 0.8,
-      popup = ~popup
-    ) %>%
-    leaflet::setView(lng = mean(vertex_coords$longitude),
-            lat = mean(vertex_coords$latitude),
-            zoom = 18) %>%
+  # Build the Leaflet map 5 base layers + reset button
+  map <- leaflet(fp_coords, options = leaflet::leafletOptions(minZoom = 2,  maxZoom = 22)) %>%
+
+    # Set title and subtitle
     leaflet::addControl(
       html = paste0(
-        "<div style='text-align:center;'>",
-        "<div style='font-size:22px; font-weight:bold;'>", plot_name, "</div>",
+        "<div style='text-align:center; line-height:1.2; padding:4px 8px; " ,
+        "background:rgba(255,255,255,0.85); border-radius:8px;" ,
+        "box-shadow:0 1px 4px rgba(0,0,0,0.25);'>",
+        "<div style='font-size:20px; font-weight:700;'>",
+        htmltools::htmlEscape(plot_name),
         "</div>",
-        "<div style='font-size:18px;'>", plot_code, "</div>",
-        "</div>"
-      ),
-      position = "topleft"
+        "<div style='font-size:14px; font-weight:400;'>Plot Code: ",
+        htmltools::htmlEscape(plot_code),
+        "</div>",
+        "</div>"),
+      position = "topleft",
+      className = "custom-title"
     ) %>%
+
     htmlwidgets::onRender(
       "function(el, x){ this.whenReady(function(){ addFilterControl.call(this, el, x); }); }"
     ) %>%
@@ -527,16 +516,68 @@ function addFilterControl(el,x){
     htmlwidgets::prependContent(
       carousel_js_css,
       sidebar_css_js
-    )
+    ) %>%
+
+    leaflet::addProviderTiles(leaflet::providers$OpenStreetMap,       group = "OSM Street") |>
+    leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street") |>
+    leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery,   group = "Satellite")  |>
+    leaflet::addProviderTiles(leaflet::providers$OpenTopoMap,         group = "OpenTopo")   |>
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter,  group = "Dark Matter") |>
+
+    # Layer control
+    leaflet::addLayersControl(
+      baseGroups    = c("OSM Street", "ESRI Street", "Satellite", "OpenTopo", "Dark Matter"),
+      overlayGroups = c("Specimens"),
+      position      = "bottomleft",
+      options       = leaflet::layersControlOptions(
+        collapsed = TRUE,
+        autoZIndex = TRUE
+      )
+    ) %>%
+
+    # Plot polygon
+    leaflet::addPolygons(
+      lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
+      lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
+      color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
+      popup = plot_popup
+    )  %>%
+
+    # Specimmen points
+    leaflet::addCircleMarkers(
+      lng = ~Longitude,
+      lat = ~Latitude,
+      radius = scales::rescale(fp_coords$D, to = c(2, 8),
+                               from = range(fp_coords$D, na.rm = TRUE)),
+      color = "black", weight = 0.5,
+      fillColor = ~color, fillOpacity = 0.8,
+      popup = ~popup,
+      group = "Specimens"
+    )  %>%
+
+    # Reset-view buttom
+    leaflet::addEasyButton(
+      leaflet::easyButton(
+        icon    = "fa-crosshairs",
+        title   = "Back to plot",
+        onClick = leaflet::JS(
+          sprintf("function(btn, map){ map.setView([%f, %f], %d); }",
+                  lat0, lon0, initial_zoom)
+        )
+      )
+    ) %>%
+
+    # Set initial view
+    leaflet::setView(lng = lon0, lat = lat0, zoom = initial_zoom)
 
   map <- map %>%
-    # 1) Load the Roboto family (light, regular, medium, bold)
+    # Load the Roboto font family
     htmlwidgets::prependContent(
       htmltools::tags$link(
         href = "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap",
         rel  = "stylesheet"
       ),
-      # 2) Apply Roboto everywhere and set some helper classes
+      # Apply Roboto everywhere and set some helper classes
       htmltools::tags$style(htmltools::HTML("
       /* Global font replacement */
       .leaflet-container,
@@ -552,6 +593,19 @@ function addFilterControl(el,x){
       .mapTitle    { font-size: 22px; font-weight: 700; }
       .mapSubtitle { font-size: 16px; font-weight: 400; }
     "))
+    ) %>%
+    htmlwidgets::prependContent(
+      htmltools::tags$style("
+      .leaflet-popup-content        { font-size:14px; line-height:1.35; padding:6px 8px 8px; }
+      .leaflet-popup-content-wrapper{ border-radius:10px!important; box-shadow:0 3px 10px rgba(0,0,0,.25)!important; }
+      .leaflet-popup-tip            { display:none; }
+      .leaflet-popup-content img    { max-width:260px; width:100%; border-radius:6px; border:1px solid #ddd;
+                                      box-shadow:0 1px 4px rgba(0,0,0,.15); margin-top:4px; }
+      .hasPhotoBadge                { display:inline-block; background:#388e3c; color:#fff; font-size:12px;
+                                      padding:2px 6px; border-radius:12px; margin-bottom:4px; font-weight:500; }
+      .prev, .next                  { color:#006699; font-size:22px; transition:color .2s; }
+      .prev:hover, .next:hover      { color:#004466; }
+    ")
     )
   filename <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
   message("Saving HTML map: '", file.path(paste0(filename, ".html'")))

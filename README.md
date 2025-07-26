@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# forplotR <img src="inst/figures/forplotr_hex_sticker.png" align="right" alt="" width="120" />
+# forplotR <img src="inst/figures/forplotR_hex_sticker.png" align="right" alt="" width="120" />
 
 <!-- badges: start -->
 

@@ -8,7 +8,6 @@ plot_html_map(fp_file_path = NULL,
                      vertex_coords = NULL,
                      plot_size = 1,
                      subplot_size = 10,
-                     map_type = c("satellite", "street"),
                      voucher_imgs = NULL,
                      filename = "plot_map.html")
 }
@@ -22,13 +21,10 @@ and `Longitude` for the four plot corners.}
 
 \item{subplot_size}{Numeric. Subplot size in meters (default is 10).}
 
-\item{map_type}{Character. Base map type: "satellite" or "street" (default
-is "satellite").}
-
 \item{voucher_imgs}{Character. Directory path where voucher images are stored.}
 
 \item{filename}{Character. Name of the output HTML file (default is
-"plot_map.html").}
+"plot_map.html")..}
 }
 \description{
 Generates an interactive and self-contained HTML map following the
@@ -46,9 +42,9 @@ in the specified folder; (vi) adds an interactive filter sidebar with
 checkboxes, multi-select inputs, and search box for filtering by family,
 species, collection status, and presence of photos; (vii) displays informative
 popups for each tree,showing tag number, subplot,family, species, DBH,
-voucher code, and photos (if present); (viii) saves the resulting map
-as a date-stamped standalone HTML file to the specified directory for easy
-sharing, archiving, or field consultation.
+voucher code, and photos; (viii) saves the resulting map as a date-stamped
+standalone HTML file with multiple interactive leaflet map options to the
+specified directory for easy sharing, archiving, or field consultation.
 }
 \examples{
 \dontrun{

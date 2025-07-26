@@ -13,7 +13,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-# forplotR <img src="inst/figures/forplotr_hex_sticker.png" align="right" alt="" width="120" />
+# forplotR <img src="inst/figures/forplotR_hex_sticker.png" align="right" alt="" width="120" />
 
 <!-- badges: start -->
 [![Codecov test coverage](https://codecov.io/gh/DBOSlab/forplotR/graph/badge.svg)](https://app.codecov.io/gh/DBOSlab/forplotR)

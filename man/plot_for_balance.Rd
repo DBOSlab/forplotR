@@ -26,21 +26,16 @@ plot_for_balance(fp_file_path = NULL,
 \item{filename}{Name of the output file for the main plot (without extension).}
 }
 \value{
-- A full PDF report with:
-  - plot metadata,
-  - navigable sections including subplot maps;
-- An Excel spreadsheet with:
-  - collection percentages (overall and per subplot),
-  - tag numbers for collected and not collected individuals.
+A PDF report and a summary Excel file with collection statistics.
 }
 \description{
-Processes field data collected using the \href {https://forestplots.net/}{Forestplots format}
+Processes field data collected using the \href{https://forestplots.net/}{Forestplots format}
 and generates a specimen map (2D plot) with collection status and spatial
 distribution of individuals across subplots. Generate a PDF with a full plot
 report with separate maps, for each subplot and a spreadsheet summarizing the
 percentage of collected specimens per subplot. The function performs the
 following steps: (i) validates all input arguments and checks/create output
-folders; (ii) reads the xlsx {Forestplots format} sheet, extracts metadata
+folders; (ii) reads the Forestplots-formatted xlsx sheet, extracts metadata
 (team, plot name, plot code), and cleans the data; (iii) normalizes and cleans
 coordinate and diameter values, computing global plot coordinates from
 subplot-relative positions; (iv) creates a PDF report, including plot metadata,
@@ -48,7 +43,7 @@ the main map, collected and uncollected specimen maps, optionally a map
 highlighting palms (Arecaceae) and navigable individual subplot  maps; (v)
 optionally generates a xlsx spreadsheet with the collection
 percentage per subplot (including totals), distinguishing collected vs.
-uncollected, and palms specimen.
+uncollected, and palm individuals.
 }
 \examples{
 \dontrun{
