@@ -96,6 +96,10 @@ plot_html_map <- function(fp_file_path = NULL,
     select(where(~any(grepl("^Plotcode[:]", ., ignore.case = TRUE)))) %>%
     as.character() %>%
     sub("^Plotcode:\\s*", "", ., ignore.case = TRUE)
+  # NEW CODE ADDED ON 18/Aug
+  if (!grepl("-", plot_code)) {
+    plot_code <- gsub("(?<=[A-Z])(?=\\d)", "-", plot_code, perl = TRUE)
+  }
 
   # Extract headers from the second row
   header_row <- as.character(fp_sheet_raw[2, ])
@@ -490,7 +494,21 @@ function addFilterControl(el,x){
   lon0 <- mean(vertex_coords$longitude)
 
   # Build the Leaflet map 5 base layers + reset button
-  map <- leaflet(fp_coords, options = leaflet::leafletOptions(minZoom = 2,  maxZoom = 22)) %>%
+  map <- leaflet::leaflet(fp_coords,
+                          options = leaflet::leafletOptions(minZoom = 2,
+                                                            maxZoom = 22)) %>%
+
+    # Reset-view buttom
+    leaflet::addEasyButton(
+      leaflet::easyButton(
+        icon    = "fa-crosshairs",
+        title   = "Back to plot",
+        onClick = leaflet::JS(
+          sprintf("function(btn, map){ map.setView([%f, %f], %d); }",
+                  lat0, lon0, initial_zoom)
+        )
+      )
+    ) %>%
 
     # Set title and subtitle
     leaflet::addControl(
@@ -507,6 +525,16 @@ function addFilterControl(el,x){
         "</div>"),
       position = "topleft",
       className = "custom-title"
+    ) %>%
+
+    # NEWLY ADDED CODE ON 18/Aug
+    # Add clickable project logo to top-left corner
+    leaflet::addControl(
+      html = "<a href='https://dboslab.github.io/forplotR-website/' target='_blank'>
+              <img src='inst/figures/forplotR_hex_sticker.png' style='width: 70px; height: auto;'>
+            </a>",
+      position = "topleft",
+      className = "project-logo"
     ) %>%
 
     htmlwidgets::onRender(
@@ -553,18 +581,6 @@ function addFilterControl(el,x){
       fillColor = ~color, fillOpacity = 0.8,
       popup = ~popup,
       group = "Specimens"
-    )  %>%
-
-    # Reset-view buttom
-    leaflet::addEasyButton(
-      leaflet::easyButton(
-        icon    = "fa-crosshairs",
-        title   = "Back to plot",
-        onClick = leaflet::JS(
-          sprintf("function(btn, map){ map.setView([%f, %f], %d); }",
-                  lat0, lon0, initial_zoom)
-        )
-      )
     ) %>%
 
     # Set initial view
