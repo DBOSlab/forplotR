@@ -39,7 +39,7 @@
 #' @param subplot_size Numeric. Subplot size in meters (default is 10).
 #'
 #' @param filename Character. Name of the output HTML file (default is
-#' "plot_map.html")..
+#' "plot_map.html").
 #'
 #' @param voucher_imgs Character. Directory path where voucher images are stored.
 #'
@@ -61,7 +61,7 @@
 #' @importFrom readxl read_excel
 #' @importFrom here here
 #' @importFrom dplyr select filter mutate case_when rename_with rename if_else
-#' @importFrom dplyr %>%
+#' @importFrom magrittr "%>%"
 #' @importFrom scales rescale
 #'
 #' @export
@@ -171,6 +171,60 @@ plot_html_map <- function(fp_file_path = NULL,
   )
   fp_coords$Latitude <- coords_geo[1, ]
   fp_coords$Longitude <- coords_geo[2, ]
+
+  # Generate subplot grid rectangles and labels
+  # Helper to get the 4 corners of each subplot in local coordinates
+  get_subplot_polygon <- function(col, row, size) {
+    x0 <- col * size
+    y0 <- row * size
+    matrix(c(
+      x0,        y0,
+      x0 + size, y0,
+      x0 + size, y0 + size,
+      x0,        y0 + size,
+      x0,        y0
+    ), ncol = 2, byrow = TRUE)
+  }
+
+  grid_polys <- list()
+  grid_labels <- data.frame()
+
+  subplot_index <- 1
+  for (row in 0:(n_rows - 1)) {
+    for (col in 0:(n_rows - 1)) {
+      local_poly <- get_subplot_polygon(col, row, subplot_size)
+      # Get center point
+      center_x <- mean(local_poly[, 1])
+      center_y <- mean(local_poly[, 2])
+
+      # Convert polygon corners to lat/lon
+      coords_latlon <- t(mapply(.get_latlon,
+                                x = local_poly[, 1],
+                                y = local_poly[, 2],
+                                MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4)))
+
+      # Store polygon
+      grid_polys[[subplot_index]] <- list(
+        lng = coords_latlon[, "lon"],
+        lat = coords_latlon[, "lat"]
+      )
+
+      # Store label at center
+      center_ll <- .get_latlon(center_x, center_y, p1, p2, p3, p4)
+      t1_label <- if (col %% 2 == 0) {
+        row + col * n_rows + 1
+      } else {
+        (n_rows - row - 1) + col * n_rows + 1
+      }
+      grid_labels <- rbind(grid_labels, data.frame(
+        subplot = t1_label,
+        lat = center_ll["lat"],
+        lon = center_ll["lon"]
+      ))
+
+      subplot_index <- subplot_index + 1
+    }
+  }
 
   # Assign color by collection status
   fp_coords$color <- dplyr::case_when(
@@ -299,6 +353,7 @@ document.addEventListener('click', function(e) {
 });
 </script>
 ")
+
   sidebar_css_js <- htmltools::HTML("
 <style>
 /* ---------- SIDEBAR STYLES ---------- */
@@ -352,7 +407,8 @@ function addFilterControl(el,x){
       <label><input type='checkbox' id='toggleFamily' checked> Family</label><br/>
       <label><input type='checkbox' id='toggleSpecies' checked> Species</label><br/>
       <label><input type='checkbox' id='toggleColl' checked> Collection&nbsp;Status</label><br/>
-      <label><input type='checkbox' id='togglePhotos'> With&nbsp;Photos&nbsp;Only</label>
+      <label><input type='checkbox' id='togglePhotos'> With&nbsp;Photos&nbsp;Only</label><br/>
+      <label><input type='checkbox' id='toggleSubplot'> Subplots</label>
     </div>
     <div id='familyFilterContainer'>
       <b>Filter by Family:</b><br/>
@@ -369,28 +425,33 @@ function addFilterControl(el,x){
         <option value='missing'>Not Collected (Red)</option>
         <option value='palm'>Palm (Yellow)</option>
       </select>
-    </div>
-  `;
+    </div><br/>
+    <div id='subplotFilterContainer' style='display:none;'>
+      <b>Filter by Subplot:</b><br/>
+      <select id='subplotFilter' multiple size='6' style='width:100%;'></select>
+    </div>`;
 
   /* ---------- COLLECT MARKER DATA ---------- */
   const markers=[];
   map.eachLayer(l=>{ if(l instanceof L.CircleMarker) markers.push(l); });
 
-  const famSet=new Set(), spSet=new Set(),
+  const famSet=new Set(), spSet=new Set(), sbSet=new Set(),
         fam2sp={}, sp2fam={};
 
   markers.forEach(m=>{
     const html=m.getPopup().getContent();
     const fam =(html.match(/<b>Family:<\\/b>\\s*(.*?)<br\\/>/)||[])[1]||'';
     const sp  =(html.match(/<b>Species:<\\/b>\\s*<i[^>]*>\\s*(.*?)<\\/i>/)||[])[1]||'';
+    const sb  =(html.match(/<b>Subplot:<\\/b>\\s*(\\d+)/)||[])[1]||'';
 
     if(fam) famSet.add(fam);
     if(sp)  spSet.add(sp);
+    if(sb)  sbSet.add(sb);
 
     sp2fam[sp]=fam;
     (fam2sp[fam]=fam2sp[fam]||new Set()).add(sp);
 
-    Object.assign(m,{ _fam:fam, _sp:sp, _stat:getStatus(m),
+    Object.assign(m,{ _fam:fam, _sp:sp, _subplot:sb, _stat:getStatus(m),
                       _hasPhoto:html.includes('slideshow-container') });
   });
 
@@ -398,19 +459,21 @@ function addFilterControl(el,x){
   const famSel=document.getElementById('familyFilter'),
         spSel =document.getElementById('speciesFilter'),
         csSel =document.getElementById('collFilter'),
+        sbSel =document.getElementById('subplotFilter'),
         search=document.getElementById('searchInput');
 
   const fill=(sel,set,italic=false)=>{
     sel.innerHTML='';
-    Array.from(set).sort().forEach(v=>{
+    Array.from(set).sort((a,b)=>+a - +b || a.localeCompare(b)).forEach(v=>{
       const o=document.createElement('option');
       o.value=v; o.selected=true; o.innerHTML=italic?`<i>${v}</i>`:v;
       sel.appendChild(o);
     });
   };
 
-  fill(famSel,famSet);               // keep full family list always
-  fill(spSel ,spSet ,true);          // initial full species list
+  fill(famSel,famSet);
+  fill(spSel ,spSet ,true);
+  fill(sbSel ,sbSet ,false);
   Array.from(csSel.options).forEach(o=>o.selected=true);
 
   const getSel=sel=>Array.from(sel.selectedOptions).map(o=>o.value);
@@ -428,16 +491,17 @@ function addFilterControl(el,x){
       const chosen=getSel(famSel);
       const subset=new Set();
       chosen.forEach(f=>fam2sp[f]?.forEach(sp=>subset.add(sp)));
-      fill(spSel,subset,true);       // rebuild species list only
+      fill(spSel,subset,true);
     }
     updateMarkers();
   });
 
   spSel.addEventListener('change',updateMarkers);
   csSel.addEventListener('change',updateMarkers);
+  sbSel.addEventListener('change',updateMarkers);
   search.addEventListener('keyup',updateMarkers);
 
-  ['Family','Species','Coll','Photos'].forEach(k=>{
+  ['Family','Species','Coll','Photos','Subplot'].forEach(k=>{
     const cb=document.getElementById('toggle'+k),
           block=document.getElementById(k.toLowerCase()+'FilterContainer');
     cb.addEventListener('change',()=>{
@@ -445,6 +509,7 @@ function addFilterControl(el,x){
       if(!cb.checked){
         if(k==='Species') fill(spSel,spSet,true);
         if(k==='Coll')    Array.from(csSel.options).forEach(o=>o.selected=true);
+        if(k==='Subplot') fill(sbSel,sbSet,false);
       }
       updateMarkers();
     });
@@ -456,17 +521,20 @@ function addFilterControl(el,x){
           sOn=document.getElementById('toggleSpecies').checked,
           cOn=document.getElementById('toggleColl').checked,
           pOn=document.getElementById('togglePhotos').checked,
+          bOn=document.getElementById('toggleSubplot').checked,
           term=search.value.trim().toLowerCase();
 
     const selFam=fOn?getSel(famSel):Array.from(famSet),
           selSp =sOn?getSel(spSel):Array.from(spSet),
-          selSt =cOn?getSel(csSel):['collected','missing','palm'];
+          selSt =cOn?getSel(csSel):['collected','missing','palm'],
+          selSb =bOn?getSel(sbSel):Array.from(sbSet);
 
     markers.forEach(m=>{
       const txt=m._fam.toLowerCase()+m._sp.toLowerCase();
       const show= selFam.includes(m._fam) &&
                   selSp .includes(m._sp ) &&
                   selSt .includes(m._stat) &&
+                  selSb .includes(m._subplot) &&
                   (!pOn || m._hasPhoto) &&
                   txt.includes(term);
 
@@ -474,7 +542,16 @@ function addFilterControl(el,x){
       else     { if(map.hasLayer(m)) map.removeLayer(m); }
     });
 
-    /* rebuild species list (but NOT family list) */
+    map.eachLayer(l => {
+    if (l.options && l.options.group === 'Subplot Grid') {
+      if (bOn) {
+        if (!map.hasLayer(l)) map.addLayer(l);
+      } else {
+        if (map.hasLayer(l)) map.removeLayer(l);
+      }
+    }
+  });
+
     if(sOn){
       const visibleSp=new Set();
       markers.filter(m=>map.hasLayer(m)).forEach(m=>visibleSp.add(m._sp));
@@ -555,7 +632,7 @@ function addFilterControl(el,x){
     # Layer control
     leaflet::addLayersControl(
       baseGroups    = c("OSM Street", "ESRI Street", "Satellite", "OpenTopo", "Dark Matter"),
-      overlayGroups = c("Specimens"),
+      overlayGroups = c("Specimens", "Subplot Grid"),
       position      = "bottomleft",
       options       = leaflet::layersControlOptions(
         collapsed = TRUE,
@@ -563,13 +640,32 @@ function addFilterControl(el,x){
       )
     ) %>%
 
-    # Plot polygon
-    leaflet::addPolygons(
-      lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
-      lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
-      color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
-      popup = plot_popup
-    )  %>%
+    # Add subplot labels (faint, watermark style)
+    leaflet::addLabelOnlyMarkers(
+      data = grid_labels,
+      lng = ~lon, lat = ~lat,
+      label = ~as.character(subplot),
+      labelOptions = leaflet::labelOptions(
+        noHide = TRUE,
+        direction = "center",
+        textOnly = TRUE,
+        style = list(
+          "font-size" = "10px",
+          "color" = "#888888",
+          "font-weight" = "300",
+          "opacity" = "0.4"
+        )
+      ),
+      group = "Subplot Grid"
+    ) %>%
+
+  # Plot polygon
+  leaflet::addPolygons(
+    lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
+    lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
+    color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
+    popup = plot_popup
+  )  %>%
 
     # Specimmen points
     leaflet::addCircleMarkers(
@@ -585,6 +681,19 @@ function addFilterControl(el,x){
 
     # Set initial view
     leaflet::setView(lng = lon0, lat = lat0, zoom = initial_zoom)
+
+  # Add subplot grid rectangles AFTER map is built
+  for (i in seq_along(grid_polys)) {
+    map <- map %>% leaflet::addPolygons(
+      lng = grid_polys[[i]]$lng,
+      lat = grid_polys[[i]]$lat,
+      color = "#999999", weight = 0.5, fillOpacity = 0,
+      group = "Subplot Grid"
+    )
+  }
+
+  # Hide by default AFTER all are added
+  map <- map %>% leaflet::hideGroup("Subplot Grid")
 
   map <- map %>%
     # Load the Roboto font family

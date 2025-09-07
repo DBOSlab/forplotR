@@ -64,15 +64,19 @@
 #' @return A PDF report and an Excel file summarizing specimen collection
 #' statistics per subplot.
 #'
-#' @importFrom readxl read_excel
 #' @import ggplot2
-#' @import BiomasaFP mergefp CalcAGB
-#' @importFrom dplyr
+#' @import BiomasaFP
+#' @importFrom readxl read_excel
+#' @importFrom dplyr mutate if_else group_by arrange select distinct filter
+#' @importFrom magrittr "%>%"
 #' @importFrom grDevices pdf dev.off colorRampPalette
 #' @importFrom utils capture.output
-#' @importFrom rmarkdown render
-#' @importFrom tools file_path_sans_ext
-#' @importFrom openxlsx
+#' @importFrom rmarkdown render pdf_document
+#' @importFrom openxlsx read.xlsx createWorkbook addWorksheet writeData createStyle addStyle saveWorkbook
+#' @importFrom tinytex latexmk
+#' @importFrom readr locale read_delim
+#' @importFrom tibble as_tibble tibble
+#' @importFrom here here
 #'
 #' @examples
 #' \dontrun{
@@ -130,9 +134,11 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   if (input_type == "fp_query_sheet") {
     raw <- .fp_query_to_field_sheet_df(fp_file_path)
-  } else {
-    raw <- suppressMessages(readxl::read_excel(fp_file_path, sheet = 1, col_names = FALSE))
   }
+  if (input_type == "field_sheet") {
+    raw <- suppressMessages(openxlsx::read.xlsx(fp_file_path, sheet = 1, colNames = FALSE))
+  }
+
   # Extract metadata from the first row
   metadata_row <- raw[1, ] %>% unlist() %>% as.character()
 
@@ -160,8 +166,10 @@ plot_for_balance <- function(fp_file_path = NULL,
   data <- data[, !is.na(colnames(data)) & colnames(data) != ""]
   data$Collected <- gsub("^$", NA, data$Collected)
 
+  data <- .replace_empty_with_na(data)
+
   # Clean data and compute coordinates
-  fp_clean <- .clean_fp_data(data, subplot_size)
+  fp_clean <- .clean_fp_data(data)
   fp_coords <- .compute_global_coordinates(fp_clean, plot_size, subplot_size)
   fp_coords <- fp_coords %>% dplyr::mutate(diameter = (D / 100) * 2)
   fp_coords <- fp_coords %>%
@@ -185,7 +193,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     dplyr::arrange(dplyr::if_else(Family == "Indet", 0, 1), Family)
 
   # Calculate exact subplot centers based on subplot_size and subplot number (T1)
-  subplot_labels <- tibble(T1 = sort(unique(fp_coords$T1))) %>%
+  subplot_labels <- tibble::tibble(T1 = sort(unique(fp_coords$T1))) %>%
     dplyr::mutate(
       n_subplots_per_col = 100 / subplot_size,  # number of rows (assumed square plot)
       col_index = (T1 - 1) %/% n_subplots_per_col,
@@ -371,8 +379,8 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   # Calculate plot statistics
   total_specimens <- nrow(fp_coords)
-  collected_count <- sum(!is.na(fp_coords$Collected) & fp_coords$Collected != "" & fp_coords$Family != "Arecaceae")
-  uncollected_count <- sum((is.na(fp_coords$Collected) | fp_coords$Collected == "") & fp_coords$Family != "Arecaceae")
+  collected_count <- sum(!is.na(fp_coords$Collected) & fp_coords$Family != "Arecaceae")
+  uncollected_count <- sum(is.na(fp_coords$Collected) & fp_coords$Family != "Arecaceae")
   palms_count <- sum(fp_coords$Family == "Arecaceae")
 
   # Map tag → subplot
@@ -448,7 +456,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 
-# Rendering PDF with full plot report
+# Rendering PDF with full plot report ####
 .render_plot_report <- function(
     rmd_path,
     output_pdf_path,
@@ -511,27 +519,32 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 
-# Data Clean
-.clean_fp_data <- function(fp_sheet, subplot_size) {
-  fp_sheet %>%
-    mutate(
-      # Convert to numeric, replace NA or invalid entries with 0
-      X = suppressWarnings(as.numeric(X)),
-      X = if_else(is.na(X), 0, X),
-      Y = suppressWarnings(as.numeric(Y)),
-      Y = if_else(is.na(Y), 0, Y),
-      D = suppressWarnings(as.numeric(D)),
-      D = if_else(is.na(D), 0, D),
-      T1 = suppressWarnings(as.numeric(T1)),
-      T1 = if_else(is.na(T1), 0, T1),
+# Replace empty cells with NA ####
+.replace_empty_with_na <- function(df) {
+  df[] <- lapply(df, function(col) {
+    if (is.character(col)) {
+      col[col == ""] <- NA
+    }
+    col
+  })
+  df
+}
 
-      # Ensure Collected is treated as character
+
+# Data Clean ####
+.clean_fp_data <- function(fp_sheet) {
+  fp_sheet %>%
+    dplyr::mutate(
+      dplyr::across(
+        .cols = any_of(c("X", "Y", "D", "T1")),
+        .fns = ~ tidyr::replace_na(suppressWarnings(as.numeric(.)), 0)
+      ),
       Collected = as.character(Collected)
     )
 }
 
 
-# Compute Global Coordinates
+# Compute Global Coordinates ####
 .compute_global_coordinates <- function(fp_clean, plot_size, subplot_size) {
   max_coord <- plot_size * 100
   n_rows <- floor(max_coord / subplot_size)
@@ -558,7 +571,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 
-# Get percentual values
+# Get percentual values ####
 .collection_percentual <- function(fp_sheet, dir = getwd(),
                                    plot_name = plot_name, plot_code = plot_name,
                                    team = "") {
@@ -585,10 +598,10 @@ plot_for_balance <- function(fp_file_path = NULL,
       collected_percentual = round(100 * collected / total_individuals, 1),
       collected_percentual_without_arecaceae = round(
         100 * sum(!is.na(Collected) & Collected != "" & Family != "Arecaceae") /
-          total_non_arecaceae, 1
-      ),
-      .groups = "drop"
-    )
+          total_non_arecaceae, 1), .groups = "drop")
+  resume$subplot <- as.numeric(resume$subplot)
+  resume <- resume %>% arrange(subplot)
+  resume$subplot <- as.character(resume$subplot)
 
   total <- resume %>%
     dplyr::summarise(
@@ -597,16 +610,12 @@ plot_for_balance <- function(fp_file_path = NULL,
       total_non_arecaceae = sum(total_non_arecaceae),
       collected = sum(collected),
       uncollected_non_arecaceae = sum(uncollected_non_arecaceae),
-      arecaceae_count = sum(arecaceae_count),
-
-    ) %>%
+      arecaceae_count = sum(arecaceae_count)) %>%
     dplyr::mutate(
       collected_percentual = round(100 * collected / total_individuals, 1),
       collected_percentual_without_arecaceae = round(
         100 * sum(!is.na(fp_sheet$Collected) & fp_sheet$Collected != "" & fp_sheet$Family != "Arecaceae") /
-          sum(fp_sheet$Family != "Arecaceae"), 1
-      )
-    )
+          sum(fp_sheet$Family != "Arecaceae"), 1))
 
   final_resume <- bind_rows(resume, total)
 
@@ -616,9 +625,13 @@ plot_for_balance <- function(fp_file_path = NULL,
     dplyr::group_by(subplot = as.character(T1)) %>%
     dplyr::summarise(
       n_uncollected = n(),
-      tagno_uncollected = paste(sort(unique(`New Tag No`)), collapse = "|"),
+      tagno_uncollected = paste(as.character(sort(as.numeric(unique(`New Tag No`)))), collapse = "|"),
       .groups = "drop"
     )
+  uncollected_df$subplot <- as.numeric(uncollected_df$subplot)
+  uncollected_df <- uncollected_df %>% arrange(subplot)
+  uncollected_df$subplot <- as.character(uncollected_df$subplot)
+
 
   total_uncollected <- uncollected_df %>%
     dplyr::summarise(
@@ -626,10 +639,8 @@ plot_for_balance <- function(fp_file_path = NULL,
       n_uncollected = sum(n_uncollected),
       tagno_uncollected = paste(
         sort(unique(unlist(strsplit(tagno_uncollected, "\\|")))),
-        collapse = "|"
-      )
-    )
-
+        collapse = "|"))
+  #total_uncollected$tagno_uncollected <- NA
   final_uncollected <- bind_rows(uncollected_df, total_uncollected)
 
   # Collected
@@ -638,9 +649,11 @@ plot_for_balance <- function(fp_file_path = NULL,
     dplyr::group_by(subplot = as.character(T1)) %>%
     dplyr::summarise(
       n_collected = n(),
-      tagno_collected = paste(sort(unique(`New Tag No`)), collapse = "|"),
-      .groups = "drop"
-    )
+      tagno_collected = paste(as.character(sort(as.numeric(unique(`New Tag No`)))), collapse = "|"),
+      .groups = "drop")
+  collected_df$subplot <- as.numeric(collected_df$subplot)
+  collected_df <- collected_df %>% arrange(subplot)
+  collected_df$subplot <- as.character(collected_df$subplot)
 
   total_collected <- collected_df %>%
     dplyr::summarise(
@@ -648,10 +661,8 @@ plot_for_balance <- function(fp_file_path = NULL,
       n_collected = sum(n_collected),
       tagno_collected = paste(
         sort(unique(unlist(strsplit(tagno_collected, "\\|")))),
-        collapse = "|"
-      )
-    )
-
+        collapse = "|"))
+  #total_collected$tagno_collected <- NA
   final_collected <- bind_rows(collected_df, total_collected)
 
   # Create xlsx
@@ -1149,6 +1160,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   names(field_temp) <- NULL   # leave header in row 2
   field_temp
 }
+
 
 # Auxiliar function to compute plot aboveground biomass
 .compute_plot_agb <- function(trees = NULL,
