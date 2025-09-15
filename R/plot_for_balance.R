@@ -195,7 +195,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   # Calculate exact subplot centers based on subplot_size and subplot number (T1)
   subplot_labels <- tibble::tibble(T1 = sort(unique(fp_coords$T1))) %>%
     dplyr::mutate(
-      n_subplots_per_col = 100 / subplot_size,  # number of rows (assumed square plot)
+      n_subplots_per_col = (plot_size / 1) * 100 / subplot_size,
       col_index = (T1 - 1) %/% n_subplots_per_col,
       row_index = (T1 - 1) %% n_subplots_per_col,
       subplot_y = if_else(col_index %% 2 == 0,
@@ -210,10 +210,14 @@ plot_for_balance <- function(fp_file_path = NULL,
 
 
   # Base plot
+
+  max_x <- 100
+  max_y <- (plot_size / 1) * 100
+
   base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
-    ggplot2::geom_vline(xintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
-    ggplot2::geom_hline(yintercept = seq(0, 100, subplot_size), color = "gray50", linewidth = 0.2) +
-    ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = 100, ymin = 0, ymax = 100),
+    ggplot2::geom_vline(xintercept = seq(0, max_x, subplot_size), color = "gray50", linewidth = 0.2) +
+    ggplot2::geom_hline(yintercept = seq(0, max_y, subplot_size), color = "gray50", linewidth = 0.2) +
+    ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = max_x, ymin = 0, ymax = max_y),
                        fill = NA, color = "black", linewidth = 0.6) +
     ggplot2::geom_text(
       data = subplot_labels,
@@ -240,8 +244,8 @@ plot_for_balance <- function(fp_file_path = NULL,
                        vjust = 0.5,
                        hjust = 0.5,
                        size = 0.6) +
-    ggplot2::scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
-    ggplot2::scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, by = subplot_size)) +
+    ggplot2::scale_x_continuous(limits = c(0, max_x), breaks = seq(0, 100, by = subplot_size)) +
+    ggplot2::scale_y_continuous(limits = c(0, max_y), breaks = seq(0, 100, by = subplot_size)) +
     ggplot2::coord_fixed(ratio = 1, clip = "off") +
     ggplot2::scale_fill_manual(
       values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
@@ -546,8 +550,9 @@ plot_for_balance <- function(fp_file_path = NULL,
 
 # Compute Global Coordinates ####
 .compute_global_coordinates <- function(fp_clean, plot_size, subplot_size) {
-  max_coord <- plot_size * 100
-  n_rows <- floor(max_coord / subplot_size)
+  max_x <- 100
+  max_y <- (plot_size / 1) * 100
+  n_rows <- floor(max_y / subplot_size)
   fp_clean %>%
     dplyr::mutate(
       T1 = as.numeric(T1),
@@ -563,8 +568,8 @@ plot_for_balance <- function(fp_file_path = NULL,
       )
     ) %>%
     dplyr::filter(
-      global_x < max_coord,
-      global_y < max_coord,
+      global_x <= max_x,
+      global_y <= max_y,
       global_x >= 0,
       global_y >= 0
     )
