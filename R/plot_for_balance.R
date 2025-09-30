@@ -97,7 +97,7 @@
 #'
 
 plot_for_balance <- function(fp_file_path = NULL,
-                             input_type = c("field_sheet", "fp_query_sheet"),
+                             input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                              plot_size = 1,
                              subplot_size = 10,
                              highlight_palms = TRUE,
@@ -139,7 +139,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     raw <- suppressMessages(openxlsx::read.xlsx(fp_file_path, sheet = 1, colNames = FALSE))
   }
 
-  # Extract metadata from the first row
+  # Extract metadata
   metadata_row <- raw[1, ] %>% unlist() %>% as.character()
 
   team <- metadata_row[grepl("^Team:", metadata_row, ignore.case = TRUE)] %>%
@@ -170,6 +170,8 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   # Clean data and compute coordinates
   fp_clean <- .clean_fp_data(data)
+
+
   fp_coords <- .compute_global_coordinates(fp_clean, plot_size, subplot_size)
   fp_coords <- fp_coords %>% dplyr::mutate(diameter = (D / 100) * 2)
   fp_coords <- fp_coords %>%
@@ -210,59 +212,19 @@ plot_for_balance <- function(fp_file_path = NULL,
 
 
   # Base plot
+  if (input_type == "field_sheet" | input_type == "fp_query_sheet") {
+  base_plot <- .build_fp_base_plot(fp_coords = fp_coords,
+                                   subplot_labels = subplot_labels,
+                                   plot_size = plot_size,
+                                   subplot_size = subplot_size,
+                                   plot_name = plot_name,
+                                   plot_code = plot_code,
+                                   highlight_palms = highlight_palms)
+  }
 
-  max_x <- 100
-  max_y <- (plot_size / 1) * 100
-
-  base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
-    ggplot2::geom_vline(xintercept = seq(0, max_x, subplot_size), color = "gray50", linewidth = 0.2) +
-    ggplot2::geom_hline(yintercept = seq(0, max_y, subplot_size), color = "gray50", linewidth = 0.2) +
-    ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = max_x, ymin = 0, ymax = max_y),
-                       fill = NA, color = "black", linewidth = 0.6) +
-    ggplot2::geom_text(
-      data = subplot_labels,
-      ggplot2::aes(x = center_x, y = center_y, label = T1),
-      color = "gray",
-      size = 2,
-      fontface = "bold",
-      inherit.aes = FALSE
-    ) +
-    ggplot2::geom_point(aes(
-      size = diameter,
-      fill = factor(case_when(
-        highlight_palms & Family == "Arecaceae" ~ "Palms",
-        !is.na(Collected) & Collected != "" ~ "Collected",
-        TRUE ~ "Uncollected"
-      ), levels = c("Collected", "Uncollected", "Palms"))
-    ),
-    shape = 21,
-    stroke = 0.2,
-    color = "black",
-    alpha = 0.9
-    ) +
-    ggplot2::geom_text(ggplot2::aes(label = `New Tag No`),
-                       vjust = 0.5,
-                       hjust = 0.5,
-                       size = 0.6) +
-    ggplot2::scale_x_continuous(limits = c(0, max_x), breaks = seq(0, 100, by = subplot_size)) +
-    ggplot2::scale_y_continuous(limits = c(0, max_y), breaks = seq(0, 100, by = subplot_size)) +
-    ggplot2::coord_fixed(ratio = 1, clip = "off") +
-    ggplot2::scale_fill_manual(
-      values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
-      name = "Status"
-    ) +
-    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
-    ggplot2::labs(
-      x = "X (m)", y = "Y (m)",
-      title = paste0("Collection Balance ", plot_name),
-      subtitle = paste0("Plot Code: ", plot_code)
-    ) +
-    ggplot2::theme_bw() +
-    ggplot2::theme(legend.position = "right") +
-    ggplot2::guides(
-      fill = guide_legend(override.aes = list(size = 5)),  # larger circles in Status legend
-    )
-
+  if (input_type == "monitora") {
+  .build_monitora_base_plot()
+  }
 
   # Create a temporary .Rmd file path to save the report
   rmd_path  <- file.path(foldername, paste0(filename, "_temp.Rmd"))
@@ -573,6 +535,80 @@ plot_for_balance <- function(fp_file_path = NULL,
       global_x >= 0,
       global_y >= 0
     )
+}
+
+
+# Build fp base plot ####
+.build_fp_base_plot <- function(fp_coords,
+                                subplot_labels,
+                                plot_size,
+                                subplot_size,
+                                plot_name,
+                                plot_code,
+                                highlight_palms) {
+  max_x <- 100
+  max_y <- (plot_size / 1) * 100
+
+  base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
+    ggplot2::geom_vline(xintercept = seq(0, max_x, subplot_size), color = "gray50", linewidth = 0.2) +
+    ggplot2::geom_hline(yintercept = seq(0, max_y, subplot_size), color = "gray50", linewidth = 0.2) +
+    ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = max_x, ymin = 0, ymax = max_y),
+                       fill = NA, color = "black", linewidth = 0.6) +
+    ggplot2::geom_text(
+      data = subplot_labels,
+      ggplot2::aes(x = center_x, y = center_y, label = T1),
+      color = "gray",
+      size = 2,
+      fontface = "bold",
+      inherit.aes = FALSE
+    ) +
+    ggplot2::geom_point(aes(
+      size = diameter,
+      fill = factor(case_when(
+        highlight_palms & Family == "Arecaceae" ~ "Palms",
+        !is.na(Collected) & Collected != "" ~ "Collected",
+        TRUE ~ "Uncollected"
+      ), levels = c("Collected", "Uncollected", "Palms"))
+    ),
+    shape = 21,
+    stroke = 0.2,
+    color = "black",
+    alpha = 0.9
+    ) +
+    ggplot2::geom_text(ggplot2::aes(label = `New Tag No`),
+                       vjust = 0.5,
+                       hjust = 0.5,
+                       size = 0.6) +
+    ggplot2::scale_x_continuous(limits = c(0, max_x), breaks = seq(0, 100, by = subplot_size)) +
+    ggplot2::scale_y_continuous(limits = c(0, max_y), breaks = seq(0, 100, by = subplot_size)) +
+    ggplot2::coord_fixed(ratio = 1, clip = "off") +
+    ggplot2::scale_fill_manual(
+      values = c("Collected" = "gray", "Uncollected" = "red", "Palms" = "gold"),
+      name = "Status"
+    ) +
+    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
+    ggplot2::labs(
+      x = "X (m)", y = "Y (m)",
+      title = paste0("Collection Balance ", plot_name),
+      subtitle = paste0("Plot Code: ", plot_code)
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(legend.position = "right") +
+    ggplot2::guides(
+      fill = guide_legend(override.aes = list(size = 5)),  # larger circles in Status legend
+    )
+}
+
+
+# Build fp base plot ####
+.build_monitora_base_plot <- function(fp_coords,
+                                      subplot_labels,
+                                      plot_size,
+                                      subplot_size,
+                                      plot_name,
+                                      plot_code,
+                                      highlight_palms) {
+
 }
 
 
