@@ -16,32 +16,61 @@ Authors@R:
              comment = c(ORCID = "0000-0001-7072-2656"))
     )
 Maintainer: Giulia Ottino <botgiuc@gmail.com>
-Description: Tools for managing and visualizing forest plot data collected in the ForestPlots format. Functions are provided to generate static and interactive specimen maps, organize voucher image directories based on updated taxonomy, fill herbarium spreadsheets (e.g., JABOT, BRAHMS) from field data, and export HTML maps with filters for taxonomy, collection status, and image availability. Designed to streamline post-collection workflows for field botanists and ecologists.
+Description: Provides tools for managing and visualizing forest plot data
+    collected in the 'ForestPlots.net' format and related layouts, including
+    field sheets, Query Library exports, and datasets from the MONITORA
+    monitoring program. Functions generate static and interactive specimen
+    maps, organize voucher image repositories based on updated taxonomy,
+    fill herbarium spreadsheets (e.g., JABOT, BRAHMS) from field data,
+    and export HTML maps with filters for taxonomy, collection status and
+    image availability. Includes optional automated lookup of herbarium
+    records from JABOT, with direct image links matched by collector and
+    voucher number. The package also implements the 'plot_for_balance()'
+    workflow to produce plot- and subplot-level PDF reports, species
+    checklists, Excel summaries of collection completeness, and optional
+    above-ground biomass (AGB) estimates per plot using 'BiomasaFP'.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Depends: R (>= 3.5.0)
+Depends: 
+    R (>= 3.5.0)
 Imports:
+    BiomasaFP,
+    data.table,
     dplyr,
     geodata,
     geosphere,
     ggplot2,
     grDevices,
+    grid,
     here,
     htmltools,
     htmlwidgets,
+    httr,
+    jabotR,
+    jsonlite,
     leaflet,
+    lubridate,
+    magrittr,
     openxlsx,
+    purrr,
+    readr,
     readxl,
     rmarkdown,
     scales,
     stringi,
+    stringr,
     terra,
+    tibble,
+    tidyr,
+    tinytex,
     tools,
-    utils
+    utils,
+    writexl,
+    DT
 Suggests:
     testthat (>= 3.0.0)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 URL:
     https://dboslab.github.io/forplotR-website/
     https://github.com/DBOSlab/forplotR

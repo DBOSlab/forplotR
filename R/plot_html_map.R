@@ -3,59 +3,137 @@
 #' @author Giulia Ottino & Domingos Cardoso
 #'
 #' @description
-#' Generates an interactive and self-contained HTML map following the
-#' \href{https://forestplots.net/}{ForestPlots plot protocol}, using Leaflet
-#' and based on vouchered tree data and the geographical coordinates of the
-#' plot corners. The function:(i) Converts local subplot coordinates (X, Y) to
-#' geographic coordinates using geospatial interpolation from four corner vertices;
-#' (ii) automatically extracts metadata like team name, plot name, and plot code
-#' from the input xlsx file; (iii) draws the plot boundary polygon with angular
-#' ordering to prevent self-intersection, over a selectable basemap ("satellite"
-#' or "street"); (iv) colors tree points based on collection status and palms:
-#' palms (yellow), collected (gray), and missing (red); (v) embeds image
-#' carousels in the popups for vouchers when corresponding images are available
-#' in the specified folder; (vi) adds an interactive filter sidebar with
-#' checkboxes, multi-select inputs, and search box for filtering by family,
-#' species, collection status, and presence of photos; (vii) displays informative
-#' popups for each tree,showing tag number, subplot,family, species, DBH,
-#' voucher code, and photos; (viii) saves the resulting map as a date-stamped
-#' standalone HTML file with multiple interactive leaflet map options to the
-#' specified directory for easy sharing, archiving, or field consultation.
-#'
+#' Generates an interactive and self-contained HTML map for forest plots
+#' following either the \href{https://forestplots.net/}{ForestPlots plot protocol}
+#' or the \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}
+#' {MONITORA monitoring program}, using Leaflet and based on vouchered tree data
+#' and plot coordinates. The function handles both standard ForestPlots layouts
+#' (1 ha or 0.5 ha plots defined by four corner vertices) and MONITORA 
+#' layouts (Maltese cross design defined by a single central coordinate). 
+#' It: (i) converts local subplot coordinates (X, Y) to geographic coordinates 
+#' using geospatial interpolation from plot vertices or a  central point; 
+#' (ii) extracts metadata such as team name, plot name, and plot code from the 
+#' input file; (iii) draws the plot boundary polygon or Maltese cross arms over
+#' selectable basemaps; (iv) colors tree points by collection status and palms 
+#' (palms = yellow, collected = gray, missing = red); (v) embeds image carousels in
+#' specimen popups when matching voucher images are found in the specified
+#' folder; (vi) optionally performs a local herbarium lookup (e.g. JABOT DwC-A
+#' downloads) to attach direct “Herbarium image” links to each voucher when
+#' available; (vii) adds an interactive filter sidebar with checkboxes,
+#' multi-select inputs, and a search box for filtering by family, species,
+#' collection status, subplot, and presence of photos; (viii) displays
+#' informative popups for each tree, showing tag number, subplot, family,
+#' species, DBH, voucher code, herbarium image link (if found), and photos;
+#' (ix) optionally adds an EmailJS-powered comment form to each specimen popup;
+#' and (x) saves the resulting map as a date-stamped standalone HTML file with
+#' multiple interactive Leaflet map options for easy sharing, archiving, or
+#' field consultation.
+#' 
 #' @usage plot_html_map(fp_file_path = NULL,
+#'                      input_type = c("field_sheet", "fp_query_sheet", "monitora"),
 #'                      vertex_coords = NULL,
 #'                      plot_size = 1,
 #'                      subplot_size = 10,
 #'                      voucher_imgs = NULL,
-#'                      filename = "plot_map.html")
+#'                      filename = "plot_map",
+#'                      station_name = NULL,
+#'                      collector = NULL,
+#'                      herbaria_lookup = FALSE,
+#'                      herbaria = NULL,
+#'                      jabot_cache_rds = "jabot_index.rds",
+#'                      jabot_force_refresh = FALSE,
+#'                      comment_email_to = NULL)
 #'
 #' @param fp_file_path Character. Path to the Excel file containing tree data.
 #'
-#' @param vertex_coords Data frame or path to Excel file with columns `Latitude`
-#' and `Longitude` for the four plot corners.
+#' @param input_type One of \code{"field_sheet"}, \code{"fp_query_sheet"} or
+#' \code{"monitora"}. For \code{"fp_query_sheet"}, the function expects a
+#' ForestPlots Query Library export and converts it internally into a
+#' field-sheet-like table. For \code{"monitora"}, it expects a Maltese-cross
+#' layout.
+#'
+#' @param vertex_coords Data frame, path to an Excel file, or numeric vector.
+#' For \code{"field_sheet"} and \code{"fp_query_sheet"}, provide four plot
+#' corners (Latitude/Longitude). For \code{"monitora"}, provide a single
+#' central Latitude/Longitude used as the cross center. A numeric vector of
+#' length two is interpreted either as \code{c(lat, lon)} or as a named vector
+#' with elements \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.
 #'
 #' @param plot_size Numeric. Total plot size in hectares (default is 1).
 #'
 #' @param subplot_size Numeric. Subplot size in meters (default is 10).
 #'
-#' @param filename Character. Name of the output HTML file (default is
-#' "plot_map.html").
+#' @param filename Character. Base name of the output HTML file (without
+#' extension). The function will prepend a date-stamped prefix and append
+#' \code{".html"} (default is \code{"plot_map"}).
 #'
 #' @param voucher_imgs Character. Directory path where voucher images are stored.
+#' Subdirectories are assumed to be named after voucher IDs, each containing
+#' one or more image files.
+#'
+#' @param station_name Character or \code{NULL}. For \code{"monitora"} inputs,
+#' optionally filter or loop over one or more station names. When a vector of
+#' station names is given, the function calls itself once per station.
+#'
+#' @param collector Character. Optional fallback collector name used when
+#' compact voucher codes are provided (e.g. \code{"GCO1095"} without an explicit
+#' collector string).
+#'
+#' @param herbaria_lookup Logical. If \code{TRUE}, the function performs a local
+#' herbarium lookup and adds a \code{herbaria_link} column to the specimen data,
+#' building a minimal index from JABOT DwC-A downloads (via \pkg{jabotR}).
+#'
+#' @param herbaria Character vector or \code{NULL}. Herbarium codes to be used
+#' in the herbaria lookup, e.g. \code{c("RB","UPCB")}. When
+#' \code{herbaria_lookup = TRUE} this argument must be a non-empty vector;
+#' by default it is \code{NULL} and no herbaria search is performed unless the
+#' user explicitly supplies the herbarium codes.
+#'
+#' @param jabot_cache_rds Character. Path to an \code{.rds} file used to cache
+#' the JABOT-based index (keys and catalog numbers) between runs. Defaults to
+#' \code{"jabot_index.rds"} in the working directory.
+#'
+#' @param jabot_force_refresh Logical. If \code{TRUE}, forces rebuilding the
+#' JABOT-based index from the local DwC-A archives, ignoring any existing
+#' cache file.
+#'
+#' @param comment_email_to Character or \code{NULL}. Optional e-mail address of
+#' the plot PI. If provided (non-empty), specimen popups include a
+#' \code{"Send comment"} button that opens an EmailJS-powered form inside the
+#' HTML map. All messages are sent using the built-in \pkg{forplotR} EmailJS
+#' configuration.
 #'
 #' @examples
 #' \dontrun{
 #' vertex_df <- data.frame(
-#'   Latitude = c(-3.123, -3.123, -3.125, -3.125),
+#'   Latitude  = c(-3.123, -3.123, -3.125, -3.125),
 #'   Longitude = c(-60.012, -60.010, -60.012, -60.010)
 #' )
-#' plot_html_map("data/tree_data.xlsx",
-#'                vertex_coords = vertex_df,
-#'                voucher_imgs = "voucher_imgs")
+#'
+#' # Basic example (field_sheet)
+#' plot_html_map(
+#'   fp_file_path  = "data/tree_data.xlsx",
+#'   input_type    = "field_sheet",
+#'   vertex_coords = vertex_df,
+#'   voucher_imgs  = "voucher_imgs",
+#'   filename      = "plot_map"
+#' )
+#'
+#' # Example with herbaria lookup
+#' plot_html_map(
+#'   fp_file_path    = "data/RUS_plot.xlsx",
+#'   input_type      = "field_sheet",
+#'   vertex_coords   = "data/vertices.xlsx",
+#'   voucher_imgs    = "voucher_imgs",
+#'   collector       = "G. C. Ottino",
+#'   herbaria_lookup = TRUE,
+#'   herbaria        = c("RB", "UPCB"),
+#'   filename        = "rus_plot_map"
+#' )
 #' }
 #'
 #' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers setView addControl
-#' @importFrom htmltools HTML
+#' @importFrom htmltools HTML tags htmlEscape save_html
 #' @importFrom htmlwidgets onRender prependContent saveWidget
 #' @importFrom geosphere destPoint bearing
 #' @importFrom readxl read_excel
@@ -63,226 +141,483 @@
 #' @importFrom dplyr select filter mutate case_when rename_with rename if_else
 #' @importFrom magrittr "%>%"
 #' @importFrom scales rescale
+#' @importFrom openxlsx read.xlsx
+#' @importFrom data.table fread
 #'
 #' @export
-#'
-
 plot_html_map <- function(fp_file_path = NULL,
+                          input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                           vertex_coords = NULL,
                           plot_size = 1,
                           subplot_size = 10,
                           voucher_imgs = NULL,
-                          filename = "plot_map.html") {
-
-  # Check input file
+                          filename = "plot_map",
+                          station_name = NULL,
+                          collector = NULL,
+                          herbaria_lookup = FALSE,
+                          herbaria = NULL,
+                          jabot_cache_rds = "jabot_index.rds",
+                          jabot_force_refresh = FALSE,
+                          comment_email_to = NULL) {
+  
+  # --- Normalize / validate input type (now supports 'fp_query_sheet') ---
+  input_type <- tolower(trimws(as.character(input_type)))
+  input_type <- match.arg(input_type, c("field_sheet", "fp_query_sheet", "monitora"))
+  
+  # --- Validate input file path ---
   if (!file.exists(fp_file_path)) {
-    stop("The provided fp_file_path does not exist.")
+    stop("The provided 'fp_file_path' does not exist.", call. = FALSE)
   }
-
-  # Read the Excel file without headers to process metadata and headers correctly
-  fp_sheet_raw <- suppressMessages(readxl::read_excel(fp_file_path, sheet = 1, col_names = FALSE))
-
-  # Extract metadata from the first row (Team and Plot Name)
-  metadata_row <- fp_sheet_raw[1, ]
-  team <- metadata_row %>%
-    select(where(~any(grepl("^Team[:]", ., ignore.case = TRUE)))) %>%
-    as.character() %>%
-    sub("^Team:\\s*", "", ., ignore.case = TRUE)
-  plot_name <- metadata_row %>%
-    select(where(~any(grepl("^Plot Name[:]", ., ignore.case = TRUE)))) %>%
-    as.character() %>%
-    sub("^Plot Name:\\s*", "", ., ignore.case = TRUE)
-  plot_code <- metadata_row %>%
-    select(where(~any(grepl("^Plotcode[:]", ., ignore.case = TRUE)))) %>%
-    as.character() %>%
-    sub("^Plotcode:\\s*", "", ., ignore.case = TRUE)
-  # NEW CODE ADDED ON 18/Aug
+  
+  # --- Optional: handle multiple MONITORA stations (same behavior as plot_for_balance) ---
+  if (input_type == "monitora" && !is.null(station_name) && length(station_name) > 1L) {
+    for (st in unique(trimws(as.character(station_name)))) {
+      plot_html_map(fp_file_path  = fp_file_path,
+                    input_type    = "monitora",
+                    vertex_coords = vertex_coords,
+                    plot_size     = plot_size,
+                    subplot_size  = subplot_size,
+                    voucher_imgs  = voucher_imgs,
+                    filename      = paste0(filename, "_station_", st),
+                    station_name  = st,
+                    collector     = collector,
+                    herbaria_lookup     = herbaria_lookup,
+                    herbaria            = herbaria,
+                    jabot_cache_rds     = jabot_cache_rds,
+                    jabot_force_refresh = jabot_force_refresh,
+                    comment_email_to    = comment_email_to)
+    }
+    return(invisible(TRUE))
+  }
+  
+  #  Read and convert the input to a standard dataset
+  if (input_type == "monitora") {
+    if (!exists(".monitora_to_field_sheet_df", mode = "function")) {
+      stop("Missing helper `.monitora_to_field_sheet_df()` for MONITORA input.")
+    }
+    raw <- .monitora_to_field_sheet_df(fp_file_path, station_name = station_name)
+  } else if (input_type == "fp_query_sheet") {
+    if (!exists(".fp_query_to_field_sheet_df", mode = "function")) {
+      stop("Missing helper `.fp_query_to_field_sheet_df()` for FP Query input.")
+    }
+    raw <- .fp_query_to_field_sheet_df(fp_file_path)
+  } else { 
+    raw <- suppressMessages(openxlsx::read.xlsx(fp_file_path, sheet = 1, colNames = FALSE))
+  }
+  
+  # --- Unify header and data extraction for all input types ---
+  header_row <- as.character(raw[2, ])
+  header_row[is.na(header_row)] <- paste0("NA_col_", seq_along(header_row))[is.na(header_row)]
+  colnames(raw) <- make.unique(header_row)
+  fp_sheet <- raw[-(1:2), , drop = FALSE]
+  
+  # --- Extract metadata (from row 1) ---
+  meta_row_chr <- as.character(raw[1, ])
+  meta_row_chr[is.na(meta_row_chr)] <- ""
+  
+  grab_meta <- function(key) {
+    hit <- meta_row_chr[grepl(paste0("^", key, "[:]\\s*"), meta_row_chr, ignore.case = TRUE)]
+    if (length(hit)) {
+      sub(paste0("^", key, "[:]\\s*"), "", hit[1], ignore.case = TRUE)
+    } else {
+      ""
+    }
+  }
+  
+  team      <- grab_meta("Team")
+  plot_name <- grab_meta("Plot Name")
+  plot_code <- grab_meta("Plotcode")
+  
+  # Ensure plot_code has hyphen between letters and digits (e.g. ABC-01)
   if (!grepl("-", plot_code)) {
     plot_code <- gsub("(?<=[A-Z])(?=\\d)", "-", plot_code, perl = TRUE)
   }
-
-  # Extract headers from the second row
-  header_row <- as.character(fp_sheet_raw[2, ])
-  header_row[is.na(header_row)] <- paste0("NA_col_", seq_along(header_row))[is.na(header_row)]
-  colnames(fp_sheet_raw) <- make.unique(header_row)
-
-  # Data starts from the third row
-  fp_sheet <- fp_sheet_raw[-(1:2), ]
-
-  # Clean and convert necessary columns with suppressed warnings
+  
+  # Clean and convert necessary columns
+  numify <- function(z) suppressWarnings(as.numeric(gsub(",", ".", as.character(z))))
+  coerce <- function(z) {
+    zc <- as.character(z)
+    out <- suppressWarnings(as.numeric(gsub(",", ".", zc)))
+    bad <- is.na(out) & grepl("/", zc)
+    out[bad] <- suppressWarnings(as.numeric(sub(".*/\\s*([0-9]+).*", "\\1", zc[bad])))
+    out
+  }
+  
   fp_clean <- fp_sheet %>%
     dplyr::mutate(
-      T1 = suppressWarnings(as.numeric(T1)),
-      X = suppressWarnings(as.numeric(X)),
-      Y = suppressWarnings(as.numeric(Y)),
-      D = suppressWarnings(as.numeric(D))
+      T1 = numify(T1),
+      X  = coerce(X),
+      Y  = coerce(Y),
+      D  = numify(D)
     ) %>%
-    filter(!is.na(T1), !is.na(X), !is.na(Y))
-
+    dplyr::filter(is.finite(T1), is.finite(X), is.finite(Y))
+  
+  if (!nrow(fp_clean)) {
+    stop("No valid points to plot: T1/X/Y could not be parsed from the input sheet.", call. = FALSE)
+  }
+  
+  # Enable EmailJS-based comment system if PI email is provided and internal keys are set
+  enable_comment <- !is.null(comment_email_to) && nzchar(comment_email_to) &&
+    nzchar(.FORPLOTR_EMAILJS_PUBLIC_KEY) &&
+    nzchar(.FORPLOTR_EMAILJS_SERVICE_ID) &&
+    nzchar(.FORPLOTR_EMAILJS_TEMPLATE_PI) &&
+    nzchar(.FORPLOTR_EMAILJS_TEMPLATE_ACK)
+  
   # Geometry calculations
-  max_coord <- plot_size * 100
-  n_rows <- floor(max_coord / subplot_size)
-
-  # Convert local to global coordinates
-  fp_coords <- fp_clean %>%
-    dplyr::mutate(
-      col = floor((T1 - 1) / n_rows),
-      row = (T1 - 1) %% n_rows,
-      global_x = col * subplot_size + X,
-      global_y = dplyr::if_else(
-        col %% 2 == 0,
-        row * subplot_size + Y,
-        (n_rows - row - 1) * subplot_size + Y
+  if (input_type == "monitora") {
+    if (!exists(".compute_global_coordinates_monitora", mode = "function")) {
+      stop("Missing helper `.compute_global_coordinates_monitora()` for MONITORA layout.")
+    }
+    fp_coords <- .compute_global_coordinates_monitora(fp_clean)
+    if (!all(c("draw_x", "draw_y") %in% names(fp_coords))) {
+      stop("MONITORA helper must add 'draw_x' and 'draw_y' columns (meters).")
+    }
+  } else {
+    max_coord <- plot_size * 100
+    n_rows <- floor(max_coord / subplot_size)
+    
+    # Convert local to global coordinates
+    fp_coords <- fp_clean %>%
+      dplyr::mutate(
+        col = floor((T1 - 1) / n_rows),
+        row = (T1 - 1) %% n_rows,
+        global_x = col * subplot_size + X,
+        global_y = dplyr::if_else(
+          col %% 2 == 0,
+          row * subplot_size + Y,
+          (n_rows - row - 1) * subplot_size + Y
+        ),
+        draw_x = global_x,
+        draw_y = global_y
       )
-    )
-
+  }
+  
   # Read vertex_coords if given as path
   if (is.character(vertex_coords) && grepl("\\.xlsx?$", vertex_coords)) {
     vertex_coords <- readxl::read_excel(vertex_coords)
   }
-
+  
+  # --- Accept numeric vector for MONITORA center ---
+  if (!is.null(vertex_coords) && !is.data.frame(vertex_coords)) {
+    if (is.atomic(vertex_coords) && length(vertex_coords) == 2) {
+      nm <- tolower(names(vertex_coords))
+      if (length(nm) == 2 && any(nm %in% c("lon", "longitude"))) {
+        lon <- as.numeric(vertex_coords[which(nm %in% c("lon", "longitude"))][1])
+        lat <- as.numeric(vertex_coords[which(nm %in% c("lat", "latitude"))][1])
+      } else {
+        # assume c(lat, lon)
+        lat <- as.numeric(vertex_coords[1])
+        lon <- as.numeric(vertex_coords[2])
+      }
+      vertex_coords <- data.frame(latitude = lat, longitude = lon, check.names = FALSE)
+    } else {
+      stop("vertex_coords must be a 1-row data.frame or a length-2 numeric vector (lat, lon).",
+           call. = FALSE)
+    }
+  }
+  
   # Standardize and clean vertex coordinates
   vertex_coords <- vertex_coords %>%
-    dplyr::rename_with(~tolower(gsub("\\s*\\(.*?\\)", "", .x)), everything()) %>%
+    dplyr::rename_with(~tolower(gsub("\\s*\\(.*?\\)", "", .x)), dplyr::everything()) %>%
     dplyr::rename(latitude = latitude, longitude = longitude) %>%
     dplyr::mutate(
       longitude = as.numeric(gsub(",", ".", longitude)),
       latitude  = as.numeric(gsub(",", ".", latitude))
     )
-
-  # Correct signals to ensure coordinates are in southern hemisphere
-  vertex_coords <- vertex_coords %>%
-    dplyr::mutate(
-      longitude = ifelse(longitude > 0, -longitude, longitude),
-      latitude  = ifelse(latitude > 0, -latitude, latitude)
-    )
-
-  # Use coordinates after cleaning
-  p1 <- c(vertex_coords$longitude[1], vertex_coords$latitude[1])
-  p2 <- c(vertex_coords$longitude[2], vertex_coords$latitude[2])
-  p3 <- c(vertex_coords$longitude[3], vertex_coords$latitude[3])
-  p4 <- c(vertex_coords$longitude[4], vertex_coords$latitude[4])
-
-  coords_geo <- mapply(
-    .get_latlon,
-    x = fp_coords$global_x,
-    y = fp_coords$global_y,
-    MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4)
-  )
-  fp_coords$Latitude <- coords_geo[1, ]
-  fp_coords$Longitude <- coords_geo[2, ]
-
-  # Generate subplot grid rectangles and labels
-  # Helper to get the 4 corners of each subplot in local coordinates
-  get_subplot_polygon <- function(col, row, size) {
-    x0 <- col * size
-    y0 <- row * size
-    matrix(c(
-      x0,        y0,
-      x0 + size, y0,
-      x0 + size, y0 + size,
-      x0,        y0 + size,
-      x0,        y0
-    ), ncol = 2, byrow = TRUE)
-  }
-
-  grid_polys <- list()
-  grid_labels <- data.frame()
-
-  subplot_index <- 1
-  for (row in 0:(n_rows - 1)) {
-    for (col in 0:(n_rows - 1)) {
-      local_poly <- get_subplot_polygon(col, row, subplot_size)
-      # Get center point
-      center_x <- mean(local_poly[, 1])
-      center_y <- mean(local_poly[, 2])
-
-      # Convert polygon corners to lat/lon
-      coords_latlon <- t(mapply(.get_latlon,
-                                x = local_poly[, 1],
-                                y = local_poly[, 2],
-                                MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4)))
-
-      # Store polygon
-      grid_polys[[subplot_index]] <- list(
-        lng = coords_latlon[, "lon"],
-        lat = coords_latlon[, "lat"]
+  
+  # Correct hemisphere signs only for 4-corner ForestPlots inputs
+  if (input_type != "monitora" && nrow(vertex_coords) >= 4) {
+    vertex_coords <- vertex_coords %>%
+      dplyr::mutate(
+        longitude = ifelse(longitude > 0, -longitude, longitude),
+        latitude  = ifelse(latitude  > 0, -latitude,  latitude)
       )
-
-      # Store label at center
-      center_ll <- .get_latlon(center_x, center_y, p1, p2, p3, p4)
-      t1_label <- if (col %% 2 == 0) {
-        row + col * n_rows + 1
-      } else {
-        (n_rows - row - 1) + col * n_rows + 1
-      }
-      grid_labels <- rbind(grid_labels, data.frame(
-        subplot = t1_label,
-        lat = center_ll["lat"],
-        lon = center_ll["lon"]
-      ))
-
-      subplot_index <- subplot_index + 1
+  }
+  
+  if (input_type == "monitora") {
+    if (nrow(vertex_coords) != 1) {
+      stop("For 'monitora', provide ONE central coordinate in 'vertex_coords'.", call. = FALSE)
+    }
+    center <- c(vertex_coords$longitude[1], vertex_coords$latitude[1])
+    coords_geo <- vapply(
+      seq_len(nrow(fp_coords)),
+      function(i) .get_latlon_from_center(fp_coords$draw_x[i], fp_coords$draw_y[i], center),
+      FUN.VALUE = c(lat = NA_real_, lon = NA_real_)
+    )
+    
+    fp_coords$Latitude  <- coords_geo["lat", ]
+    fp_coords$Longitude <- coords_geo["lon", ]
+  } else {
+    # Use coordinates after cleaning (four vertices)
+    if (nrow(vertex_coords) < 4) {
+      stop("For 'field_sheet' and 'fp_query_sheet' you must provide FOUR plot corners in 'vertex_coords'.",
+           call. = FALSE)
+    }
+    p1 <- c(vertex_coords$longitude[1], vertex_coords$latitude[1])
+    p2 <- c(vertex_coords$longitude[2], vertex_coords$latitude[2])
+    p3 <- c(vertex_coords$longitude[3], vertex_coords$latitude[3])
+    p4 <- c(vertex_coords$longitude[4], vertex_coords$latitude[4])
+    
+    # Robust to mapply simplification (always 2×N)
+    coords_geo <- simplify2array(
+      mapply(
+        .get_latlon,
+        x = fp_coords$draw_x,
+        y = fp_coords$draw_y,
+        MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4),
+        SIMPLIFY = FALSE
+      )
+    )
+    if (is.null(dim(coords_geo))) {
+      coords_geo <- matrix(coords_geo, nrow = 2)
+    }
+    rownames(coords_geo) <- c("lat", "lon")
+    
+    fp_coords$Latitude  <- coords_geo[1, , drop = TRUE]
+    fp_coords$Longitude <- coords_geo[2, , drop = TRUE]
+    
+    # Coerce to numeric and drop invalid points (avoids leaflet errors)
+    fp_coords$Latitude  <- suppressWarnings(as.numeric(fp_coords$Latitude))
+    fp_coords$Longitude <- suppressWarnings(as.numeric(fp_coords$Longitude))
+    keep <- is.finite(fp_coords$Latitude) & is.finite(fp_coords$Longitude)
+    fp_coords <- fp_coords[keep, , drop = FALSE]
+    if (!nrow(fp_coords)) {
+      stop("No valid points to plot: Latitude/Longitude are missing or non-numeric after conversion.",
+           call. = FALSE)
     }
   }
-
+  
+  # Generate subplot grid rectangles and labels
+  grid_polys  <- list()
+  grid_labels <- data.frame()
+  
+  if (input_type == "monitora") {
+    # Build 5x2 cells for each arm of the Maltese cross (10 m cells)
+    mk_cells <- function(arm) {
+      base <- expand.grid(c = 0:4, r = 0:1)   # c: along the arm (5 columns), r: width (2 rows)
+      cs <- 10                                 # subplot size (10 m)
+      
+      if (arm == "N") {
+        # from +50 to +100 m on the Y axis
+        dplyr::mutate(
+          base,
+          xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
+          ymin =  50 + c * cs, ymax =  50 + c * cs + cs
+        )
+      } else if (arm == "S") {
+        # from -100 to -50 m on the Y axis
+        dplyr::mutate(
+          base,
+          xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
+          ymin = -100 + c * cs, ymax = -100 + c * cs + cs
+        )
+      } else if (arm == "L") {  # East
+        # from +50 to +100 m on the X axis
+        dplyr::mutate(
+          base,
+          xmin =  50 + c * cs, xmax =  50 + c * cs + cs,
+          ymin = -cs + r * cs, ymax = -cs + r * cs + cs
+        )
+      } else {                   # O = West
+        # from -100 to -50 m on the X axis
+        dplyr::mutate(
+          base,
+          xmin = -100 + c * cs, xmax = -100 + c * cs + cs,
+          ymin =  -cs + r * cs, ymax =  -cs + r * cs + cs
+        )
+      }
+    }
+    
+    cells <- dplyr::bind_rows(
+      mk_cells("N") %>% dplyr::mutate(arm = "N"),
+      mk_cells("S") %>% dplyr::mutate(arm = "S"),
+      mk_cells("L") %>% dplyr::mutate(arm = "L"),
+      mk_cells("O") %>% dplyr::mutate(arm = "O")
+    )
+    
+    centers <- cells %>%
+      dplyr::mutate(
+        cx = (xmin + xmax) / 2,
+        cy = (ymin + ymax) / 2,
+        col_from_center = dplyr::case_when(arm %in% c("N", "L") ~ c, TRUE ~ 4L - c),
+        col_idx = col_from_center + 1L,
+        base_num = (col_idx - 1L) * 2L + 1L,
+        label = ifelse(col_idx %% 2L == 1L, base_num + r, base_num + (1L - r))
+      )
+    
+    # Convert each rect to lat/lon
+    for (k in seq_len(nrow(cells))) {
+      XY <- with(cells[k, ], rbind(
+        c(xmin, ymin), c(xmax, ymin), c(xmax, ymax), c(xmin, ymax), c(xmin, ymin)
+      ))
+      llp <- t(apply(XY, 1, function(v) .get_latlon_from_center(v[1], v[2], center)))
+      grid_polys[[k]] <- list(lng = llp[, 2], lat = llp[, 1])
+    }
+    lab_ll <- t(apply(as.matrix(centers[, c("cx", "cy")]), 1, function(v)
+      .get_latlon_from_center(v[1], v[2], center)))
+    grid_labels <- data.frame(
+      subplot = paste0(centers$arm, centers$label),
+      lat     = lab_ll[, 1],
+      lon     = lab_ll[, 2]
+    )
+  } else {
+    # ForestPlots grid from four vertices
+    # Helper to get the 4 corners of each subplot in local coordinates
+    get_subplot_polygon <- function(col, row, size) {
+      x0 <- col * size
+      y0 <- row * size
+      matrix(
+        c(
+          x0, y0,
+          x0 + size, y0,
+          x0 + size, y0 + size,
+          x0, y0 + size,
+          x0, y0
+        ),
+        ncol = 2, byrow = TRUE
+      )
+    }
+    
+    grid_polys  <- list()
+    grid_labels <- data.frame()
+    
+    subplot_index <- 1
+    for (row in 0:(n_rows - 1)) {
+      for (col in 0:(n_rows - 1)) {
+        local_poly <- get_subplot_polygon(col, row, subplot_size)
+        center_x <- mean(local_poly[, 1])
+        center_y <- mean(local_poly[, 2])
+        
+        coords_latlon <- t(mapply(
+          .get_latlon,
+          x = local_poly[, 1],
+          y = local_poly[, 2],
+          MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4)
+        ))
+        
+        # Store polygon
+        grid_polys[[subplot_index]] <- list(
+          lng = coords_latlon[, "lon"],
+          lat = coords_latlon[, "lat"]
+        )
+        
+        # Store label at center
+        center_ll <- .get_latlon(center_x, center_y, p1, p2, p3, p4)
+        t1_label <- if (col %% 2 == 0) {
+          row + col * n_rows + 1
+        } else {
+          (n_rows - row - 1) + col * n_rows + 1
+        }
+        grid_labels <- rbind(
+          grid_labels,
+          data.frame(
+            subplot = t1_label,
+            lat     = center_ll["lat"],
+            lon     = center_ll["lon"]
+          )
+        )
+        
+        subplot_index <- subplot_index + 1
+      }
+    }
+  }
+  
   # Assign color by collection status
   fp_coords$color <- dplyr::case_when(
     fp_coords$Family == "Arecaceae" ~ "gold",
     !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ "gray",
     TRUE ~ "red"
   )
-
+  
+  # ----------------------- herbaria LOOKUP  -----------------------
+  if (isTRUE(herbaria_lookup)) {
+    fp_coords$herbaria_link <- .herbaria_lookup_links(
+      fp_df              = fp_coords,
+      herbariums         = herbaria,
+      cache_rds          = jabot_cache_rds,
+      force_refresh      = jabot_force_refresh,
+      verbose            = FALSE,
+      collector_fallback = collector
+    )
+  } else {
+    fp_coords$herbaria_link <- NA_character_
+  }
+  
+  # Final popup HTML (adds herbarium link only when available)
   fp_coords$popup <- paste0(
-    "<b>Tag:</b> ", fp_coords[[ "New Tag No" ]], "<br/>",
+    "<b>Tag:</b> ", fp_coords[["New Tag No"]], "<br/>",
     "<b>Subplot:</b> ", fp_coords$T1, "<br/>",
     "<b>Family:</b> ", fp_coords$Family, "<br/>",
-    "<b>Species:</b> <i class='taxon'>",
-    fp_coords[["Original determination"]],   "</i><br/>",
+    "<b>Species:</b> <i class='taxon'>", fp_coords[["Original determination"]], "</i><br/>",
     "<b>DBH (mm):</b> ", round(fp_coords$D, 2), "<br/>",
-    "<b>Voucher:</b> ", fp_coords$Voucher
+    "<b>Voucher:</b> ",
+    ifelse(
+      is.na(fp_coords$Voucher) | !nzchar(fp_coords$Voucher),
+      "NA", fp_coords$Voucher
+    ),
+    ifelse(
+      isTRUE(herbaria_lookup) & !is.na(fp_coords$herbaria_link) & nzchar(fp_coords$herbaria_link),
+      paste0(
+        "<br/><b>Herbarium image:</b> ",
+        "<a href='", fp_coords$herbaria_link, "' target='_blank'>open</a>"
+      ),
+      ""
+    )
   )
-
-  plot_popup <- paste0("<b>Plot Name:</b> ",
-                       plot_name, "<br/>",
-                       "<b>Plot Code:</b> ", plot_code, "<br/>",
-                       "<b>Team:</b> ", team)
-
-
+  
+  if (enable_comment) {
+    fp_coords$popup <- paste0(
+      fp_coords$popup,
+      "<br/><button type='button' class='send-comment-btn'>Send comment</button>"
+    )
+  }
+  
+  # -------------------------------------------------------------------------------
+  
+  plot_popup <- paste0(
+    "<b>Plot Name:</b> ",
+    plot_name, "<br/>",
+    "<b>Plot Code:</b> ", plot_code, "<br/>",
+    "<b>Team:</b> ", team
+  )
+  
   # Define the base folder where the original images are stored
   original_image_base <- here::here(voucher_imgs)
-
+  
   # List all subdirectories once to improve performance
   leaf_dirs <- list.dirs(original_image_base, recursive = TRUE, full.names = TRUE)
-
+  
   # Keep only those that do not contain other directories (i.e., leaf directories)
   leaf_dirs <- leaf_dirs[!sapply(leaf_dirs, function(dir) {
     any(file.info(list.dirs(dir, recursive = FALSE))$isdir)
   })]
-
+  
   leaf_dirs <- sub(paste0(".*(", voucher_imgs, "/.*)"), "\\1", leaf_dirs)
-
+  
   # -------------------------------------------------
-  #  build pop-ups with photo carousels
+  #  Build pop-ups with photo carousels
   handled <- character(0)
-
+  # Ensure text types
+  fp_coords$popup   <- as.character(fp_coords$popup)
+  fp_coords$Voucher <- as.character(fp_coords$Voucher)
+  
   for (dir_path in leaf_dirs) {
     voucher_id <- basename(dir_path)
-
-    # skip if this voucher was already handled
+    
+    # Skip if this voucher was already handled
     if (voucher_id %in% handled) next
     handled <- c(handled, voucher_id)
-
-    # list image files in this directory
+    
+    # List image files in this directory
     img_files <- list.files(
       dir_path, full.names = TRUE,
       pattern = "\\.(jpg|jpeg|png|gif)$", ignore.case = TRUE
     )
-    if (!length(img_files)) next      # no photos → nothing to add
-
+    if (!length(img_files)) next
+    
     rel_paths <- file.path(dir_path, basename(img_files))
-
-    # build HTML slides for the carousel
+    
+    # Build HTML slides for the carousel
     slides <- paste0(
       "<div class='mySlides'>",
       "<a href='", rel_paths, "' target='_blank'>",
@@ -290,13 +625,13 @@ plot_html_map <- function(fp_file_path = NULL,
       "' style='max-width:200px; max-height:200px; display:block; margin:auto;'></a></div>",
       collapse = "\n"
     )
-
-    # Append the carousel to the correct tree
-    tf <- fp_coords$Voucher == voucher_id
+    
+    tf <- which(!is.na(fp_coords$Voucher) & fp_coords$Voucher == voucher_id)
+    if (!length(tf)) next
+    
     fp_coords$popup[tf] <- paste0(
       fp_coords$popup[tf],
-      "<br>
-      <span class='hasPhotoBadge'>Has Photo</span>",
+      "<br><span class='hasPhotoBadge'>Has Photo</span>",
       "<div class='slideshow-container' data-slide='1'>", slides, "</div>",
       "<div style='text-align:center;'>",
       "<a class='prev' onclick='plusSlides(-1)' style='margin-right:10px;'>&#10094;</a>",
@@ -304,9 +639,8 @@ plot_html_map <- function(fp_file_path = NULL,
       "</div>"
     )
   }
-
+  
   #-------------------------------------------------------------------------------
-  # Carousel-like navigation code in JavaScript + CSS
   carousel_js_css <- htmltools::HTML("
 <style>
 .mySlides { display: none; }
@@ -317,43 +651,76 @@ plot_html_map <- function(fp_file_path = NULL,
   user-select: none;
   color: #333;
 }
+
+/* 'Send comment' button styling */
+.send-comment-btn {
+  margin-top:6px;
+  padding:4px 8px;
+  font-size:12px;
+  border-radius:6px;
+  border:none;
+  background:#2e7d32;
+  color:#fff;
+  cursor:pointer;
+}
+.send-comment-btn:hover {
+  background:#1b5e20;
+}
 </style>
 
 <script>
-function showSlides(n, container) {
+function initSlidesInPopup(popupEl) {
+  var container = popupEl.querySelector('.slideshow-container');
+  if (!container) return;
   var slides = container.getElementsByClassName('mySlides');
-  if (slides.length === 0) return;
-  if (n > slides.length) n = 1;
-  if (n < 1) n = slides.length;
-
-  for (let i = 0; i < slides.length; i++) {
-    slides[i].style.display = 'none';
-  }
-  slides[n - 1].style.display = 'block';
-  container.setAttribute('data-slide', n);
+  if (!slides.length) return;
+  for (var i = 0; i < slides.length; i++) slides[i].style.display = 'none';
+  slides[0].style.display = 'block';
+  container.setAttribute('data-slide', '1');
 }
 
-function plusSlides(n) {
+function shiftSlides(offset) {
   var popup = document.querySelector('.leaflet-popup-content');
   if (!popup) return;
   var container = popup.querySelector('.slideshow-container');
   if (!container) return;
+  var slides = container.getElementsByClassName('mySlides');
+  if (!slides.length) return;
 
-  var current = parseInt(container.getAttribute('data-slide')) || 1;
-  showSlides(current + n, container);
+  var idx = parseInt(container.getAttribute('data-slide') || '1', 10);
+  idx += offset;
+  if (idx > slides.length) idx = 1;
+  if (idx < 1) idx = slides.length;
+
+  for (var i = 0; i < slides.length; i++) slides[i].style.display = 'none';
+  slides[idx - 1].style.display = 'block';
+  container.setAttribute('data-slide', String(idx));
 }
 
+// Delegated prev/next
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('prev')) {
+    e.preventDefault();
+    shiftSlides(-1);
+  }
+  if (e.target.classList.contains('next')) {
+    e.preventDefault();
+    shiftSlides(1);
+  }
+});
+
+// Initialize slides when popup opens
 document.addEventListener('click', function(e) {
   if (e.target.closest('.leaflet-marker-icon') || e.target.closest('.leaflet-interactive')) {
     setTimeout(function() {
-      var container = document.querySelector('.slideshow-container');
-      if (container) showSlides(1, container);
-    }, 100);
+      var popup = document.querySelector('.leaflet-popup-content');
+      if (popup) initSlidesInPopup(popup);
+    }, 120);
   }
 });
 </script>
 ")
-
+  
   sidebar_css_js <- htmltools::HTML("
 <style>
 /* ---------- SIDEBAR STYLES ---------- */
@@ -408,7 +775,7 @@ function addFilterControl(el,x){
       <label><input type='checkbox' id='toggleSpecies' checked> Species</label><br/>
       <label><input type='checkbox' id='toggleColl' checked> Collection&nbsp;Status</label><br/>
       <label><input type='checkbox' id='togglePhotos'> With&nbsp;Photos&nbsp;Only</label><br/>
-      <label><input type='checkbox' id='toggleSubplot'> Subplots</label>
+      <label><input type='checkbox' id='toggleSubplot' checked> Subplots</label>
     </div>
     <div id='familyFilterContainer'>
       <b>Filter by Family:</b><br/>
@@ -543,14 +910,14 @@ function addFilterControl(el,x){
     });
 
     map.eachLayer(l => {
-    if (l.options && l.options.group === 'Subplot Grid') {
-      if (bOn) {
-        if (!map.hasLayer(l)) map.addLayer(l);
-      } else {
-        if (map.hasLayer(l)) map.removeLayer(l);
+      if (l.options && l.options.group === 'Subplot Grid') {
+        if (bOn) {
+          if (!map.hasLayer(l)) map.addLayer(l);
+        } else {
+          if (map.hasLayer(l)) map.removeLayer(l);
+        }
       }
-    }
-  });
+    });
 
     if(sOn){
       const visibleSp=new Set();
@@ -561,21 +928,20 @@ function addFilterControl(el,x){
 }
 </script>
 ")
-
-
-  # End JavaScript and CSS code
+  
   #_____________________________________________________________________________
-  # Define initial centre/zoom
-  initial_zoom <- 18   # keep your current value
+  # Define initial center/zoom
+  initial_zoom <- 18
   lat0 <- mean(vertex_coords$latitude)
   lon0 <- mean(vertex_coords$longitude)
-
-  # Build the Leaflet map 5 base layers + reset button
-  map <- leaflet::leaflet(fp_coords,
-                          options = leaflet::leafletOptions(minZoom = 2,
-                                                            maxZoom = 22)) %>%
-
-    # Reset-view buttom
+  
+  # Build the Leaflet map: 5 base layers + reset button
+  map <- leaflet::leaflet(
+    fp_coords,
+    options = leaflet::leafletOptions(minZoom = 2, maxZoom = 22)
+  ) %>%
+    
+    # Reset-view button
     leaflet::addEasyButton(
       leaflet::easyButton(
         icon    = "fa-crosshairs",
@@ -586,12 +952,12 @@ function addFilterControl(el,x){
         )
       )
     ) %>%
-
+    
     # Set title and subtitle
     leaflet::addControl(
       html = paste0(
-        "<div style='text-align:center; line-height:1.2; padding:4px 8px; " ,
-        "background:rgba(255,255,255,0.85); border-radius:8px;" ,
+        "<div style='text-align:center; line-height:1.2; padding:4px 8px; ",
+        "background:rgba(255,255,255,0.85); border-radius:8px;",
         "box-shadow:0 1px 4px rgba(0,0,0,0.25);'>",
         "<div style='font-size:20px; font-weight:700;'>",
         htmltools::htmlEscape(plot_name),
@@ -599,36 +965,36 @@ function addFilterControl(el,x){
         "<div style='font-size:14px; font-weight:400;'>Plot Code: ",
         htmltools::htmlEscape(plot_code),
         "</div>",
-        "</div>"),
-      position = "topleft",
+        "</div>"
+      ),
+      position  = "topleft",
       className = "custom-title"
     ) %>%
-
-    # NEWLY ADDED CODE ON 18/Aug
+    
     # Add clickable project logo to top-left corner
     leaflet::addControl(
       html = "<a href='https://dboslab.github.io/forplotR-website/' target='_blank'>
-              <img src='inst/figures/forplotR_hex_sticker.png' style='width: 70px; height: auto;'>
-            </a>",
-      position = "topleft",
+                <img src='inst/figures/forplotR_hex_sticker.png' style='width: 70px; height: auto;'>
+              </a>",
+      position  = "topleft",
       className = "project-logo"
     ) %>%
-
+    
     htmlwidgets::onRender(
       "function(el, x){ this.whenReady(function(){ addFilterControl.call(this, el, x); }); }"
     ) %>%
-
+    
     htmlwidgets::prependContent(
       carousel_js_css,
       sidebar_css_js
     ) %>%
-
-    leaflet::addProviderTiles(leaflet::providers$OpenStreetMap,       group = "OSM Street") |>
-    leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street") |>
-    leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery,   group = "Satellite")  |>
-    leaflet::addProviderTiles(leaflet::providers$OpenTopoMap,         group = "OpenTopo")   |>
-    leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter,  group = "Dark Matter") |>
-
+    
+    leaflet::addProviderTiles(leaflet::providers$OpenStreetMap,       group = "OSM Street") %>%
+    leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street") %>%
+    leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery,   group = "Satellite")  %>%
+    leaflet::addProviderTiles(leaflet::providers$OpenTopoMap,         group = "OpenTopo")   %>%
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter,  group = "Dark Matter") %>%
+    
     # Layer control
     leaflet::addLayersControl(
       baseGroups    = c("OSM Street", "ESRI Street", "Satellite", "OpenTopo", "Dark Matter"),
@@ -639,85 +1005,114 @@ function addFilterControl(el,x){
         autoZIndex = TRUE
       )
     ) %>%
-
+    
     # Add subplot labels (faint, watermark style)
     leaflet::addLabelOnlyMarkers(
-      data = grid_labels,
-      lng = ~lon, lat = ~lat,
+      data  = grid_labels,
+      lng   = ~lon, lat = ~lat,
       label = ~as.character(subplot),
       labelOptions = leaflet::labelOptions(
-        noHide = TRUE,
-        direction = "center",
-        textOnly = TRUE,
+        noHide      = TRUE,
+        direction   = "center",
+        textOnly    = TRUE,
         style = list(
-          "font-size" = "10px",
-          "color" = "#888888",
+          "font-size"   = "10px",
+          "color"       = "#888888",
           "font-weight" = "300",
-          "opacity" = "0.4"
+          "opacity"     = "0.4"
         )
       ),
       group = "Subplot Grid"
-    ) %>%
-
-  # Plot polygon
-  leaflet::addPolygons(
-    lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
-    lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
-    color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
-    popup = plot_popup
-  )  %>%
-
-    # Specimmen points
+    )
+  
+  # Plot polygon (only for field_sheet / 4 vertices)
+  if (input_type != "monitora") {
+    map <- map %>%
+      leaflet::addPolygons(
+        lng = c(p1[1], p2[1], p4[1], p3[1], p1[1]),
+        lat = c(p1[2], p2[2], p4[2], p3[2], p1[2]),
+        color = "darkgreen", fillColor = "lightgreen", fillOpacity = 0.15,
+        popup = plot_popup,
+        options = leaflet::pathOptions(interactive = FALSE)
+      )
+  }
+  
+  # Resume the pipe for the markers and the rest
+  map <- map %>%
     leaflet::addCircleMarkers(
       lng = ~Longitude,
       lat = ~Latitude,
-      radius = scales::rescale(fp_coords$D, to = c(2, 8),
-                               from = range(fp_coords$D, na.rm = TRUE)),
-      color = "black", weight = 0.5,
-      fillColor = ~color, fillOpacity = 0.8,
-      popup = ~popup,
-      group = "Specimens"
+      radius = scales::rescale(
+        fp_coords$D, to = c(2, 8),
+        from = range(fp_coords$D, na.rm = TRUE)
+      ),
+      color       = "black",
+      weight      = 0.5,
+      fillColor   = ~color,
+      fillOpacity = 0.8,
+      popup       = ~popup,
+      group       = "Specimens"
     ) %>%
-
-    # Set initial view
     leaflet::setView(lng = lon0, lat = lat0, zoom = initial_zoom)
-
+  
+  # Maltese cross axes (only for MONITORA)
+  if (input_type == "monitora") {
+    arm <- 100
+    
+    eo <- rbind(
+      .get_latlon_from_center(-arm, 0, c(lon0, lat0)),
+      .get_latlon_from_center( arm, 0, c(lon0, lat0))
+    )
+    ns <- rbind(
+      .get_latlon_from_center(0, -arm, c(lon0, lat0)),
+      .get_latlon_from_center(0,  arm, c(lon0, lat0))
+    )
+    
+    eo <- as.matrix(eo); ns <- as.matrix(ns)
+    
+    map <- map %>%
+      leaflet::addPolylines(
+        lng = eo[, 2], lat = eo[, 1],
+        color = "#666666", weight = 2, opacity = 0.9,
+        group = "Maltese Cross",
+        options = leaflet::pathOptions(interactive = FALSE)
+      ) %>%
+      leaflet::addPolylines(
+        lng = ns[, 2], lat = ns[, 1],
+        color = "#666666", weight = 2, opacity = 0.9,
+        group = "Maltese Cross",
+        options = leaflet::pathOptions(interactive = FALSE)
+      )
+  }
+  
   # Add subplot grid rectangles AFTER map is built
   for (i in seq_along(grid_polys)) {
     map <- map %>% leaflet::addPolygons(
       lng = grid_polys[[i]]$lng,
       lat = grid_polys[[i]]$lat,
       color = "#999999", weight = 0.5, fillOpacity = 0,
-      group = "Subplot Grid"
+      group = "Subplot Grid",
+      options = leaflet::pathOptions(interactive = FALSE)
     )
   }
-
-  # Hide by default AFTER all are added
-  map <- map %>% leaflet::hideGroup("Subplot Grid")
-
+  
   map <- map %>%
-    # Load the Roboto font family
+    # Local font stack (no internet required)
     htmlwidgets::prependContent(
-      htmltools::tags$link(
-        href = "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap",
-        rel  = "stylesheet"
-      ),
-      # Apply Roboto everywhere and set some helper classes
-      htmltools::tags$style(htmltools::HTML("
-      /* Global font replacement */
-      .leaflet-container,
-      .leaflet-popup-content,
-      #sidebar {
-        font-family: 'Roboto', sans-serif;
-      }
-
-      /* Italic for scientific names */
-      .taxon { font-style: italic; }
-
-      /* Map title and subtitle helpers */
-      .mapTitle    { font-size: 22px; font-weight: 700; }
-      .mapSubtitle { font-size: 16px; font-weight: 400; }
-    "))
+      htmltools::tags$style(
+        htmltools::HTML("
+    .leaflet-container,
+    .leaflet-popup-content,
+    #sidebar {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue',
+                   Arial, 'Noto Sans', 'Liberation Sans', sans-serif, 'Apple Color Emoji',
+                   'Segoe UI Emoji';
+    }
+    .taxon { font-style: italic; }
+    .mapTitle    { font-size: 22px; font-weight: 700; }
+    .mapSubtitle { font-size: 16px; font-weight: 400; }
+  ")
+      )
     ) %>%
     htmlwidgets::prependContent(
       htmltools::tags$style("
@@ -732,22 +1127,768 @@ function addFilterControl(el,x){
       .prev:hover, .next:hover      { color:#004466; }
     ")
     )
-  filename <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
-  message("Saving HTML map: '", file.path(paste0(filename, ".html'")))
-  output_path <- paste0(filename, ".html")
-  htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
+  
+  if (enable_comment) {
+    comment_overlay <- htmltools::HTML(sprintf("
+<style>
+.fp-comment-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+}
+.fp-comment-modal {
+  background: #ffffff;
+  max-width: 520px;
+  width: 92%%;
+  padding: 20px 18px 16px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  font-size: 14px;
+}
+.fp-comment-modal h2 {
+  font-size: 20px;
+  margin: 0 0 14px;
+  font-weight: 600;
+}
+.fp-comment-modal label {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.fp-comment-modal textarea,
+.fp-comment-modal input {
+  width: 100%%;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+  font-size: 13px;
+  font-family: inherit;
+}
+#fp-specimen-details {
+  background-color: #f2ffe8;
+  border-color: #cce5b8;
+  min-height: 90px;
+  resize: vertical;
+}
+#fp-comment-text {
+  min-height: 110px;
+  resize: vertical;
+}
+.fp-comment-buttons {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.fp-btn {
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+#fp-comment-cancel { background:#e9ecef; color:#333; }
+#fp-comment-send { background:#198754; color:#fff; }
+#fp-comment-status {
+  margin-top: 6px;
+  font-size: 12px;
+}
+#fp-comment-status.ok { color:#198754; }
+#fp-comment-status.error { color:#b00020; }
+</style>
 
-  # End function
+<div id='fp-comment-overlay' class='fp-comment-overlay'>
+  <div class='fp-comment-modal'>
+    <h2>Confirm and send your comment</h2>
+
+    <label for='fp-specimen-details'>Specimen details</label>
+    <textarea id='fp-specimen-details' readonly></textarea>
+
+    <label for='fp-comment-name'>Your name</label>
+    <input id='fp-comment-name' type='text' placeholder='Your name' />
+
+    <label for='fp-comment-email'>Your e-mail</label>
+    <input id='fp-comment-email' type='email' placeholder='you@example.org' />
+
+    <label for='fp-comment-text'>Comment</label>
+    <textarea id='fp-comment-text' placeholder='Type your comment here...'></textarea>
+
+    <div class='fp-comment-buttons'>
+      <button id='fp-comment-cancel' class='fp-btn' type='button'>Cancel</button>
+      <button id='fp-comment-send' class='fp-btn' type='button'>Send</button>
+    </div>
+    <p id='fp-comment-status'></p>
+  </div>
+</div>
+
+<script src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js'></script>
+<script>
+// EmailJS initialization with internal package keys
+(function() {
+  if (typeof emailjs !== 'undefined' && !window._forplotrEmailJsInit) {
+    emailjs.init('%s');
+    window._forplotrEmailJsInit = true;
+  }
+
+  window.FORPLOTR_COMMENT_TO           = '%s';
+  window.FORPLOTR_EMAILJS_SERVICE_ID   = '%s';
+  window.FORPLOTR_EMAILJS_TEMPLATE_PI  = '%s';
+  window.FORPLOTR_EMAILJS_TEMPLATE_ACK = '%s';
+})();
+
+// Extract specimen info from Leaflet popup
+function fp_extractSpecimenFromPopup(popupEl) {
+  var html = popupEl.innerHTML || '';
+  function grab(re){ var m = html.match(re); return m ? m[1].trim() : ''; }
+
+  var tag     = grab(/<b>Tag:<\\/b>\\s*([^<]*)/i);
+  var subplot = grab(/<b>Subplot:<\\/b>\\s*([^<]*)/i);
+  var family  = grab(/<b>Family:<\\/b>\\s*([^<]*)/i);
+  var dbh     = grab(/<b>DBH \\(mm\\):<\\/b>\\s*([^<]*)/i);
+  var voucher = grab(/<b>Voucher:<\\/b>\\s*([^<]*)/i);
+  var sm      = html.match(/<b>Species:<\\/b>\\s*<i[^>]*>(.*?)<\\/i>/i);
+  var species = sm ? sm[1].trim() : '';
+
+  var text =
+    'Tag: '      + tag     + '\\n' +
+    'Subplot: '  + subplot + '\\n' +
+    'Family: '   + family  + '\\n' +
+    'Species: '  + species + '\\n' +
+    'DBH (mm): ' + dbh     + '\\n' +
+    'Voucher: '  + voucher;
+
+  return {
+    tag: tag,
+    subplot: subplot,
+    family: family,
+    species: species,
+    dbh: dbh,
+    voucher: voucher,
+    text: text
+  };
+}
+
+// Open modal when clicking 'Send comment'
+document.addEventListener('click', function(e) {
+  if (!e.target.classList.contains('send-comment-btn')) return;
+  e.preventDefault();
+
+  var popup = e.target.closest('.leaflet-popup-content');
+  if (!popup) return;
+
+  var s = fp_extractSpecimenFromPopup(popup);
+  var ov = document.getElementById('fp-comment-overlay');
+
+  document.getElementById('fp-specimen-details').value = s.text;
+  document.getElementById('fp-comment-name').value = '';
+  document.getElementById('fp-comment-email').value = '';
+  document.getElementById('fp-comment-text').value = '';
+
+  ov.dataset.tag     = s.tag     || '';
+  ov.dataset.subplot = s.subplot || '';
+  ov.dataset.family  = s.family  || '';
+  ov.dataset.species = s.species || '';
+  ov.dataset.dbh     = s.dbh     || '';
+  ov.dataset.voucher = s.voucher || '';
+
+  ov.style.display = 'flex';
+});
+
+// Cancel button
+document.getElementById('fp-comment-cancel').addEventListener('click', function() {
+  var ov = document.getElementById('fp-comment-overlay');
+  ov.style.display = 'none';
+  var st = document.getElementById('fp-comment-status');
+  st.textContent = '';
+  st.className = '';
+});
+
+// Send via EmailJS
+document.getElementById('fp-comment-send').addEventListener('click', function() {
+  var st = document.getElementById('fp-comment-status');
+  st.textContent = '';
+  st.className = '';
+
+  if (typeof emailjs === 'undefined') {
+    st.textContent = 'Email service not available.';
+    st.className = 'error';
+    return;
+  }
+
+  var name  = document.getElementById('fp-comment-name').value.trim();
+  var email = document.getElementById('fp-comment-email').value.trim();
+  var comm  = document.getElementById('fp-comment-text').value.trim();
+
+  if (!name || !email || !comm) {
+    st.textContent = 'Please fill in your name, e-mail and comment.';
+    st.className = 'error';
+    return;
+  }
+
+  var ov = document.getElementById('fp-comment-overlay');
+
+  var params = {
+    pi_email:      window.FORPLOTR_COMMENT_TO || '',
+    user_name:     name,
+    user_email:    email,
+    comment:       comm,
+    individual_id: ov.dataset.tag     || '',
+    subplot_id:    ov.dataset.subplot || '',
+    family:        ov.dataset.family  || '',
+    species:       ov.dataset.species || '',
+    dbh:           ov.dataset.dbh     || '',
+    voucher:       ov.dataset.voucher || ''
+  };
+
+  st.textContent = 'Sending...';
+
+  emailjs.send(
+    window.FORPLOTR_EMAILJS_SERVICE_ID,
+    window.FORPLOTR_EMAILJS_TEMPLATE_PI,
+    params
+  ).then(function() {
+    return emailjs.send(
+      window.FORPLOTR_EMAILJS_SERVICE_ID,
+      window.FORPLOTR_EMAILJS_TEMPLATE_ACK,
+      params
+    );
+  }).then(function() {
+    st.textContent = 'Comment sent successfully! A confirmation e-mail has been sent to you.';
+    st.className = 'ok';
+    setTimeout(function() {
+      document.getElementById('fp-comment-overlay').style.display = 'none';
+      st.textContent = '';
+      st.className = '';
+    }, 2000);
+  }).catch(function(err) {
+    console.error(err);
+    st.textContent = 'An error occurred while sending. Please try again later.';
+    st.className = 'error';
+  });
+});
+</script>
+",
+.FORPLOTR_EMAILJS_PUBLIC_KEY,
+htmltools::htmlEscape(comment_email_to),
+.FORPLOTR_EMAILJS_SERVICE_ID,
+.FORPLOTR_EMAILJS_TEMPLATE_PI,
+.FORPLOTR_EMAILJS_TEMPLATE_ACK))
+    
+    map <- map %>% htmlwidgets::prependContent(comment_overlay)
+  }
+
+filename    <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
+output_path <- paste0(filename, ".html")
+message("Saving HTML map: '", output_path, "'")
+htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
+# End function
 }
 
 
 #_______________________________________________________________________________
 # Auxiliary function for coordinate interpolation ####
-
 .get_latlon <- function(x, y, p1, p2, p3, p4) {
   left   <- geosphere::destPoint(p1, geosphere::bearing(p1, p2), y)
   right  <- geosphere::destPoint(p3, geosphere::bearing(p3, p4), y)
   interp <- geosphere::destPoint(left, geosphere::bearing(left, right), x)
   return(interp[1, c("lat", "lon")])
 }
+
+# Offset-based interpolation from center (used by MONITORA)
+.get_latlon_from_center <- function(x, y, center_lonlat) {
+  p1 <- geosphere::destPoint(center_lonlat, ifelse(x >= 0, 90, 270), abs(x))
+  p2 <- geosphere::destPoint(c(p1[1,"lon"], p1[1,"lat"]), ifelse(y >= 0, 0, 180), abs(y))
+  return(c(lat = p2[1, "lat"], lon = p2[1, "lon"]))
+}
+
+#_______________________________________________________________________________
+# herbarium images: single high-level helper
+# Given a plot census data frame and a set of herbaria, returns
+# a character vector of herbaria image URLs (one per row of fp_df).
+.herbaria_lookup_links <- function(fp_df,
+                                   herbariums,
+                                   cache_rds = "jabot_index.rds",
+                                   force_refresh = FALSE,
+                                   verbose = FALSE,
+                                   collector_fallback = NULL) {
+  
+  ## ---------------------- basic validation ---------------------- ##
+  if (is.null(herbariums) || !length(herbariums)) {
+    stop(
+      "When `herbaria_lookup = TRUE`, you must provide at least one herbarium in `herbaria`, ",
+      "for example: herbaria = c('RB','UPCB').",
+      call. = FALSE
+    )
+  }
+  herbariums <- toupper(herbariums)
+  
+  ## ---------------------- internal helpers ---------------------- ##
+  
+  .norm_txt <- function(x) {
+    x <- tolower(iconv(x, to = "ASCII//TRANSLIT"))
+    x <- gsub("\\s+", " ", x)
+    trimws(x)
+  }
+  
+  .norm_num <- function(x) {
+    x <- gsub("[^0-9]", "", as.character(x))
+    x[!nzchar(x)] <- NA_character_
+    x
+  }
+  
+  .strip_particles <- function(tokens) {
+    parts <- c("de","da","do","das","dos","del","della","van","von")
+    tokens[!(tokens %in% parts)]
+  }
+  
+  .first_person <- function(rec_by_raw) {
+    if (is.na(rec_by_raw) || !nzchar(rec_by_raw)) return(NA_character_)
+    # split on "&", "e", "and"
+    s <- gsub("\\s*&\\s*|\\s+e\\s+|\\s+and\\s+", ";", rec_by_raw, ignore.case = TRUE)
+    p <- trimws(unlist(strsplit(s, ";")))
+    p <- p[nzchar(p)]
+    if (!length(p)) return(NA_character_)
+    p[1]
+  }
+  
+  .lastname_from_freeform <- function(name_raw) {
+    if (is.na(name_raw) || !nzchar(name_raw)) return(NA_character_)
+    n <- .norm_txt(name_raw)
+    
+    # "Lastname, Firstname" style
+    if (grepl(",", n, fixed = TRUE)) {
+      last <- trimws(strsplit(n, ",\\s*")[[1]][1])
+      last <- .strip_particles(unlist(strsplit(last, "\\s+")))
+      if (!length(last)) return(NA_character_)
+      return(last[length(last)])
+    }
+    
+    # Remove isolated initials (e.g. "A.", "J.F.")
+    n <- gsub("\\b[a-z]\\.?\\b", "", n)
+    toks <- .strip_particles(unlist(strsplit(n, "\\s+")))
+    toks <- toks[nzchar(toks)]
+    if (!length(toks)) return(NA_character_)
+    toks[length(toks)]
+  }
+  
+  .voucher_from_any_census <- function(fp_df, collector_fallback = NULL) {
+    # Uses the combined Voucher field when available (e.g., "H. Medeiros 1234" or "GCO1095").
+    v <- as.character(fp_df$Voucher)
+    v[is.na(v)] <- ""
+    
+    # Split into trailing numeric part and prefix text (collector)
+    num_from_voucher <- .norm_num(gsub(".*?(\\d[\\d\\./-]*)\\s*$", "\\1", v, perl = TRUE))
+    col_from_voucher <- trimws(gsub("(.*?)(\\d[\\d\\./-]*\\s*)$", "\\1", v, perl = TRUE))
+    col_from_voucher <- gsub("[\\.,;]+\\s*$", "", col_from_voucher)
+    
+    # Detect compact vouchers like "GCO1095": if fallback is provided, use it
+    if (!is.null(collector_fallback) && nzchar(trimws(collector_fallback))) {
+      is_compact <- grepl(
+        "^[A-Za-z\\.]+\\s*\\d+$|^[A-Za-z]+\\d+$",
+        gsub("\\s+", "", v)
+      )
+      col_from_voucher[is_compact] <- collector_fallback
+    }
+    
+    # Fallback to census columns if needed
+    .norm_name <- function(x) {
+      tolower(gsub("\\s+", " ", iconv(x, to = "ASCII//TRANSLIT")))
+    }
+    .find_cols <- function(df, pats) {
+      nms <- names(df)
+      low <- .norm_name(nms)
+      pat <- paste0("(", paste0(pats, collapse = "|"), ")")
+      nms[grepl(pat, low)]
+    }
+    
+    rec_cols <- .find_cols(
+      fp_df,
+      c("recorded\\s*by","collector","coletor","col\\.?", "coletora")
+    )
+    num_cols <- .find_cols(
+      fp_df,
+      c("record\\s*number","collector\\s*number","voucher\\s*number",
+        "\\bno?\\.?\\s*(coletor|collector)","\\bnumero\\b","num\\b")
+    )
+    
+    .first_non_empty <- function(df, cols) {
+      if (!length(cols)) return(rep(NA_character_, nrow(df)))
+      out <- rep(NA_character_, nrow(df))
+      for (cl in cols) {
+        v <- as.character(df[[cl]])
+        v[is.na(v)] <- ""
+        take <- !nzchar(out) & nzchar(trimws(v))
+        out[take] <- trimws(v[take])
+        if (all(nzchar(out))) break
+      }
+      out[!nzchar(out)] <- NA_character_
+      out
+    }
+    
+    rec_any <- .first_non_empty(fp_df, rec_cols)
+    num_any <- .first_non_empty(fp_df, num_cols)
+    
+    collector <- ifelse(nzchar(col_from_voucher), col_from_voucher, rec_any)
+    number    <- ifelse(nzchar(num_from_voucher), num_from_voucher, num_any)
+    
+    list(collector = collector, number = number)
+  }
+  
+  .read_dwca_min <- function(base_dir) {
+    occ <- file.path(base_dir, "occurrence.txt")
+    if (!file.exists(occ)) return(NULL)
+    suppressWarnings(
+      data.table::fread(
+        occ,
+        sep          = "\t",
+        select       = c("catalogNumber","recordNumber","recordedBy"),
+        na.strings   = c("","NA"),
+        showProgress = FALSE,
+        quote        = ""
+      )
+    )
+  }
+  
+  .find_dwca_dir <- function(herbarium) {
+    herbarium <- tolower(herbarium)
+    jd <- "jabot_download"
+    if (!dir.exists(jd)) return(NULL)
+    subdirs <- list.dirs(jd, full.names = TRUE, recursive = FALSE)
+    hits <- grep(paste0("dwca_.*_", herbarium, "_"), basename(subdirs), value = TRUE)
+    if (!length(hits)) return(NULL)
+    info <- file.info(file.path(jd, hits))
+    rownames(info)[which.max(info$mtime)]
+  }
+  
+  .build_herbaria_index_fast <- function(herbariums,
+                                         needed_numbers   = character(0),
+                                         needed_lastnames = character(0),
+                                         verbose          = FALSE) {
+    
+    if (is.null(herbariums) || !length(herbariums)) {
+      stop(
+        "Argument `herbariums` must be a non-empty character vector (e.g. c('RB','UPCB')).",
+        call. = FALSE
+      )
+    }
+    
+    if (!length(needed_numbers)) {
+      if (verbose) message("herbaria: no record numbers found in input – skipping index build.")
+      return(data.frame(
+        key          = character(0),
+        catalogNumber = character(0),
+        herbarium     = character(0)
+      ))
+    }
+    
+    out <- list()
+    for (h in toupper(herbariums)) {
+      # Ensure we have a local DwC-A directory for this herbarium
+      dir <- .find_dwca_dir(h)
+      if (is.null(dir)) {
+        if (verbose) message("Downloading DwC-A archive for ", h, "…")
+        jabotR::jabot_download(herbarium = h, verbose = verbose)
+        dir <- .find_dwca_dir(h)
+        if (is.null(dir)) next
+      }
+      if (verbose) message("Reading minimal DwC-A occurrence table for ", h, "…")
+      dt <- .read_dwca_min(dir)
+      if (is.null(dt) || !nrow(dt)) next
+      
+      # Filter by needed record numbers
+      dt[, rn := .norm_num(recordNumber)]
+      dt <- dt[rn %in% needed_numbers]
+      if (!nrow(dt)) next
+      
+      # Extract first collector and last name
+      dt[, fp := vapply(recordedBy, .first_person, FUN.VALUE = character(1))]
+      dt[, ln := vapply(fp, .lastname_from_freeform, FUN.VALUE = character(1))]
+      dt <- dt[nzchar(ln)]
+      if (length(needed_lastnames)) dt <- dt[ln %in% needed_lastnames]
+      if (!nrow(dt)) next
+      
+      # Build key "lastname||number" and deduplicate
+      dt[, key := paste(ln, rn, sep = "||")]
+      dt <- dt[!duplicated(key)]
+      out[[h]] <- data.frame(
+        key           = dt$key,
+        catalogNumber = dt$catalogNumber,
+        herbarium     = h,
+        stringsAsFactors = FALSE
+      )
+    }
+    
+    if (!length(out)) {
+      return(data.frame(
+        key           = character(0),
+        catalogNumber = character(0),
+        herbarium     = character(0)
+      ))
+    }
+    
+    do.call(rbind, out)
+  }
+  
+  .get_or_build_herbaria_index <- function(fp_df,
+                                           herbariums,
+                                           cache_rds      = "jabot_index.rds",
+                                           force_refresh  = FALSE,
+                                           verbose        = FALSE,
+                                           collector_fallback = NULL) {
+    
+    if (is.null(herbariums) || !length(herbariums)) {
+      stop(
+        "Argument `herbariums` must be a non-empty character vector when running herbaria lookup.",
+        call. = FALSE
+      )
+    }
+    
+    # Build the set of needed keys "lastname||number"
+    vv   <- .voucher_from_any_census(fp_df, collector_fallback = collector_fallback)
+    last <- vapply(vv$collector, .lastname_from_freeform, FUN.VALUE = character(1))
+    num  <- .norm_num(vv$number)
+    need_pairs <- unique(na.omit(
+      ifelse(nzchar(last) & nzchar(num), paste(last, num, sep = "||"), NA_character_)
+    ))
+    
+    if (!length(need_pairs)) {
+      return(data.frame(
+        key           = character(0),
+        catalogNumber = character(0),
+        herbarium     = character(0)
+      ))
+    }
+    
+    # Try cache
+    idx <- NULL
+    if (!force_refresh && file.exists(cache_rds)) {
+      idx <- tryCatch(readRDS(cache_rds), error = function(e) NULL)
+      if (!is.data.frame(idx) ||
+          !all(c("key","catalogNumber","herbarium") %in% names(idx))) {
+        idx <- NULL
+      }
+    }
+    
+    # Look for missing keys
+    missing_pairs <- if (is.null(idx)) need_pairs else setdiff(need_pairs, idx$key)
+    if (length(missing_pairs)) {
+      miss_last <- unique(sub("\\|\\|.*$", "",  missing_pairs))
+      miss_num  <- unique(sub("^.*\\|\\|",   "", missing_pairs))
+      
+      inc <- .build_herbaria_index_fast(
+        herbariums      = herbariums,
+        needed_numbers  = miss_num,
+        needed_lastnames = miss_last,
+        verbose         = verbose
+      )
+      if (is.null(idx)) {
+        idx <- inc
+      } else if (nrow(inc)) {
+        idx <- unique(rbind(idx, inc))
+      }
+      
+      if (nrow(idx)) {
+        try(saveRDS(idx, cache_rds), silent = TRUE)
+      }
+    }
+    
+    idx
+  }
+  
+  .make_herbaria_url <- function(catalogNumber, herbarium) {
+    if (is.na(catalogNumber) || !nzchar(catalogNumber)) return(NA_character_)
+    herbarium <- toupper(herbarium)
+    digits <- gsub("\\D", "", catalogNumber)
+    if (!nzchar(digits)) return(NA_character_)
+    pad8 <- sprintf("%08d", as.integer(digits))
+    if (herbarium == "RB") {
+      paste0("https://rb.jbrj.gov.br/v2/regua/visualizador.php?r=true&colbot=RB",
+             "&codtestemunho=", catalogNumber, "&arquivo=", pad8, ".dzi")
+    } else if (herbarium == "UPCB") {
+      paste0("https://rb.jbrj.gov.br/v2/regua/visualizador.php?r=true&colbot=UPCB",
+             "&codtestemunho=", catalogNumber, "&arquivo=", "upcb", pad8, ".dzi")
+    } else {
+      NA_character_
+    }
+  }
+  
+  .link_for_voucher_vec <- function(collector, number, herbaria_index_df) {
+    if (is.null(herbaria_index_df) || !nrow(herbaria_index_df)) {
+      return(rep(NA_character_, length(collector)))
+    }
+    out  <- rep(NA_character_, length(collector))
+    last <- vapply(collector, .lastname_from_freeform, FUN.VALUE = character(1))
+    num  <- .norm_num(number)
+    k    <- ifelse(
+      !is.na(last) & nzchar(last) & !is.na(num) & nzchar(num),
+      paste(last, num, sep = "||"),
+      NA_character_
+    )
+    pos  <- match(k, herbaria_index_df$key)
+    has  <- !is.na(pos)
+    out[has] <- mapply(
+      .make_herbaria_url,
+      herbaria_index_df$catalogNumber[pos[has]],
+      herbaria_index_df$herbarium[pos[has]]
+    )
+    out
+  }
+  
+  ## ---------------------- main pipeline ---------------------- ##
+  
+  herbaria_index <- .get_or_build_herbaria_index(
+    fp_df             = fp_df,
+    herbariums        = herbariums,
+    cache_rds         = cache_rds,
+    force_refresh     = force_refresh,
+    verbose           = verbose,
+    collector_fallback = collector_fallback
+  )
+  
+  vv <- .voucher_from_any_census(fp_df, collector_fallback = collector_fallback)
+  
+  .link_for_voucher_vec(vv$collector, vv$number, herbaria_index)
+}
+
+
+#_______________________________________________________________________________
+build_specimen_page <- function(
+    file,
+    pi_email,
+    parcel_id,
+    subplot_id,
+    census_id,
+    individual_id,
+    tree_id,
+    family,
+    status,
+    dbh,
+    x, y,
+    current_taxon,
+    extra_meta = "",
+    emailjs_public_key,
+    emailjs_service_id,
+    template_pi = "parcel_specimen_update_pi",
+    template_ack = "parcel_specimen_update_ack"
+) {
+  page <- htmltools::tags$html(
+    tags$head(
+      tags$meta(charset = "UTF-8"),
+      tags$title(sprintf("Indivíduo %s - Parcela %s", individual_id, parcel_id)),
+      tags$script(src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"),
+      tags$script(HTML(sprintf("
+        (function(){
+          emailjs.init({ publicKey: '%s' });
+        })();
+      ", emailjs_public_key))),
+      tags$style(HTML("/* estilos omitidos aqui para encurtar, mantém do exemplo anterior */"))
+    ),
+    tags$body(
+      # Metadados para o JS
+      tags$div(
+        id = "meta",
+        `data-pi-email`     = pi_email,
+        `data-parcel-id`    = parcel_id,
+        `data-subplot-id`   = subplot_id,
+        `data-census-id`    = census_id,
+        `data-individual-id`= individual_id,
+        `data-tree-id`      = tree_id,
+        `data-family`       = family,
+        `data-status`       = status,
+        `data-dbh`          = dbh,
+        `data-x`            = x,
+        `data-y`            = y,
+        `data-current-taxon`= current_taxon,
+        `data-extra-meta`   = extra_meta
+      ),
+      
+      # (título, quadro resumo, form...)
+      
+      tags$script(HTML(sprintf("
+        document.addEventListener('DOMContentLoaded', function () {
+          const meta = document.getElementById('meta');
+          const form = document.getElementById('updateForm');
+          const statusMsg = document.getElementById('formStatus');
+
+          const baseParams = {
+            pi_email:      meta.dataset.piEmail,
+            parcel_id:     meta.dataset.parcelId,
+            subplot_id:    meta.dataset.subplotId,
+            census_id:     meta.dataset.censusId,
+            individual_id: meta.dataset.individualId,
+            tree_id:       meta.dataset.treeId,
+            family:        meta.dataset.family,
+            status:        meta.dataset.status,
+            dbh:           meta.dataset.dbh,
+            x:             meta.dataset.x,
+            y:             meta.dataset.y,
+            current_taxon: meta.dataset.currentTaxon,
+            extra_meta:    meta.dataset.extraMeta
+          };
+
+          form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            statusMsg.textContent = 'Enviando...';
+            statusMsg.className = '';
+
+            const userName = document.getElementById('name').value.trim();
+            const userEmail = document.getElementById('email').value.trim();
+            const newTaxon  = document.getElementById('new_taxon').value.trim() || 'Não informado';
+            const comment   = document.getElementById('comment').value.trim();
+
+            if (!userName || !userEmail || !comment) {
+              statusMsg.textContent = 'Por favor, preencha nome, e-mail e comentário.';
+              statusMsg.className = 'error';
+              return;
+            }
+
+            const paramsPI = Object.assign({}, baseParams, {
+              user_name: userName,
+              user_email: userEmail,
+              new_taxon: newTaxon,
+              comment: comment
+            });
+
+            emailjs.send('%s', '%s', paramsPI)
+              .then(function() {
+                const paramsAck = Object.assign({}, baseParams, {
+                  user_name: userName,
+                  user_email: userEmail,
+                  new_taxon: newTaxon,
+                  comment: comment
+                });
+                return emailjs.send('%s', '%s', paramsAck);
+              })
+              .then(function() {
+                statusMsg.textContent = 'Sugestão enviada com sucesso! Você receberá um e-mail de confirmação.';
+                statusMsg.className = 'ok';
+                form.reset();
+              })
+              .catch(function(error) {
+                console.error('Erro no envio:', error);
+                statusMsg.textContent = 'Ops, ocorreu um erro ao enviar. Tente novamente.';
+                statusMsg.className = 'error';
+              });
+          });
+        });
+      ", emailjs_service_id, template_pi, emailjs_service_id, template_ack)))
+    )
+  )
+  
+  htmltools::save_html(page, file = file)
+}
+
+# Internal EmailJS config for forplotR comment system
+.FORPLOTR_EMAILJS_PUBLIC_KEY  <- "azuLtLpuWSy_cLr_T"
+.FORPLOTR_EMAILJS_SERVICE_ID  <- "service_ay5yu0p"
+.FORPLOTR_EMAILJS_TEMPLATE_PI <- "template_l2j4wf6"
+.FORPLOTR_EMAILJS_TEMPLATE_ACK <- "template_w9896ml"
+
 

@@ -5,52 +5,106 @@
 \title{Generate forest plot specimen map and collection balance}
 \usage{
 plot_for_balance(fp_file_path = NULL,
+                 input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,
                  highlight_palms = TRUE,
+                 station_name = NULL,
+                 plot_name = NULL,
+                 plot_code = NULL,
+                 team = NULL,
+                 calc_agb = FALSE,
+                 trees_csv = NULL,
+                 wd_csv = NULL,
+                 md_csv = NULL,
                  dir = "Results_map_plot",
                  filename = "plot_specimen")
 }
 \arguments{
-\item{fp_file_path}{File path to the forestplots dataset (Excel format).}
+\item{fp_file_path}{Path to the Excel file (field or query sheet) in ForestPlots format.}
 
-\item{plot_size}{Overall plot size in hectares (default is 1 ha).}
+\item{input_type}{Character. One of `"field_sheet"`, `"fp_query_sheet"` or
+`"monitora"`. Specifies the type/layout of the input file.}
 
-\item{subplot_size}{Side length of subplots in meters (default is 10 m).}
+\item{plot_size}{Total plot size in hectares (default = 1).}
 
-\item{highlight_palms}{Logical. If TRUE, highlights Arecaceae in purple.}
+\item{subplot_size}{Side length of each subplot in meters (default = 10).}
+
+\item{highlight_palms}{Logical. If `TRUE`, highlights Arecaceae individuals
+in the plots.}
+
+\item{station_name}{Optional station identifier used when `input_type = "monitora"`.
+If a vector of length > 1, the function will recursively generate a report
+and summary spreadsheet for each station.}
+
+\item{plot_name}{Optional plot name. If provided, overrides the plot name
+extracted from the input file metadata.}
+
+\item{plot_code}{Optional plot code. If provided, overrides the plot code
+extracted from the input file metadata.}
+
+\item{team}{Optional team or PI name. If provided, overrides the team
+extracted from the input file metadata.}
+
+\item{calc_agb}{Logical. If `TRUE`, calculates above-ground biomass (AGB)
+using \code{BiomasaFP} and adds a summary section to the PDF report.}
+
+\item{trees_csv}{Optional. Tree-level measurement data used for above-ground
+biomass (AGB) estimation. Can be either a data frame or a file path
+(character) to the "Data.csv" file downloaded via ForestPlots "Advanced Search".}
+
+\item{wd_csv}{Optional wood density file, with wood density for each 
+individual tree (by PlotViewID) downloaded from the ForestPlots
+"Query Library". Can be a data frame or a file path.}
+
+\item{md_csv}{Optional metadata file downloaded from the ForestPlots
+"Query Library". Can be a data frame or a file path.}
 
 \item{dir}{Directory path where output will be saved
-(default is "Results_map_plot").}
+(default is `"Results_map_plot"`). A date-stamped subfolder will be created
+inside this directory.}
 
-\item{filename}{Name of the output file for the main plot (without extension).}
+\item{filename}{Basename for output files (without extension).}
 }
 \value{
-A PDF report and a summary Excel file with collection statistics.
+Invisibly returns \code{NULL}. Called for its side effects of
+generating a PDF report and an Excel file summarizing specimen collection
+statistics per subplot.
 }
 \description{
-Processes field data collected using the \href{https://forestplots.net/}{Forestplots format}
-and generates a specimen map (2D plot) with collection status and spatial
-distribution of individuals across subplots. Generate a PDF with a full plot
-report with separate maps, for each subplot and a spreadsheet summarizing the
+Processes field data collected using the
+\href{https://forestplots.net/}{ForestPlots.net} format (field sheets or
+Query Library output) or 
+\href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}
+{Monitora program} layouts, and generates a specimen map with 
+collection status and spatial distribution of individuals across subplots.
+It creates a PDF report with plot-level and subplot-level maps, an optional 
+above-ground biomass summary, and an Excel spreadsheet summarizing the
 percentage of collected specimens per subplot. The function performs the
-following steps: (i) validates all input arguments and checks/create output
-folders; (ii) reads the Forestplots-formatted xlsx sheet, extracts metadata
-(team, plot name, plot code), and cleans the data; (iii) normalizes and cleans
-coordinate and diameter values, computing global plot coordinates from
-subplot-relative positions; (iv) creates a PDF report, including plot metadata,
-the main map, collected and uncollected specimen maps, optionally a map
-highlighting palms (Arecaceae) and navigable individual subplot  maps; (v)
-optionally generates a xlsx spreadsheet with the collection
-percentage per subplot (including totals), distinguishing collected vs.
-uncollected, and palm individuals.
+following steps: (i) validates all input arguments and checks/creates output
+folders; (ii) reads the input sheet, extracts metadata (team, plot name, plot 
+code), and cleans the data; (iii) normalizes and cleans coordinate and
+diameter values, computing global plot coordinates; (iv) builds a PDF report 
+including plot metadata, the main map, collected and uncollected specimen 
+maps, an optional palm map and navigable subplot maps; (v) optionally 
+generates a spreadsheet with the collection percentage per subplot (including 
+totals), separating palms from non-palms.
 }
 \examples{
 \dontrun{
 plot_for_balance(fp_file_path = "data/forestplot.xlsx",
+                 input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,
                  highlight_palms = TRUE,
+                 station_name = NULL,
+                 plot_name = NULL,
+                 plot_code = NULL,
+                 team = NULL,
+                 calc_agb = FALSE,
+                 trees_csv = NULL,
+                 md_csv = NULL,
+                 wd_csv = NULL,
                  dir = "Results_map_plot",
                  filename = "plot_specimen")
 }
