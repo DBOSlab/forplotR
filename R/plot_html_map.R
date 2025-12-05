@@ -305,7 +305,7 @@ plot_html_map <- function(fp_file_path = NULL,
     dplyr::rename(latitude = latitude, longitude = longitude) %>%
     dplyr::mutate(
       longitude = as.numeric(gsub(",", ".", longitude)),
-      latitude  = as.numeric(gsub(",", ".", latitude))
+      latitude = as.numeric(gsub(",", ".", latitude))
     )
 
   # Correct hemisphere signs only for 4-corner ForestPlots inputs
@@ -313,7 +313,7 @@ plot_html_map <- function(fp_file_path = NULL,
     vertex_coords <- vertex_coords %>%
       dplyr::mutate(
         longitude = ifelse(longitude > 0, -longitude, longitude),
-        latitude = ifelse(latitude  > 0, -latitude,  latitude)
+        latitude = ifelse(latitude > 0, -latitude, latitude)
       )
   }
 
@@ -574,7 +574,7 @@ plot_html_map <- function(fp_file_path = NULL,
   #  Build pop-ups with photo carousels
   handled <- character(0)
   # Ensure text types
-  fp_coords$popup   <- as.character(fp_coords$popup)
+  fp_coords$popup <- as.character(fp_coords$popup)
   fp_coords$Voucher <- as.character(fp_coords$Voucher)
 
   for (dir_path in leaf_dirs) {
@@ -784,8 +784,8 @@ function addFilterControl(el,x){
   markers.forEach(m=>{
     const html=m.getPopup().getContent();
     const fam =(html.match(/<b>Family:<\\/b>\\s*(.*?)<br\\/>/)||[])[1]||'';
-    const sp  =(html.match(/<b>Species:<\\/b>\\s*<i[^>]*>\\s*(.*?)<\\/i>/)||[])[1]||'';
-    const sb  =(html.match(/<b>Subplot:<\\/b>\\s*(\\d+)/)||[])[1]||'';
+    const sp =(html.match(/<b>Species:<\\/b>\\s*<i[^>]*>\\s*(.*?)<\\/i>/)||[])[1]||'';
+    const sb =(html.match(/<b>Subplot:<\\/b>\\s*(\\d+)/)||[])[1]||'';
 
     if(fam) famSet.add(fam);
     if(sp)  spSet.add(sp);
@@ -943,7 +943,7 @@ function addFilterControl(el,x){
         "</div>",
         "</div>"
       ),
-      position  = "topleft",
+      position = "topleft",
       className = "custom-title"
     ) %>%
 
@@ -952,7 +952,7 @@ function addFilterControl(el,x){
       html = "<a href='https://dboslab.github.io/forplotR-website/' target='_blank'>
                 <img src='inst/figures/forplotR_hex_sticker.png' style='width: 70px; height: auto;'>
               </a>",
-      position  = "topleft",
+      position = "topleft",
       className = "project-logo"
     ) %>%
 
@@ -965,18 +965,18 @@ function addFilterControl(el,x){
       sidebar_css_js
     ) %>%
 
-    leaflet::addProviderTiles(leaflet::providers$OpenStreetMap,       group = "OSM Street") %>%
+    leaflet::addProviderTiles(leaflet::providers$OpenStreetMap, group = "OSM Street") %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street") %>%
-    leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery,   group = "Satellite")  %>%
-    leaflet::addProviderTiles(leaflet::providers$OpenTopoMap,         group = "OpenTopo")   %>%
-    leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter,  group = "Dark Matter") %>%
+    leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite")  %>%
+    leaflet::addProviderTiles(leaflet::providers$OpenTopoMap, group = "OpenTopo")   %>%
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter, group = "Dark Matter") %>%
 
     # Layer control
     leaflet::addLayersControl(
-      baseGroups    = c("OSM Street", "ESRI Street", "Satellite", "OpenTopo", "Dark Matter"),
+      baseGroups = c("OSM Street", "ESRI Street", "Satellite", "OpenTopo", "Dark Matter"),
       overlayGroups = c("Specimens", "Subplot Grid"),
-      position      = "bottomleft",
-      options       = leaflet::layersControlOptions(
+      position = "bottomleft",
+      options = leaflet::layersControlOptions(
         collapsed = TRUE,
         autoZIndex = TRUE
       )
@@ -984,18 +984,18 @@ function addFilterControl(el,x){
 
     # Add subplot labels (faint, watermark style)
     leaflet::addLabelOnlyMarkers(
-      data  = grid_labels,
-      lng   = ~lon, lat = ~lat,
+      data = grid_labels,
+      lng = ~lon, lat = ~lat,
       label = ~as.character(subplot),
       labelOptions = leaflet::labelOptions(
-        noHide      = TRUE,
-        direction   = "center",
-        textOnly    = TRUE,
+        noHide = TRUE,
+        direction = "center",
+        textOnly = TRUE,
         style = list(
-          "font-size"   = "10px",
-          "color"       = "#888888",
+          "font-size" = "10px",
+          "color" = "#888888",
           "font-weight" = "300",
-          "opacity"     = "0.4"
+          "opacity" = "0.4"
         )
       ),
       group = "Subplot Grid"
@@ -1022,12 +1022,12 @@ function addFilterControl(el,x){
         fp_coords$D, to = c(2, 8),
         from = range(fp_coords$D, na.rm = TRUE)
       ),
-      color       = "black",
-      weight      = 0.5,
-      fillColor   = ~color,
+      color = "black",
+      weight = 0.5,
+      fillColor = ~color,
       fillOpacity = 0.8,
-      popup       = ~popup,
-      group       = "Specimens"
+      popup = ~popup,
+      group = "Specimens"
     ) %>%
     leaflet::setView(lng = lon0, lat = lat0, zoom = initial_zoom)
 
@@ -1037,11 +1037,11 @@ function addFilterControl(el,x){
 
     eo <- rbind(
       .get_latlon_from_center(-arm, 0, c(lon0, lat0)),
-      .get_latlon_from_center( arm, 0, c(lon0, lat0))
+      .get_latlon_from_center(arm, 0, c(lon0, lat0))
     )
     ns <- rbind(
       .get_latlon_from_center(0, -arm, c(lon0, lat0)),
-      .get_latlon_from_center(0,  arm, c(lon0, lat0))
+      .get_latlon_from_center(0, arm, c(lon0, lat0))
     )
 
     eo <- as.matrix(eo); ns <- as.matrix(ns)
@@ -1085,26 +1085,26 @@ function addFilterControl(el,x){
                    'Segoe UI Emoji';
     }
     .taxon { font-style: italic; }
-    .mapTitle    { font-size: 22px; font-weight: 700; }
+    .mapTitle { font-size: 22px; font-weight: 700; }
     .mapSubtitle { font-size: 16px; font-weight: 400; }
   ")
       )
     ) %>%
     htmlwidgets::prependContent(
       htmltools::tags$style("
-      .leaflet-popup-content        { font-size:14px; line-height:1.35; padding:6px 8px 8px; }
-      .leaflet-popup-content-wrapper{ border-radius:10px!important; box-shadow:0 3px 10px rgba(0,0,0,.25)!important; }
-      .leaflet-popup-tip            { display:none; }
-      .leaflet-popup-content img    { max-width:260px; width:100%; border-radius:6px; border:1px solid #ddd;
+      .leaflet-popup-content { font-size:14px; line-height:1.35; padding:6px 8px 8px; }
+      .leaflet-popup-content-wrapper { border-radius:10px!important; box-shadow:0 3px 10px rgba(0,0,0,.25)!important; }
+      .leaflet-popup-tip { display:none; }
+      .leaflet-popup-content img { max-width:260px; width:100%; border-radius:6px; border:1px solid #ddd;
                                       box-shadow:0 1px 4px rgba(0,0,0,.15); margin-top:4px; }
-      .hasPhotoBadge                { display:inline-block; background:#388e3c; color:#fff; font-size:12px;
+      .hasPhotoBadge { display:inline-block; background:#388e3c; color:#fff; font-size:12px;
                                       padding:2px 6px; border-radius:12px; margin-bottom:4px; font-weight:500; }
-      .prev, .next                  { color:#006699; font-size:22px; transition:color .2s; }
-      .prev:hover, .next:hover      { color:#004466; }
+      .prev, .next { color:#006699; font-size:22px; transition:color .2s; }
+      .prev:hover, .next:hover { color:#004466; }
     ")
     )
 
-  filename    <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
+  filename <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
   output_path <- paste0(filename, ".html")
   message("Saving HTML map: '", output_path, "'")
   htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
@@ -1114,8 +1114,8 @@ function addFilterControl(el,x){
 #_______________________________________________________________________________
 # Auxiliary function for coordinate interpolation ####
 .get_latlon <- function(x, y, p1, p2, p3, p4) {
-  left   <- geosphere::destPoint(p1, geosphere::bearing(p1, p2), y)
-  right  <- geosphere::destPoint(p3, geosphere::bearing(p3, p4), y)
+  left <- geosphere::destPoint(p1, geosphere::bearing(p1, p2), y)
+  right <- geosphere::destPoint(p3, geosphere::bearing(p3, p4), y)
   interp <- geosphere::destPoint(left, geosphere::bearing(left, right), x)
   return(interp[1, c("lat", "lon")])
 }
@@ -1263,11 +1263,11 @@ function addFilterControl(el,x){
     suppressWarnings(
       data.table::fread(
         occ,
-        sep          = "\t",
-        select       = c("catalogNumber","recordNumber","recordedBy"),
-        na.strings   = c("","NA"),
+        sep = "\t",
+        select = c("catalogNumber","recordNumber","recordedBy"),
+        na.strings = c("","NA"),
         showProgress = FALSE,
-        quote        = ""
+        quote = ""
       )
     )
   }
@@ -1334,9 +1334,9 @@ function addFilterControl(el,x){
       dt[, key := paste(ln, rn, sep = "||")]
       dt <- dt[!duplicated(key)]
       out[[h]] <- data.frame(
-        key           = dt$key,
+        key = dt$key,
         catalogNumber = dt$catalogNumber,
-        herbarium     = h,
+        herbarium = h,
         stringsAsFactors = FALSE
       )
     }
@@ -1395,14 +1395,14 @@ function addFilterControl(el,x){
     # Look for missing keys
     missing_pairs <- if (is.null(idx)) need_pairs else setdiff(need_pairs, idx$key)
     if (length(missing_pairs)) {
-      miss_last <- unique(sub("\\|\\|.*$", "",  missing_pairs))
-      miss_num <- unique(sub("^.*\\|\\|",   "", missing_pairs))
+      miss_last <- unique(sub("\\|\\|.*$", "", missing_pairs))
+      miss_num <- unique(sub("^.*\\|\\|", "", missing_pairs))
 
       inc <- .build_herbaria_index_fast(
-        herbariums      = herbariums,
-        needed_numbers  = miss_num,
+        herbariums = herbariums,
+        needed_numbers = miss_num,
         needed_lastnames = miss_last,
-        verbose         = verbose
+        verbose = verbose
       )
       if (is.null(idx)) {
         idx <- inc
@@ -1460,11 +1460,11 @@ function addFilterControl(el,x){
   ## ---------------------- main pipeline ---------------------- ##
 
   herbaria_index <- .get_or_build_herbaria_index(
-    fp_df             = fp_df,
-    herbariums        = herbariums,
-    cache_rds         = cache_rds,
-    force_refresh     = force_refresh,
-    verbose           = verbose,
+    fp_df = fp_df,
+    herbariums = herbariums,
+    cache_rds = cache_rds,
+    force_refresh = force_refresh,
+    verbose = verbose,
     collector_fallback = collector_fallback
   )
 
