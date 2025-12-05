@@ -8,13 +8,13 @@
 #' or the \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}
 #' {MONITORA monitoring program}, using Leaflet and based on vouchered tree data
 #' and plot coordinates. The function handles both standard ForestPlots layouts
-#' (1 ha or 0.5 ha plots defined by four corner vertices) and MONITORA 
-#' layouts (Maltese cross design defined by a single central coordinate). 
-#' It: (i) converts local subplot coordinates (X, Y) to geographic coordinates 
-#' using geospatial interpolation from plot vertices or a  central point; 
-#' (ii) extracts metadata such as team name, plot name, and plot code from the 
+#' (1 ha or 0.5 ha plots defined by four corner vertices) and MONITORA
+#' layouts (Maltese cross design defined by a single central coordinate).
+#' It: (i) converts local subplot coordinates (X, Y) to geographic coordinates
+#' using geospatial interpolation from plot vertices or a  central point;
+#' (ii) extracts metadata such as team name, plot name, and plot code from the
 #' input file; (iii) draws the plot boundary polygon or Maltese cross arms over
-#' selectable basemaps; (iv) colors tree points by collection status and palms 
+#' selectable basemaps; (iv) colors tree points by collection status and palms
 #' (palms = yellow, collected = gray, missing = red); (v) embeds image carousels in
 #' specimen popups when matching voucher images are found in the specified
 #' folder; (vi) optionally performs a local herbarium lookup (e.g. JABOT DwC-A
@@ -24,11 +24,10 @@
 #' collection status, subplot, and presence of photos; (viii) displays
 #' informative popups for each tree, showing tag number, subplot, family,
 #' species, DBH, voucher code, herbarium image link (if found), and photos;
-#' (ix) optionally adds an EmailJS-powered comment form to each specimen popup;
 #' and (x) saves the resulting map as a date-stamped standalone HTML file with
 #' multiple interactive Leaflet map options for easy sharing, archiving, or
 #' field consultation.
-#' 
+#'
 #' @usage plot_html_map(fp_file_path = NULL,
 #'                      input_type = c("field_sheet", "fp_query_sheet", "monitora"),
 #'                      vertex_coords = NULL,
@@ -41,8 +40,7 @@
 #'                      herbaria_lookup = FALSE,
 #'                      herbaria = NULL,
 #'                      jabot_cache_rds = "jabot_index.rds",
-#'                      jabot_force_refresh = FALSE,
-#'                      comment_email_to = NULL)
+#'                      jabot_force_refresh = FALSE)
 #'
 #' @param fp_file_path Character. Path to the Excel file containing tree data.
 #'
@@ -97,38 +95,32 @@
 #' JABOT-based index from the local DwC-A archives, ignoring any existing
 #' cache file.
 #'
-#' @param comment_email_to Character or \code{NULL}. Optional e-mail address of
-#' the plot PI. If provided (non-empty), specimen popups include a
-#' \code{"Send comment"} button that opens an EmailJS-powered form inside the
-#' HTML map. All messages are sent using the built-in \pkg{forplotR} EmailJS
-#' configuration.
-#'
 #' @examples
 #' \dontrun{
 #' vertex_df <- data.frame(
-#'   Latitude  = c(-3.123, -3.123, -3.125, -3.125),
+#'   Latitude = c(-3.123, -3.123, -3.125, -3.125),
 #'   Longitude = c(-60.012, -60.010, -60.012, -60.010)
 #' )
 #'
 #' # Basic example (field_sheet)
 #' plot_html_map(
-#'   fp_file_path  = "data/tree_data.xlsx",
-#'   input_type    = "field_sheet",
+#'   fp_file_path = "data/tree_data.xlsx",
+#'   input_type = "field_sheet",
 #'   vertex_coords = vertex_df,
-#'   voucher_imgs  = "voucher_imgs",
-#'   filename      = "plot_map"
+#'   voucher_imgs = "voucher_imgs",
+#'   filename = "plot_map"
 #' )
 #'
 #' # Example with herbaria lookup
 #' plot_html_map(
-#'   fp_file_path    = "data/RUS_plot.xlsx",
-#'   input_type      = "field_sheet",
-#'   vertex_coords   = "data/vertices.xlsx",
-#'   voucher_imgs    = "voucher_imgs",
-#'   collector       = "G. C. Ottino",
+#'   fp_file_path = "data/RUS_plot.xlsx",
+#'   input_type = "field_sheet",
+#'   vertex_coords = "data/vertices.xlsx",
+#'   voucher_imgs = "voucher_imgs",
+#'   collector = "G. C. Ottino",
 #'   herbaria_lookup = TRUE,
-#'   herbaria        = c("RB", "UPCB"),
-#'   filename        = "rus_plot_map"
+#'   herbaria = c("RB", "UPCB"),
+#'   filename = "rus_plot_map"
 #' )
 #' }
 #'
@@ -157,39 +149,37 @@ plot_html_map <- function(fp_file_path = NULL,
                           herbaria_lookup = FALSE,
                           herbaria = NULL,
                           jabot_cache_rds = "jabot_index.rds",
-                          jabot_force_refresh = FALSE,
-                          comment_email_to = NULL) {
-  
+                          jabot_force_refresh = FALSE) {
+
   # --- Normalize / validate input type (now supports 'fp_query_sheet') ---
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "fp_query_sheet", "monitora"))
-  
+
   # --- Validate input file path ---
   if (!file.exists(fp_file_path)) {
     stop("The provided 'fp_file_path' does not exist.", call. = FALSE)
   }
-  
+
   # --- Optional: handle multiple MONITORA stations (same behavior as plot_for_balance) ---
   if (input_type == "monitora" && !is.null(station_name) && length(station_name) > 1L) {
     for (st in unique(trimws(as.character(station_name)))) {
-      plot_html_map(fp_file_path  = fp_file_path,
-                    input_type    = "monitora",
+      plot_html_map(fp_file_path = fp_file_path,
+                    input_type = "monitora",
                     vertex_coords = vertex_coords,
-                    plot_size     = plot_size,
-                    subplot_size  = subplot_size,
-                    voucher_imgs  = voucher_imgs,
-                    filename      = paste0(filename, "_station_", st),
-                    station_name  = st,
-                    collector     = collector,
-                    herbaria_lookup     = herbaria_lookup,
-                    herbaria            = herbaria,
-                    jabot_cache_rds     = jabot_cache_rds,
-                    jabot_force_refresh = jabot_force_refresh,
-                    comment_email_to    = comment_email_to)
+                    plot_size = plot_size,
+                    subplot_size = subplot_size,
+                    voucher_imgs = voucher_imgs,
+                    filename = paste0(filename, "_station_", st),
+                    station_name = st,
+                    collector = collector,
+                    herbaria_lookup = herbaria_lookup,
+                    herbaria = herbaria,
+                    jabot_cache_rds = jabot_cache_rds,
+                    jabot_force_refresh = jabot_force_refresh)
     }
     return(invisible(TRUE))
   }
-  
+
   #  Read and convert the input to a standard dataset
   if (input_type == "monitora") {
     if (!exists(".monitora_to_field_sheet_df", mode = "function")) {
@@ -201,20 +191,20 @@ plot_html_map <- function(fp_file_path = NULL,
       stop("Missing helper `.fp_query_to_field_sheet_df()` for FP Query input.")
     }
     raw <- .fp_query_to_field_sheet_df(fp_file_path)
-  } else { 
+  } else {
     raw <- suppressMessages(openxlsx::read.xlsx(fp_file_path, sheet = 1, colNames = FALSE))
   }
-  
+
   # --- Unify header and data extraction for all input types ---
   header_row <- as.character(raw[2, ])
   header_row[is.na(header_row)] <- paste0("NA_col_", seq_along(header_row))[is.na(header_row)]
   colnames(raw) <- make.unique(header_row)
   fp_sheet <- raw[-(1:2), , drop = FALSE]
-  
+
   # --- Extract metadata (from row 1) ---
   meta_row_chr <- as.character(raw[1, ])
   meta_row_chr[is.na(meta_row_chr)] <- ""
-  
+
   grab_meta <- function(key) {
     hit <- meta_row_chr[grepl(paste0("^", key, "[:]\\s*"), meta_row_chr, ignore.case = TRUE)]
     if (length(hit)) {
@@ -223,16 +213,16 @@ plot_html_map <- function(fp_file_path = NULL,
       ""
     }
   }
-  
-  team      <- grab_meta("Team")
+
+  team <- grab_meta("Team")
   plot_name <- grab_meta("Plot Name")
   plot_code <- grab_meta("Plotcode")
-  
+
   # Ensure plot_code has hyphen between letters and digits (e.g. ABC-01)
   if (!grepl("-", plot_code)) {
     plot_code <- gsub("(?<=[A-Z])(?=\\d)", "-", plot_code, perl = TRUE)
   }
-  
+
   # Clean and convert necessary columns
   numify <- function(z) suppressWarnings(as.numeric(gsub(",", ".", as.character(z))))
   coerce <- function(z) {
@@ -242,27 +232,20 @@ plot_html_map <- function(fp_file_path = NULL,
     out[bad] <- suppressWarnings(as.numeric(sub(".*/\\s*([0-9]+).*", "\\1", zc[bad])))
     out
   }
-  
+
   fp_clean <- fp_sheet %>%
     dplyr::mutate(
       T1 = numify(T1),
-      X  = coerce(X),
-      Y  = coerce(Y),
-      D  = numify(D)
+      X = coerce(X),
+      Y = coerce(Y),
+      D = numify(D)
     ) %>%
     dplyr::filter(is.finite(T1), is.finite(X), is.finite(Y))
-  
+
   if (!nrow(fp_clean)) {
     stop("No valid points to plot: T1/X/Y could not be parsed from the input sheet.", call. = FALSE)
   }
-  
-  # Enable EmailJS-based comment system if PI email is provided and internal keys are set
-  enable_comment <- !is.null(comment_email_to) && nzchar(comment_email_to) &&
-    nzchar(.FORPLOTR_EMAILJS_PUBLIC_KEY) &&
-    nzchar(.FORPLOTR_EMAILJS_SERVICE_ID) &&
-    nzchar(.FORPLOTR_EMAILJS_TEMPLATE_PI) &&
-    nzchar(.FORPLOTR_EMAILJS_TEMPLATE_ACK)
-  
+
   # Geometry calculations
   if (input_type == "monitora") {
     if (!exists(".compute_global_coordinates_monitora", mode = "function")) {
@@ -275,7 +258,7 @@ plot_html_map <- function(fp_file_path = NULL,
   } else {
     max_coord <- plot_size * 100
     n_rows <- floor(max_coord / subplot_size)
-    
+
     # Convert local to global coordinates
     fp_coords <- fp_clean %>%
       dplyr::mutate(
@@ -291,12 +274,12 @@ plot_html_map <- function(fp_file_path = NULL,
         draw_y = global_y
       )
   }
-  
+
   # Read vertex_coords if given as path
   if (is.character(vertex_coords) && grepl("\\.xlsx?$", vertex_coords)) {
     vertex_coords <- readxl::read_excel(vertex_coords)
   }
-  
+
   # --- Accept numeric vector for MONITORA center ---
   if (!is.null(vertex_coords) && !is.data.frame(vertex_coords)) {
     if (is.atomic(vertex_coords) && length(vertex_coords) == 2) {
@@ -315,7 +298,7 @@ plot_html_map <- function(fp_file_path = NULL,
            call. = FALSE)
     }
   }
-  
+
   # Standardize and clean vertex coordinates
   vertex_coords <- vertex_coords %>%
     dplyr::rename_with(~tolower(gsub("\\s*\\(.*?\\)", "", .x)), dplyr::everything()) %>%
@@ -324,16 +307,16 @@ plot_html_map <- function(fp_file_path = NULL,
       longitude = as.numeric(gsub(",", ".", longitude)),
       latitude  = as.numeric(gsub(",", ".", latitude))
     )
-  
+
   # Correct hemisphere signs only for 4-corner ForestPlots inputs
   if (input_type != "monitora" && nrow(vertex_coords) >= 4) {
     vertex_coords <- vertex_coords %>%
       dplyr::mutate(
         longitude = ifelse(longitude > 0, -longitude, longitude),
-        latitude  = ifelse(latitude  > 0, -latitude,  latitude)
+        latitude = ifelse(latitude  > 0, -latitude,  latitude)
       )
   }
-  
+
   if (input_type == "monitora") {
     if (nrow(vertex_coords) != 1) {
       stop("For 'monitora', provide ONE central coordinate in 'vertex_coords'.", call. = FALSE)
@@ -344,8 +327,8 @@ plot_html_map <- function(fp_file_path = NULL,
       function(i) .get_latlon_from_center(fp_coords$draw_x[i], fp_coords$draw_y[i], center),
       FUN.VALUE = c(lat = NA_real_, lon = NA_real_)
     )
-    
-    fp_coords$Latitude  <- coords_geo["lat", ]
+
+    fp_coords$Latitude <- coords_geo["lat", ]
     fp_coords$Longitude <- coords_geo["lon", ]
   } else {
     # Use coordinates after cleaning (four vertices)
@@ -357,7 +340,7 @@ plot_html_map <- function(fp_file_path = NULL,
     p2 <- c(vertex_coords$longitude[2], vertex_coords$latitude[2])
     p3 <- c(vertex_coords$longitude[3], vertex_coords$latitude[3])
     p4 <- c(vertex_coords$longitude[4], vertex_coords$latitude[4])
-    
+
     # Robust to mapply simplification (always 2×N)
     coords_geo <- simplify2array(
       mapply(
@@ -372,12 +355,12 @@ plot_html_map <- function(fp_file_path = NULL,
       coords_geo <- matrix(coords_geo, nrow = 2)
     }
     rownames(coords_geo) <- c("lat", "lon")
-    
-    fp_coords$Latitude  <- coords_geo[1, , drop = TRUE]
+
+    fp_coords$Latitude <- coords_geo[1, , drop = TRUE]
     fp_coords$Longitude <- coords_geo[2, , drop = TRUE]
-    
+
     # Coerce to numeric and drop invalid points (avoids leaflet errors)
-    fp_coords$Latitude  <- suppressWarnings(as.numeric(fp_coords$Latitude))
+    fp_coords$Latitude <- suppressWarnings(as.numeric(fp_coords$Latitude))
     fp_coords$Longitude <- suppressWarnings(as.numeric(fp_coords$Longitude))
     keep <- is.finite(fp_coords$Latitude) & is.finite(fp_coords$Longitude)
     fp_coords <- fp_coords[keep, , drop = FALSE]
@@ -386,23 +369,23 @@ plot_html_map <- function(fp_file_path = NULL,
            call. = FALSE)
     }
   }
-  
+
   # Generate subplot grid rectangles and labels
-  grid_polys  <- list()
+  grid_polys <- list()
   grid_labels <- data.frame()
-  
+
   if (input_type == "monitora") {
     # Build 5x2 cells for each arm of the Maltese cross (10 m cells)
     mk_cells <- function(arm) {
       base <- expand.grid(c = 0:4, r = 0:1)   # c: along the arm (5 columns), r: width (2 rows)
       cs <- 10                                 # subplot size (10 m)
-      
+
       if (arm == "N") {
         # from +50 to +100 m on the Y axis
         dplyr::mutate(
           base,
           xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
-          ymin =  50 + c * cs, ymax =  50 + c * cs + cs
+          ymin = 50 + c * cs, ymax = 50 + c * cs + cs
         )
       } else if (arm == "S") {
         # from -100 to -50 m on the Y axis
@@ -415,7 +398,7 @@ plot_html_map <- function(fp_file_path = NULL,
         # from +50 to +100 m on the X axis
         dplyr::mutate(
           base,
-          xmin =  50 + c * cs, xmax =  50 + c * cs + cs,
+          xmin = 50 + c * cs, xmax = 50 + c * cs + cs,
           ymin = -cs + r * cs, ymax = -cs + r * cs + cs
         )
       } else {                   # O = West
@@ -423,18 +406,18 @@ plot_html_map <- function(fp_file_path = NULL,
         dplyr::mutate(
           base,
           xmin = -100 + c * cs, xmax = -100 + c * cs + cs,
-          ymin =  -cs + r * cs, ymax =  -cs + r * cs + cs
+          ymin = -cs + r * cs, ymax = -cs + r * cs + cs
         )
       }
     }
-    
+
     cells <- dplyr::bind_rows(
       mk_cells("N") %>% dplyr::mutate(arm = "N"),
       mk_cells("S") %>% dplyr::mutate(arm = "S"),
       mk_cells("L") %>% dplyr::mutate(arm = "L"),
       mk_cells("O") %>% dplyr::mutate(arm = "O")
     )
-    
+
     centers <- cells %>%
       dplyr::mutate(
         cx = (xmin + xmax) / 2,
@@ -444,7 +427,7 @@ plot_html_map <- function(fp_file_path = NULL,
         base_num = (col_idx - 1L) * 2L + 1L,
         label = ifelse(col_idx %% 2L == 1L, base_num + r, base_num + (1L - r))
       )
-    
+
     # Convert each rect to lat/lon
     for (k in seq_len(nrow(cells))) {
       XY <- with(cells[k, ], rbind(
@@ -457,8 +440,8 @@ plot_html_map <- function(fp_file_path = NULL,
       .get_latlon_from_center(v[1], v[2], center)))
     grid_labels <- data.frame(
       subplot = paste0(centers$arm, centers$label),
-      lat     = lab_ll[, 1],
-      lon     = lab_ll[, 2]
+      lat = lab_ll[, 1],
+      lon = lab_ll[, 2]
     )
   } else {
     # ForestPlots grid from four vertices
@@ -477,30 +460,30 @@ plot_html_map <- function(fp_file_path = NULL,
         ncol = 2, byrow = TRUE
       )
     }
-    
-    grid_polys  <- list()
+
+    grid_polys <- list()
     grid_labels <- data.frame()
-    
+
     subplot_index <- 1
     for (row in 0:(n_rows - 1)) {
       for (col in 0:(n_rows - 1)) {
         local_poly <- get_subplot_polygon(col, row, subplot_size)
         center_x <- mean(local_poly[, 1])
         center_y <- mean(local_poly[, 2])
-        
+
         coords_latlon <- t(mapply(
           .get_latlon,
           x = local_poly[, 1],
           y = local_poly[, 2],
           MoreArgs = list(p1 = p1, p2 = p2, p3 = p3, p4 = p4)
         ))
-        
+
         # Store polygon
         grid_polys[[subplot_index]] <- list(
           lng = coords_latlon[, "lon"],
           lat = coords_latlon[, "lat"]
         )
-        
+
         # Store label at center
         center_ll <- .get_latlon(center_x, center_y, p1, p2, p3, p4)
         t1_label <- if (col %% 2 == 0) {
@@ -512,37 +495,37 @@ plot_html_map <- function(fp_file_path = NULL,
           grid_labels,
           data.frame(
             subplot = t1_label,
-            lat     = center_ll["lat"],
-            lon     = center_ll["lon"]
+            lat = center_ll["lat"],
+            lon = center_ll["lon"]
           )
         )
-        
+
         subplot_index <- subplot_index + 1
       }
     }
   }
-  
+
   # Assign color by collection status
   fp_coords$color <- dplyr::case_when(
     fp_coords$Family == "Arecaceae" ~ "gold",
     !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ "gray",
     TRUE ~ "red"
   )
-  
+
   # ----------------------- herbaria LOOKUP  -----------------------
   if (isTRUE(herbaria_lookup)) {
     fp_coords$herbaria_link <- .herbaria_lookup_links(
-      fp_df              = fp_coords,
-      herbariums         = herbaria,
-      cache_rds          = jabot_cache_rds,
-      force_refresh      = jabot_force_refresh,
-      verbose            = FALSE,
+      fp_df = fp_coords,
+      herbariums = herbaria,
+      cache_rds = jabot_cache_rds,
+      force_refresh = jabot_force_refresh,
+      verbose = FALSE,
       collector_fallback = collector
     )
   } else {
     fp_coords$herbaria_link <- NA_character_
   }
-  
+
   # Final popup HTML (adds herbarium link only when available)
   fp_coords$popup <- paste0(
     "<b>Tag:</b> ", fp_coords[["New Tag No"]], "<br/>",
@@ -564,59 +547,52 @@ plot_html_map <- function(fp_file_path = NULL,
       ""
     )
   )
-  
-  if (enable_comment) {
-    fp_coords$popup <- paste0(
-      fp_coords$popup,
-      "<br/><button type='button' class='send-comment-btn'>Send comment</button>"
-    )
-  }
-  
+
   # -------------------------------------------------------------------------------
-  
+
   plot_popup <- paste0(
     "<b>Plot Name:</b> ",
     plot_name, "<br/>",
     "<b>Plot Code:</b> ", plot_code, "<br/>",
     "<b>Team:</b> ", team
   )
-  
+
   # Define the base folder where the original images are stored
   original_image_base <- here::here(voucher_imgs)
-  
+
   # List all subdirectories once to improve performance
   leaf_dirs <- list.dirs(original_image_base, recursive = TRUE, full.names = TRUE)
-  
+
   # Keep only those that do not contain other directories (i.e., leaf directories)
   leaf_dirs <- leaf_dirs[!sapply(leaf_dirs, function(dir) {
     any(file.info(list.dirs(dir, recursive = FALSE))$isdir)
   })]
-  
+
   leaf_dirs <- sub(paste0(".*(", voucher_imgs, "/.*)"), "\\1", leaf_dirs)
-  
+
   # -------------------------------------------------
   #  Build pop-ups with photo carousels
   handled <- character(0)
   # Ensure text types
   fp_coords$popup   <- as.character(fp_coords$popup)
   fp_coords$Voucher <- as.character(fp_coords$Voucher)
-  
+
   for (dir_path in leaf_dirs) {
     voucher_id <- basename(dir_path)
-    
+
     # Skip if this voucher was already handled
     if (voucher_id %in% handled) next
     handled <- c(handled, voucher_id)
-    
+
     # List image files in this directory
     img_files <- list.files(
       dir_path, full.names = TRUE,
       pattern = "\\.(jpg|jpeg|png|gif)$", ignore.case = TRUE
     )
     if (!length(img_files)) next
-    
+
     rel_paths <- file.path(dir_path, basename(img_files))
-    
+
     # Build HTML slides for the carousel
     slides <- paste0(
       "<div class='mySlides'>",
@@ -625,10 +601,10 @@ plot_html_map <- function(fp_file_path = NULL,
       "' style='max-width:200px; max-height:200px; display:block; margin:auto;'></a></div>",
       collapse = "\n"
     )
-    
+
     tf <- which(!is.na(fp_coords$Voucher) & fp_coords$Voucher == voucher_id)
     if (!length(tf)) next
-    
+
     fp_coords$popup[tf] <- paste0(
       fp_coords$popup[tf],
       "<br><span class='hasPhotoBadge'>Has Photo</span>",
@@ -639,7 +615,7 @@ plot_html_map <- function(fp_file_path = NULL,
       "</div>"
     )
   }
-  
+
   #-------------------------------------------------------------------------------
   carousel_js_css <- htmltools::HTML("
 <style>
@@ -720,7 +696,7 @@ document.addEventListener('click', function(e) {
 });
 </script>
 ")
-  
+
   sidebar_css_js <- htmltools::HTML("
 <style>
 /* ---------- SIDEBAR STYLES ---------- */
@@ -906,7 +882,7 @@ function addFilterControl(el,x){
                   txt.includes(term);
 
       if(show){ if(!map.hasLayer(m)) m.addTo(map); }
-      else     { if(map.hasLayer(m)) map.removeLayer(m); }
+      else { if(map.hasLayer(m)) map.removeLayer(m); }
     });
 
     map.eachLayer(l => {
@@ -928,31 +904,31 @@ function addFilterControl(el,x){
 }
 </script>
 ")
-  
+
   #_____________________________________________________________________________
   # Define initial center/zoom
   initial_zoom <- 18
   lat0 <- mean(vertex_coords$latitude)
   lon0 <- mean(vertex_coords$longitude)
-  
+
   # Build the Leaflet map: 5 base layers + reset button
   map <- leaflet::leaflet(
     fp_coords,
     options = leaflet::leafletOptions(minZoom = 2, maxZoom = 22)
   ) %>%
-    
+
     # Reset-view button
     leaflet::addEasyButton(
       leaflet::easyButton(
-        icon    = "fa-crosshairs",
-        title   = "Back to plot",
+        icon = "fa-crosshairs",
+        title = "Back to plot",
         onClick = leaflet::JS(
           sprintf("function(btn, map){ map.setView([%f, %f], %d); }",
                   lat0, lon0, initial_zoom)
         )
       )
     ) %>%
-    
+
     # Set title and subtitle
     leaflet::addControl(
       html = paste0(
@@ -970,7 +946,7 @@ function addFilterControl(el,x){
       position  = "topleft",
       className = "custom-title"
     ) %>%
-    
+
     # Add clickable project logo to top-left corner
     leaflet::addControl(
       html = "<a href='https://dboslab.github.io/forplotR-website/' target='_blank'>
@@ -979,22 +955,22 @@ function addFilterControl(el,x){
       position  = "topleft",
       className = "project-logo"
     ) %>%
-    
+
     htmlwidgets::onRender(
       "function(el, x){ this.whenReady(function(){ addFilterControl.call(this, el, x); }); }"
     ) %>%
-    
+
     htmlwidgets::prependContent(
       carousel_js_css,
       sidebar_css_js
     ) %>%
-    
+
     leaflet::addProviderTiles(leaflet::providers$OpenStreetMap,       group = "OSM Street") %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street") %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery,   group = "Satellite")  %>%
     leaflet::addProviderTiles(leaflet::providers$OpenTopoMap,         group = "OpenTopo")   %>%
     leaflet::addProviderTiles(leaflet::providers$CartoDB.DarkMatter,  group = "Dark Matter") %>%
-    
+
     # Layer control
     leaflet::addLayersControl(
       baseGroups    = c("OSM Street", "ESRI Street", "Satellite", "OpenTopo", "Dark Matter"),
@@ -1005,7 +981,7 @@ function addFilterControl(el,x){
         autoZIndex = TRUE
       )
     ) %>%
-    
+
     # Add subplot labels (faint, watermark style)
     leaflet::addLabelOnlyMarkers(
       data  = grid_labels,
@@ -1024,7 +1000,7 @@ function addFilterControl(el,x){
       ),
       group = "Subplot Grid"
     )
-  
+
   # Plot polygon (only for field_sheet / 4 vertices)
   if (input_type != "monitora") {
     map <- map %>%
@@ -1036,7 +1012,7 @@ function addFilterControl(el,x){
         options = leaflet::pathOptions(interactive = FALSE)
       )
   }
-  
+
   # Resume the pipe for the markers and the rest
   map <- map %>%
     leaflet::addCircleMarkers(
@@ -1054,11 +1030,11 @@ function addFilterControl(el,x){
       group       = "Specimens"
     ) %>%
     leaflet::setView(lng = lon0, lat = lat0, zoom = initial_zoom)
-  
+
   # Maltese cross axes (only for MONITORA)
   if (input_type == "monitora") {
     arm <- 100
-    
+
     eo <- rbind(
       .get_latlon_from_center(-arm, 0, c(lon0, lat0)),
       .get_latlon_from_center( arm, 0, c(lon0, lat0))
@@ -1067,9 +1043,9 @@ function addFilterControl(el,x){
       .get_latlon_from_center(0, -arm, c(lon0, lat0)),
       .get_latlon_from_center(0,  arm, c(lon0, lat0))
     )
-    
+
     eo <- as.matrix(eo); ns <- as.matrix(ns)
-    
+
     map <- map %>%
       leaflet::addPolylines(
         lng = eo[, 2], lat = eo[, 1],
@@ -1084,7 +1060,7 @@ function addFilterControl(el,x){
         options = leaflet::pathOptions(interactive = FALSE)
       )
   }
-  
+
   # Add subplot grid rectangles AFTER map is built
   for (i in seq_along(grid_polys)) {
     map <- map %>% leaflet::addPolygons(
@@ -1095,7 +1071,7 @@ function addFilterControl(el,x){
       options = leaflet::pathOptions(interactive = FALSE)
     )
   }
-  
+
   map <- map %>%
     # Local font stack (no internet required)
     htmlwidgets::prependContent(
@@ -1127,270 +1103,13 @@ function addFilterControl(el,x){
       .prev:hover, .next:hover      { color:#004466; }
     ")
     )
-  
-  if (enable_comment) {
-    comment_overlay <- htmltools::HTML(sprintf("
-<style>
-.fp-comment-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 5000;
+
+  filename    <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
+  output_path <- paste0(filename, ".html")
+  message("Saving HTML map: '", output_path, "'")
+  htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
+  # End function
 }
-.fp-comment-modal {
-  background: #ffffff;
-  max-width: 520px;
-  width: 92%%;
-  padding: 20px 18px 16px;
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-  font-size: 14px;
-}
-.fp-comment-modal h2 {
-  font-size: 20px;
-  margin: 0 0 14px;
-  font-weight: 600;
-}
-.fp-comment-modal label {
-  display: block;
-  margin-top: 10px;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-.fp-comment-modal textarea,
-.fp-comment-modal input {
-  width: 100%%;
-  box-sizing: border-box;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #d0d7de;
-  font-size: 13px;
-  font-family: inherit;
-}
-#fp-specimen-details {
-  background-color: #f2ffe8;
-  border-color: #cce5b8;
-  min-height: 90px;
-  resize: vertical;
-}
-#fp-comment-text {
-  min-height: 110px;
-  resize: vertical;
-}
-.fp-comment-buttons {
-  margin-top: 14px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.fp-btn {
-  padding: 7px 16px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-}
-#fp-comment-cancel { background:#e9ecef; color:#333; }
-#fp-comment-send { background:#198754; color:#fff; }
-#fp-comment-status {
-  margin-top: 6px;
-  font-size: 12px;
-}
-#fp-comment-status.ok { color:#198754; }
-#fp-comment-status.error { color:#b00020; }
-</style>
-
-<div id='fp-comment-overlay' class='fp-comment-overlay'>
-  <div class='fp-comment-modal'>
-    <h2>Confirm and send your comment</h2>
-
-    <label for='fp-specimen-details'>Specimen details</label>
-    <textarea id='fp-specimen-details' readonly></textarea>
-
-    <label for='fp-comment-name'>Your name</label>
-    <input id='fp-comment-name' type='text' placeholder='Your name' />
-
-    <label for='fp-comment-email'>Your e-mail</label>
-    <input id='fp-comment-email' type='email' placeholder='you@example.org' />
-
-    <label for='fp-comment-text'>Comment</label>
-    <textarea id='fp-comment-text' placeholder='Type your comment here...'></textarea>
-
-    <div class='fp-comment-buttons'>
-      <button id='fp-comment-cancel' class='fp-btn' type='button'>Cancel</button>
-      <button id='fp-comment-send' class='fp-btn' type='button'>Send</button>
-    </div>
-    <p id='fp-comment-status'></p>
-  </div>
-</div>
-
-<script src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js'></script>
-<script>
-// EmailJS initialization with internal package keys
-(function() {
-  if (typeof emailjs !== 'undefined' && !window._forplotrEmailJsInit) {
-    emailjs.init('%s');
-    window._forplotrEmailJsInit = true;
-  }
-
-  window.FORPLOTR_COMMENT_TO           = '%s';
-  window.FORPLOTR_EMAILJS_SERVICE_ID   = '%s';
-  window.FORPLOTR_EMAILJS_TEMPLATE_PI  = '%s';
-  window.FORPLOTR_EMAILJS_TEMPLATE_ACK = '%s';
-})();
-
-// Extract specimen info from Leaflet popup
-function fp_extractSpecimenFromPopup(popupEl) {
-  var html = popupEl.innerHTML || '';
-  function grab(re){ var m = html.match(re); return m ? m[1].trim() : ''; }
-
-  var tag     = grab(/<b>Tag:<\\/b>\\s*([^<]*)/i);
-  var subplot = grab(/<b>Subplot:<\\/b>\\s*([^<]*)/i);
-  var family  = grab(/<b>Family:<\\/b>\\s*([^<]*)/i);
-  var dbh     = grab(/<b>DBH \\(mm\\):<\\/b>\\s*([^<]*)/i);
-  var voucher = grab(/<b>Voucher:<\\/b>\\s*([^<]*)/i);
-  var sm      = html.match(/<b>Species:<\\/b>\\s*<i[^>]*>(.*?)<\\/i>/i);
-  var species = sm ? sm[1].trim() : '';
-
-  var text =
-    'Tag: '      + tag     + '\\n' +
-    'Subplot: '  + subplot + '\\n' +
-    'Family: '   + family  + '\\n' +
-    'Species: '  + species + '\\n' +
-    'DBH (mm): ' + dbh     + '\\n' +
-    'Voucher: '  + voucher;
-
-  return {
-    tag: tag,
-    subplot: subplot,
-    family: family,
-    species: species,
-    dbh: dbh,
-    voucher: voucher,
-    text: text
-  };
-}
-
-// Open modal when clicking 'Send comment'
-document.addEventListener('click', function(e) {
-  if (!e.target.classList.contains('send-comment-btn')) return;
-  e.preventDefault();
-
-  var popup = e.target.closest('.leaflet-popup-content');
-  if (!popup) return;
-
-  var s = fp_extractSpecimenFromPopup(popup);
-  var ov = document.getElementById('fp-comment-overlay');
-
-  document.getElementById('fp-specimen-details').value = s.text;
-  document.getElementById('fp-comment-name').value = '';
-  document.getElementById('fp-comment-email').value = '';
-  document.getElementById('fp-comment-text').value = '';
-
-  ov.dataset.tag     = s.tag     || '';
-  ov.dataset.subplot = s.subplot || '';
-  ov.dataset.family  = s.family  || '';
-  ov.dataset.species = s.species || '';
-  ov.dataset.dbh     = s.dbh     || '';
-  ov.dataset.voucher = s.voucher || '';
-
-  ov.style.display = 'flex';
-});
-
-// Cancel button
-document.getElementById('fp-comment-cancel').addEventListener('click', function() {
-  var ov = document.getElementById('fp-comment-overlay');
-  ov.style.display = 'none';
-  var st = document.getElementById('fp-comment-status');
-  st.textContent = '';
-  st.className = '';
-});
-
-// Send via EmailJS
-document.getElementById('fp-comment-send').addEventListener('click', function() {
-  var st = document.getElementById('fp-comment-status');
-  st.textContent = '';
-  st.className = '';
-
-  if (typeof emailjs === 'undefined') {
-    st.textContent = 'Email service not available.';
-    st.className = 'error';
-    return;
-  }
-
-  var name  = document.getElementById('fp-comment-name').value.trim();
-  var email = document.getElementById('fp-comment-email').value.trim();
-  var comm  = document.getElementById('fp-comment-text').value.trim();
-
-  if (!name || !email || !comm) {
-    st.textContent = 'Please fill in your name, e-mail and comment.';
-    st.className = 'error';
-    return;
-  }
-
-  var ov = document.getElementById('fp-comment-overlay');
-
-  var params = {
-    pi_email:      window.FORPLOTR_COMMENT_TO || '',
-    user_name:     name,
-    user_email:    email,
-    comment:       comm,
-    individual_id: ov.dataset.tag     || '',
-    subplot_id:    ov.dataset.subplot || '',
-    family:        ov.dataset.family  || '',
-    species:       ov.dataset.species || '',
-    dbh:           ov.dataset.dbh     || '',
-    voucher:       ov.dataset.voucher || ''
-  };
-
-  st.textContent = 'Sending...';
-
-  emailjs.send(
-    window.FORPLOTR_EMAILJS_SERVICE_ID,
-    window.FORPLOTR_EMAILJS_TEMPLATE_PI,
-    params
-  ).then(function() {
-    return emailjs.send(
-      window.FORPLOTR_EMAILJS_SERVICE_ID,
-      window.FORPLOTR_EMAILJS_TEMPLATE_ACK,
-      params
-    );
-  }).then(function() {
-    st.textContent = 'Comment sent successfully! A confirmation e-mail has been sent to you.';
-    st.className = 'ok';
-    setTimeout(function() {
-      document.getElementById('fp-comment-overlay').style.display = 'none';
-      st.textContent = '';
-      st.className = '';
-    }, 2000);
-  }).catch(function(err) {
-    console.error(err);
-    st.textContent = 'An error occurred while sending. Please try again later.';
-    st.className = 'error';
-  });
-});
-</script>
-",
-.FORPLOTR_EMAILJS_PUBLIC_KEY,
-htmltools::htmlEscape(comment_email_to),
-.FORPLOTR_EMAILJS_SERVICE_ID,
-.FORPLOTR_EMAILJS_TEMPLATE_PI,
-.FORPLOTR_EMAILJS_TEMPLATE_ACK))
-    
-    map <- map %>% htmlwidgets::prependContent(comment_overlay)
-  }
-
-filename    <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename)
-output_path <- paste0(filename, ".html")
-message("Saving HTML map: '", output_path, "'")
-htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
-# End function
-}
-
 
 #_______________________________________________________________________________
 # Auxiliary function for coordinate interpolation ####
@@ -1409,17 +1128,14 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
 }
 
 #_______________________________________________________________________________
-# herbarium images: single high-level helper
 # Given a plot census data frame and a set of herbaria, returns
-# a character vector of herbaria image URLs (one per row of fp_df).
 .herbaria_lookup_links <- function(fp_df,
                                    herbariums,
                                    cache_rds = "jabot_index.rds",
                                    force_refresh = FALSE,
                                    verbose = FALSE,
                                    collector_fallback = NULL) {
-  
-  ## ---------------------- basic validation ---------------------- ##
+
   if (is.null(herbariums) || !length(herbariums)) {
     stop(
       "When `herbaria_lookup = TRUE`, you must provide at least one herbarium in `herbaria`, ",
@@ -1428,26 +1144,26 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
     )
   }
   herbariums <- toupper(herbariums)
-  
+
   ## ---------------------- internal helpers ---------------------- ##
-  
+
   .norm_txt <- function(x) {
     x <- tolower(iconv(x, to = "ASCII//TRANSLIT"))
     x <- gsub("\\s+", " ", x)
     trimws(x)
   }
-  
+
   .norm_num <- function(x) {
     x <- gsub("[^0-9]", "", as.character(x))
     x[!nzchar(x)] <- NA_character_
     x
   }
-  
+
   .strip_particles <- function(tokens) {
     parts <- c("de","da","do","das","dos","del","della","van","von")
     tokens[!(tokens %in% parts)]
   }
-  
+
   .first_person <- function(rec_by_raw) {
     if (is.na(rec_by_raw) || !nzchar(rec_by_raw)) return(NA_character_)
     # split on "&", "e", "and"
@@ -1457,11 +1173,11 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
     if (!length(p)) return(NA_character_)
     p[1]
   }
-  
+
   .lastname_from_freeform <- function(name_raw) {
     if (is.na(name_raw) || !nzchar(name_raw)) return(NA_character_)
     n <- .norm_txt(name_raw)
-    
+
     # "Lastname, Firstname" style
     if (grepl(",", n, fixed = TRUE)) {
       last <- trimws(strsplit(n, ",\\s*")[[1]][1])
@@ -1469,7 +1185,7 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       if (!length(last)) return(NA_character_)
       return(last[length(last)])
     }
-    
+
     # Remove isolated initials (e.g. "A.", "J.F.")
     n <- gsub("\\b[a-z]\\.?\\b", "", n)
     toks <- .strip_particles(unlist(strsplit(n, "\\s+")))
@@ -1477,17 +1193,17 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
     if (!length(toks)) return(NA_character_)
     toks[length(toks)]
   }
-  
+
   .voucher_from_any_census <- function(fp_df, collector_fallback = NULL) {
     # Uses the combined Voucher field when available (e.g., "H. Medeiros 1234" or "GCO1095").
     v <- as.character(fp_df$Voucher)
     v[is.na(v)] <- ""
-    
+
     # Split into trailing numeric part and prefix text (collector)
     num_from_voucher <- .norm_num(gsub(".*?(\\d[\\d\\./-]*)\\s*$", "\\1", v, perl = TRUE))
     col_from_voucher <- trimws(gsub("(.*?)(\\d[\\d\\./-]*\\s*)$", "\\1", v, perl = TRUE))
     col_from_voucher <- gsub("[\\.,;]+\\s*$", "", col_from_voucher)
-    
+
     # Detect compact vouchers like "GCO1095": if fallback is provided, use it
     if (!is.null(collector_fallback) && nzchar(trimws(collector_fallback))) {
       is_compact <- grepl(
@@ -1496,7 +1212,7 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       )
       col_from_voucher[is_compact] <- collector_fallback
     }
-    
+
     # Fallback to census columns if needed
     .norm_name <- function(x) {
       tolower(gsub("\\s+", " ", iconv(x, to = "ASCII//TRANSLIT")))
@@ -1507,7 +1223,7 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       pat <- paste0("(", paste0(pats, collapse = "|"), ")")
       nms[grepl(pat, low)]
     }
-    
+
     rec_cols <- .find_cols(
       fp_df,
       c("recorded\\s*by","collector","coletor","col\\.?", "coletora")
@@ -1517,7 +1233,7 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       c("record\\s*number","collector\\s*number","voucher\\s*number",
         "\\bno?\\.?\\s*(coletor|collector)","\\bnumero\\b","num\\b")
     )
-    
+
     .first_non_empty <- function(df, cols) {
       if (!length(cols)) return(rep(NA_character_, nrow(df)))
       out <- rep(NA_character_, nrow(df))
@@ -1531,16 +1247,16 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       out[!nzchar(out)] <- NA_character_
       out
     }
-    
+
     rec_any <- .first_non_empty(fp_df, rec_cols)
     num_any <- .first_non_empty(fp_df, num_cols)
-    
+
     collector <- ifelse(nzchar(col_from_voucher), col_from_voucher, rec_any)
-    number    <- ifelse(nzchar(num_from_voucher), num_from_voucher, num_any)
-    
+    number <- ifelse(nzchar(num_from_voucher), num_from_voucher, num_any)
+
     list(collector = collector, number = number)
   }
-  
+
   .read_dwca_min <- function(base_dir) {
     occ <- file.path(base_dir, "occurrence.txt")
     if (!file.exists(occ)) return(NULL)
@@ -1555,7 +1271,7 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       )
     )
   }
-  
+
   .find_dwca_dir <- function(herbarium) {
     herbarium <- tolower(herbarium)
     jd <- "jabot_download"
@@ -1566,28 +1282,28 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
     info <- file.info(file.path(jd, hits))
     rownames(info)[which.max(info$mtime)]
   }
-  
+
   .build_herbaria_index_fast <- function(herbariums,
-                                         needed_numbers   = character(0),
+                                         needed_numbers = character(0),
                                          needed_lastnames = character(0),
-                                         verbose          = FALSE) {
-    
+                                         verbose = FALSE) {
+
     if (is.null(herbariums) || !length(herbariums)) {
       stop(
         "Argument `herbariums` must be a non-empty character vector (e.g. c('RB','UPCB')).",
         call. = FALSE
       )
     }
-    
+
     if (!length(needed_numbers)) {
       if (verbose) message("herbaria: no record numbers found in input – skipping index build.")
       return(data.frame(
-        key          = character(0),
+        key = character(0),
         catalogNumber = character(0),
-        herbarium     = character(0)
+        herbarium = character(0)
       ))
     }
-    
+
     out <- list()
     for (h in toupper(herbariums)) {
       # Ensure we have a local DwC-A directory for this herbarium
@@ -1601,19 +1317,19 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       if (verbose) message("Reading minimal DwC-A occurrence table for ", h, "…")
       dt <- .read_dwca_min(dir)
       if (is.null(dt) || !nrow(dt)) next
-      
+
       # Filter by needed record numbers
       dt[, rn := .norm_num(recordNumber)]
       dt <- dt[rn %in% needed_numbers]
       if (!nrow(dt)) next
-      
+
       # Extract first collector and last name
       dt[, fp := vapply(recordedBy, .first_person, FUN.VALUE = character(1))]
       dt[, ln := vapply(fp, .lastname_from_freeform, FUN.VALUE = character(1))]
       dt <- dt[nzchar(ln)]
       if (length(needed_lastnames)) dt <- dt[ln %in% needed_lastnames]
       if (!nrow(dt)) next
-      
+
       # Build key "lastname||number" and deduplicate
       dt[, key := paste(ln, rn, sep = "||")]
       dt <- dt[!duplicated(key)]
@@ -1624,48 +1340,48 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
         stringsAsFactors = FALSE
       )
     }
-    
+
     if (!length(out)) {
       return(data.frame(
-        key           = character(0),
+        key = character(0),
         catalogNumber = character(0),
-        herbarium     = character(0)
+        herbarium = character(0)
       ))
     }
-    
+
     do.call(rbind, out)
   }
-  
+
   .get_or_build_herbaria_index <- function(fp_df,
                                            herbariums,
-                                           cache_rds      = "jabot_index.rds",
-                                           force_refresh  = FALSE,
-                                           verbose        = FALSE,
+                                           cache_rds = "jabot_index.rds",
+                                           force_refresh = FALSE,
+                                           verbose = FALSE,
                                            collector_fallback = NULL) {
-    
+
     if (is.null(herbariums) || !length(herbariums)) {
       stop(
         "Argument `herbariums` must be a non-empty character vector when running herbaria lookup.",
         call. = FALSE
       )
     }
-    
+
     # Build the set of needed keys "lastname||number"
-    vv   <- .voucher_from_any_census(fp_df, collector_fallback = collector_fallback)
+    vv <- .voucher_from_any_census(fp_df, collector_fallback = collector_fallback)
     last <- vapply(vv$collector, .lastname_from_freeform, FUN.VALUE = character(1))
-    num  <- .norm_num(vv$number)
+    num <- .norm_num(vv$number)
     need_pairs <- unique(na.omit(
       ifelse(nzchar(last) & nzchar(num), paste(last, num, sep = "||"), NA_character_)
     ))
-    
+
     if (!length(need_pairs)) {
       return(data.frame(
-        key           = character(0),
+        key = character(0),
         catalogNumber = character(0),
-        herbarium     = character(0)
+        herbarium = character(0)
       ))
     }
-    
+
     # Try cache
     idx <- NULL
     if (!force_refresh && file.exists(cache_rds)) {
@@ -1675,13 +1391,13 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
         idx <- NULL
       }
     }
-    
+
     # Look for missing keys
     missing_pairs <- if (is.null(idx)) need_pairs else setdiff(need_pairs, idx$key)
     if (length(missing_pairs)) {
       miss_last <- unique(sub("\\|\\|.*$", "",  missing_pairs))
-      miss_num  <- unique(sub("^.*\\|\\|",   "", missing_pairs))
-      
+      miss_num <- unique(sub("^.*\\|\\|",   "", missing_pairs))
+
       inc <- .build_herbaria_index_fast(
         herbariums      = herbariums,
         needed_numbers  = miss_num,
@@ -1693,15 +1409,15 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       } else if (nrow(inc)) {
         idx <- unique(rbind(idx, inc))
       }
-      
+
       if (nrow(idx)) {
         try(saveRDS(idx, cache_rds), silent = TRUE)
       }
     }
-    
+
     idx
   }
-  
+
   .make_herbaria_url <- function(catalogNumber, herbarium) {
     if (is.na(catalogNumber) || !nzchar(catalogNumber)) return(NA_character_)
     herbarium <- toupper(herbarium)
@@ -1718,21 +1434,21 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
       NA_character_
     }
   }
-  
+
   .link_for_voucher_vec <- function(collector, number, herbaria_index_df) {
     if (is.null(herbaria_index_df) || !nrow(herbaria_index_df)) {
       return(rep(NA_character_, length(collector)))
     }
-    out  <- rep(NA_character_, length(collector))
+    out <- rep(NA_character_, length(collector))
     last <- vapply(collector, .lastname_from_freeform, FUN.VALUE = character(1))
-    num  <- .norm_num(number)
-    k    <- ifelse(
+    num <- .norm_num(number)
+    k <- ifelse(
       !is.na(last) & nzchar(last) & !is.na(num) & nzchar(num),
       paste(last, num, sep = "||"),
       NA_character_
     )
-    pos  <- match(k, herbaria_index_df$key)
-    has  <- !is.na(pos)
+    pos <- match(k, herbaria_index_df$key)
+    has <- !is.na(pos)
     out[has] <- mapply(
       .make_herbaria_url,
       herbaria_index_df$catalogNumber[pos[has]],
@@ -1740,9 +1456,9 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
     )
     out
   }
-  
+
   ## ---------------------- main pipeline ---------------------- ##
-  
+
   herbaria_index <- .get_or_build_herbaria_index(
     fp_df             = fp_df,
     herbariums        = herbariums,
@@ -1751,144 +1467,8 @@ htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
     verbose           = verbose,
     collector_fallback = collector_fallback
   )
-  
+
   vv <- .voucher_from_any_census(fp_df, collector_fallback = collector_fallback)
-  
+
   .link_for_voucher_vec(vv$collector, vv$number, herbaria_index)
 }
-
-
-#_______________________________________________________________________________
-build_specimen_page <- function(
-    file,
-    pi_email,
-    parcel_id,
-    subplot_id,
-    census_id,
-    individual_id,
-    tree_id,
-    family,
-    status,
-    dbh,
-    x, y,
-    current_taxon,
-    extra_meta = "",
-    emailjs_public_key,
-    emailjs_service_id,
-    template_pi = "parcel_specimen_update_pi",
-    template_ack = "parcel_specimen_update_ack"
-) {
-  page <- htmltools::tags$html(
-    tags$head(
-      tags$meta(charset = "UTF-8"),
-      tags$title(sprintf("Indivíduo %s - Parcela %s", individual_id, parcel_id)),
-      tags$script(src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"),
-      tags$script(HTML(sprintf("
-        (function(){
-          emailjs.init({ publicKey: '%s' });
-        })();
-      ", emailjs_public_key))),
-      tags$style(HTML("/* estilos omitidos aqui para encurtar, mantém do exemplo anterior */"))
-    ),
-    tags$body(
-      # Metadados para o JS
-      tags$div(
-        id = "meta",
-        `data-pi-email`     = pi_email,
-        `data-parcel-id`    = parcel_id,
-        `data-subplot-id`   = subplot_id,
-        `data-census-id`    = census_id,
-        `data-individual-id`= individual_id,
-        `data-tree-id`      = tree_id,
-        `data-family`       = family,
-        `data-status`       = status,
-        `data-dbh`          = dbh,
-        `data-x`            = x,
-        `data-y`            = y,
-        `data-current-taxon`= current_taxon,
-        `data-extra-meta`   = extra_meta
-      ),
-      
-      # (título, quadro resumo, form...)
-      
-      tags$script(HTML(sprintf("
-        document.addEventListener('DOMContentLoaded', function () {
-          const meta = document.getElementById('meta');
-          const form = document.getElementById('updateForm');
-          const statusMsg = document.getElementById('formStatus');
-
-          const baseParams = {
-            pi_email:      meta.dataset.piEmail,
-            parcel_id:     meta.dataset.parcelId,
-            subplot_id:    meta.dataset.subplotId,
-            census_id:     meta.dataset.censusId,
-            individual_id: meta.dataset.individualId,
-            tree_id:       meta.dataset.treeId,
-            family:        meta.dataset.family,
-            status:        meta.dataset.status,
-            dbh:           meta.dataset.dbh,
-            x:             meta.dataset.x,
-            y:             meta.dataset.y,
-            current_taxon: meta.dataset.currentTaxon,
-            extra_meta:    meta.dataset.extraMeta
-          };
-
-          form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            statusMsg.textContent = 'Enviando...';
-            statusMsg.className = '';
-
-            const userName = document.getElementById('name').value.trim();
-            const userEmail = document.getElementById('email').value.trim();
-            const newTaxon  = document.getElementById('new_taxon').value.trim() || 'Não informado';
-            const comment   = document.getElementById('comment').value.trim();
-
-            if (!userName || !userEmail || !comment) {
-              statusMsg.textContent = 'Por favor, preencha nome, e-mail e comentário.';
-              statusMsg.className = 'error';
-              return;
-            }
-
-            const paramsPI = Object.assign({}, baseParams, {
-              user_name: userName,
-              user_email: userEmail,
-              new_taxon: newTaxon,
-              comment: comment
-            });
-
-            emailjs.send('%s', '%s', paramsPI)
-              .then(function() {
-                const paramsAck = Object.assign({}, baseParams, {
-                  user_name: userName,
-                  user_email: userEmail,
-                  new_taxon: newTaxon,
-                  comment: comment
-                });
-                return emailjs.send('%s', '%s', paramsAck);
-              })
-              .then(function() {
-                statusMsg.textContent = 'Sugestão enviada com sucesso! Você receberá um e-mail de confirmação.';
-                statusMsg.className = 'ok';
-                form.reset();
-              })
-              .catch(function(error) {
-                console.error('Erro no envio:', error);
-                statusMsg.textContent = 'Ops, ocorreu um erro ao enviar. Tente novamente.';
-                statusMsg.className = 'error';
-              });
-          });
-        });
-      ", emailjs_service_id, template_pi, emailjs_service_id, template_ack)))
-    )
-  )
-  
-  htmltools::save_html(page, file = file)
-}
-
-# Internal EmailJS config for forplotR comment system
-.FORPLOTR_EMAILJS_PUBLIC_KEY  <- "azuLtLpuWSy_cLr_T"
-.FORPLOTR_EMAILJS_SERVICE_ID  <- "service_ay5yu0p"
-.FORPLOTR_EMAILJS_TEMPLATE_PI <- "template_l2j4wf6"
-.FORPLOTR_EMAILJS_TEMPLATE_ACK <- "template_w9896ml"
-
-

@@ -5,6 +5,7 @@
 \title{Generate forest plot specimen map and collection balance}
 \usage{
 plot_for_balance(fp_file_path = NULL,
+                 language = c("en", "pt", "es", "ma"),
                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,
@@ -21,7 +22,11 @@ plot_for_balance(fp_file_path = NULL,
                  filename = "plot_specimen")
 }
 \arguments{
-\item{fp_file_path}{Path to the Excel file (field or query sheet) in ForestPlots format.}
+\item{fp_file_path}{Path to the Excel file (field or query sheet) in 
+ForestPlots format.}
+
+\item{language}{Character. One of en (english), pt (portuguese), es
+(spanish), ma (mandarin) (default = en)}
 
 \item{input_type}{Character. One of `"field_sheet"`, `"fp_query_sheet"` or
 `"monitora"`. Specifies the type/layout of the input file.}
@@ -93,6 +98,7 @@ totals), separating palms from non-palms.
 \examples{
 \dontrun{
 plot_for_balance(fp_file_path = "data/forestplot.xlsx",
+                 language = c("en", "pt", "es", "ma"),
                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,

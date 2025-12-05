@@ -22,6 +22,7 @@
 #'
 #' @usage
 #' plot_for_balance(fp_file_path = NULL,
+#'                  language = c("en", "pt", "es", "ma"),
 #'                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
 #'                  plot_size = 1,
 #'                  subplot_size = 10,
@@ -37,7 +38,11 @@
 #'                  dir = "Results_map_plot",
 #'                  filename = "plot_specimen")
 #'
-#' @param fp_file_path Path to the Excel file (field or query sheet) in ForestPlots format.
+#' @param fp_file_path Path to the Excel file (field or query sheet) in 
+#' ForestPlots format.
+#' 
+#' @param language Character. One of en (english), pt (portuguese), es  
+#' (spanish), ma (mandarin) (default = en)
 #'
 #' @param input_type Character. One of `"field_sheet"`, `"fp_query_sheet"` or
 #'   `"monitora"`. Specifies the type/layout of the input file.
@@ -107,6 +112,7 @@
 #' @examples
 #' \dontrun{
 #' plot_for_balance(fp_file_path = "data/forestplot.xlsx",
+#'                  language = c("en", "pt", "es", "ma"),
 #'                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
 #'                  plot_size = 1,
 #'                  subplot_size = 10,
@@ -127,6 +133,7 @@
 #'
 
 plot_for_balance <- function(fp_file_path = NULL,
+                             language = c("en", "pt", "es", "ma"),
                              input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                              plot_size = 1,
                              subplot_size = 10,
@@ -147,6 +154,10 @@ plot_for_balance <- function(fp_file_path = NULL,
   
   # subplot size check
   .validate_subplot_size(subplot_size)
+  
+  # language check / normalização
+  language <- match.arg(tolower(trimws(as.character(language))),
+                        c("en", "pt", "es", "ma"))
   
   # dir check
   dir <- .arg_check_dir(dir)
@@ -390,47 +401,46 @@ plot_for_balance <- function(fp_file_path = NULL,
   # usar o mesmo foldername e filename já utilizados para o PDF final
   png_dir <- foldername
   base_name <- filename
-  # 
-  # # 1) General
-  # ggplot2::ggsave(
-  #   filename = file.path(png_dir, paste0(base_name, "_general.png")),
-  #   plot     = base_plot,
-  #   width = 14, height = 11, units = "in", dpi = 300
-  # )
-  # 
-  # # 2) Collected 
-  # if (!is.null(collected_plot)) {
-  #   ggplot2::ggsave(
-  #     filename = file.path(png_dir, paste0(base_name, "_collected.png")),
-  #     plot     = collected_plot,
-  #     width = 14, height = 11, units = "in", dpi = 300
-  #   )
-  # }
-  # 
-  # # 3) Uncollected 
-  # if (!is.null(uncollected_plot)) {
-  #   ggplot2::ggsave(
-  #     filename = file.path(png_dir, paste0(base_name, "_uncollected.png")),
-  #     plot     = uncollected_plot,
-  #     width = 14, height = 11, units = "in", dpi = 300
-  #   )
-  # }
-  # 
-  # # 4) Uncollected palms 
-  # if (!is.null(uncollected_palm_plot)) {
-  #   ggplot2::ggsave(
-  #     filename = file.path(png_dir, paste0(base_name, "_uncollected_palms.png")),
-  #     plot     = uncollected_palm_plot,
-  #     width = 14, height = 11, units = "in", dpi = 300
-  #   )
-  # }
+  
+  # 1) General
+  ggplot2::ggsave(
+    filename = file.path(png_dir, paste0(base_name, "_general.png")),
+    plot     = base_plot,
+    width = 14, height = 11, units = "in", dpi = 300
+  )
+  
+  # 2) Collected
+  if (!is.null(collected_plot)) {
+    ggplot2::ggsave(
+      filename = file.path(png_dir, paste0(base_name, "_collected.png")),
+      plot     = collected_plot,
+      width = 14, height = 11, units = "in", dpi = 300
+    )
+  }
+  
+  # 3) Uncollected
+  if (!is.null(uncollected_plot)) {
+    ggplot2::ggsave(
+      filename = file.path(png_dir, paste0(base_name, "_uncollected.png")),
+      plot     = uncollected_plot,
+      width = 14, height = 11, units = "in", dpi = 300
+    )
+  }
+  
+  # 4) Uncollected palms
+  if (!is.null(uncollected_palm_plot)) {
+    ggplot2::ggsave(
+      filename = file.path(png_dir, paste0(base_name, "_uncollected_palms.png")),
+      plot     = uncollected_palm_plot,
+      width = 14, height = 11, units = "in", dpi = 300
+    )
+  }
   
   # Generate subplot plots for each unique subplot (T1)
-  # ---- SUBPLOTS ----
   subplot_plots <- list()
   
   if (input_type == "monitora") {
-    # >>> MONITORA: create 40 subplots (N,S,L,O × 1..10), mesmo se vazios
+    # >>> MONITORA: create 40 subplots (N,S,L,O × 1..10)
     arms_order <- c("N","S","L","O")
     arm_id <- setNames(1:4, arms_order)
     
@@ -588,13 +598,36 @@ plot_for_balance <- function(fp_file_path = NULL,
   }
   
   
-  # Prepare RMarkdown sections for each subplot with navigation and page breaks
-  rmd_content <- .create_rmd_content(
-    subplot_plots,
-    tf_col, tf_uncol, tf_palm,
-    plot_name, plot_code, spec_df,
-    has_agb = !is.null(agb_tbl) #  <- new flag
-  )
+  #### Prepare RMarkdown sections for each subplot with navigation and page breaks ####
+  if (language == "pt") {
+    rmd_content <- .create_rmd_content_pt(
+      subplot_plots,
+      tf_col, tf_uncol, tf_palm,
+      plot_name, plot_code, spec_df,
+      has_agb = !is.null(agb_tbl)
+    )
+  } else if (language == "en") {
+    rmd_content <- .create_rmd_content_en(
+      subplot_plots,
+      tf_col, tf_uncol, tf_palm,
+      plot_name, plot_code, spec_df,
+      has_agb = !is.null(agb_tbl)
+    )
+  } else if (language == "es") {
+    rmd_content <- .create_rmd_content_es(
+      subplot_plots,
+      tf_col, tf_uncol, tf_palm,
+      plot_name, plot_code, spec_df,
+      has_agb = !is.null(agb_tbl)
+    )
+  } else if (language == "ma") {
+    rmd_content <- .create_rmd_content_ma(
+      subplot_plots,
+      tf_col, tf_uncol, tf_palm,
+      plot_name, plot_code, spec_df,
+      has_agb = !is.null(agb_tbl)
+    )
+  }
   
   # Write Rmd content to file
   writeLines(c(rmd_content, ""), rmd_path)
@@ -607,7 +640,6 @@ plot_for_balance <- function(fp_file_path = NULL,
       plot_name = plot_name,
       plot_code = plot_code,
       team      = team,
-      # >>> NEW (apenas MONITORA; ficam NULL caso não exista multi-censo)
       census_years = if (exists("monitora_census_years", inherits = TRUE)) get("monitora_census_years") else NULL,
       census_n     = if (exists("monitora_census_n",     inherits = TRUE)) get("monitora_census_n") else NULL
     ),
@@ -620,7 +652,6 @@ plot_for_balance <- function(fp_file_path = NULL,
       uncollected = uncollected_count,
       palms       = palms_count,
       spec_df     = spec_df,
-      # >>> NEW (apenas MONITORA; ficam NULL se não aplicável)
       dead_since_first     = if (exists("monitora_dead_since_first", inherits = TRUE)) get("monitora_dead_since_first") else NULL,
       recruits_since_first = if (exists("monitora_recruits_since_first", inherits = TRUE)) get("monitora_recruits_since_first") else NULL
     ),
@@ -642,12 +673,16 @@ plot_for_balance <- function(fp_file_path = NULL,
     param_list$uncollected_palm_plot <- uncollected_palm_plot
   }
   
+  # Engine LaTeX: XeLaTeX just for mandarin
+  latex_engine <- if (language == "ma") "xelatex" else "pdflatex"
+  
   # Render the Rmd file to PDF using rmarkdown::render with params
   .render_plot_report(
     rmd_path = rmd_path,
     output_pdf_path = foldername,
     output_pdf_name = final_pdf,
-    params = param_list
+    params = param_list,
+    latex_engine = latex_engine
   )
   
   # Cleanup temporary files/folders created by knitting
@@ -662,7 +697,6 @@ plot_for_balance <- function(fp_file_path = NULL,
     plot_code = plot_code,
     team = team
   )
-  
 }
 
 # Rendering PDF with full plot report ####
@@ -670,7 +704,9 @@ plot_for_balance <- function(fp_file_path = NULL,
     rmd_path,
     output_pdf_path,
     output_pdf_name,
-    params) {
+    params,
+    latex_engine = "pdflatex") {   # default seguro
+  
   render_env <- new.env(parent = globalenv())
   wd <- getwd()
   old_logs <- list.files(
@@ -680,18 +716,24 @@ plot_for_balance <- function(fp_file_path = NULL,
   )
   # Temp output name
   temp_pdf <- tempfile(fileext = ".pdf")
+  extra_deps <- NULL
+  if (identical(latex_engine, "xelatex")) {
+    extra_deps <- rmarkdown::latex_dependency("ctex", options = "fontset=fandol")
+  }
   
   rmarkdown::render(
-    input = rmd_path,
+    input       = rmd_path,
     output_file = basename(temp_pdf),
-    output_dir = tempdir(),
-    params = params,
-    envir = render_env,
-    clean = FALSE,
+    output_dir  = tempdir(),
+    params      = params,
+    envir       = render_env,
+    clean       = FALSE,
     output_format = rmarkdown::pdf_document(
-      keep_tex = TRUE,
-      latex_engine = "pdflatex",
-      fig_caption = TRUE)
+      keep_tex          = TRUE,
+      latex_engine      = latex_engine,
+      fig_caption       = TRUE,
+      extra_dependencies = extra_deps  
+    )
   )
   
   # Write the LaTeX preamble commands
@@ -710,13 +752,11 @@ plot_for_balance <- function(fp_file_path = NULL,
   
   # Recompile .tex
   if (file.exists(tex_file)) {
-    # Insert preamble before \begin{document}
-    tex_lines <- readLines(tex_file)
+    tex_lines  <- readLines(tex_file)
     insert_idx <- grep("\\\\begin\\{document\\}", tex_lines)[1]
     new_tex_lines <- append(tex_lines, preamble_lines, after = insert_idx - 1)
     writeLines(new_tex_lines, tex_file)
-    
-    tinytex::latexmk(tex_file)
+    tinytex::latexmk(tex_file, engine = latex_engine)
   }
   
   # Move output PDF to final location
@@ -746,8 +786,9 @@ plot_for_balance <- function(fp_file_path = NULL,
   if (length(log_files)) {
     unlink(log_files, force = TRUE)
   }
-  
 }
+
+
 
 # Replace empty cells with NA ####
 .replace_empty_with_na <- function(df) {
@@ -1148,6 +1189,7 @@ plot_for_balance <- function(fp_file_path = NULL,
       tagno_collected = paste(
         sort(unique(unlist(strsplit(tagno_collected, "\\|")))),
         collapse = "|"))
+  
   #total_collected$tagno_collected <- NA
   final_collected <- bind_rows(collected_df, total_collected)
   
@@ -1202,456 +1244,16 @@ plot_for_balance <- function(fp_file_path = NULL,
   openxlsx::saveWorkbook(wb, file = output_file, overwrite = TRUE)
 }
 
-# Prepare RMarkdown sections for each subplot with navigation and page breaks ####
-.create_rmd_content <- function (subplot_plots, tf_col, tf_uncol, tf_palm,
-                                 plot_name, plot_code, spec_df,
-                                 has_agb = FALSE) { 
-  
-  # 1) YAML HEADER – built dynamically.  **agb** is included ONLY when
-  #    `has_agb` is TRUE 
-  yaml_head <- c(
-    "---",
-    "output:",
-    "  pdf_document:",
-    "    toc: true",
-    "    toc_depth: 2",
-    "    number_sections: true",
-    "fontsize: 12pt",
-    "params:",
-    "  input_type: \"forestplots\"",
-    "  metadata: NULL",
-    "  main_plot: NULL",
-    "  subplots_list: NULL",
-    "  subplot_size: 70",
-    "  stats: NULL",
-    "  tag_list: NULL",
-    "  tag_to_subplot: NULL"
-  )
-  
-  # condicionalmente adicione APENAS as linhas extras de params (AINDA sem fechar '---')
-  if (has_agb)      yaml_head <- c(yaml_head, "  agb: NULL")
-  if (any(tf_col))  yaml_head <- c(yaml_head, "  collected_plot: NULL")
-  if (any(tf_uncol))yaml_head <- c(yaml_head, "  uncollected_plot: NULL")
-  if (any(tf_palm)) yaml_head <- c(yaml_head, "  uncollected_palm_plot: NULL")
-  
-  # agora SIM, feche o YAML
-  yaml_head <- c(yaml_head, "---")
-  
-  
-  # 2) COMMON BLOCK
-  mid_section <- c(
-    
-    # -- SETUP --
-    "```{r setup, include=FALSE}",
-    "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)",
-    "library(ggplot2)",
-    "library(dplyr)",
-    "spec_df <- params$stats$spec_df",
-    "safe_id <- function(x) {",
-    "  x <- trimws(as.character(x))",
-    "  x <- gsub(\"\\\\s*\\\\(.*\\\\)$\", \"\", x)",  # remove ' (SXX)' if present
-    "  x <- gsub(\"[^A-Za-z0-9]\", \"\", x)",   # remove any punctuation
-    "  tolower(x)",  # makes it case-insensitive
-    "}",
-    "```",
-    "",
-    # -- INVISIBLE ANCHORS FOR TAGS --
-    "```{r all-tag-anchors, results='asis', echo=FALSE}",
-    "t2s_df <- params$tag_to_subplot",
-    "tag_vec <- as.character(t2s_df$`New Tag No`)",
-    "tag_vec <- trimws(tag_vec)",
-    "tag_vec <- tag_vec[!is.na(tag_vec) & nzchar(tag_vec)]",
-    "subplot_vec <- t2s_df$T1[match(tag_vec, t2s_df$`New Tag No`)]",
-    "ids <- sprintf('tag-%s-S%s', tag_vec, subplot_vec)",
-    "ids <- unique(ids)",
-    "for (id in ids) cat(sprintf('\\\\hypertarget{%s}{}\\n', id))",
-    "```",
-    "",
-    
-    # ---------- TITLE BLOCK ----------
-    "```{r title-block, echo=FALSE, results='asis'}",
-    "cat('\\\\begin{center}')",
-    "cat('\\\\Huge\\\\textbf{Full Plot Report} \\\\\\\\')",  # line break
-    "cat('\\\\vspace{0.5em}')",
-    "cat(paste0('\\\\normalsize ', params$metadata$plot_name, ' | ', params$metadata$plot_code, ' \\\\\\\\'))",
-    "cat('\\\\end{center}')",
-    "```",
-    "",
-    
-    # -- LOGOS --
-    "```{r logo, echo=FALSE, results='asis'}",
-    "# Função vetorizada para normalizar caminhos",
-    "norm_path <- function(p) {",
-    "  p <- as.character(p); p[is.na(p)] <- \"\"",
-    "  tryCatch(normalizePath(p, winslash = '/', mustWork = FALSE), error = function(e) p)",
-    "}",
-    "",
-    "forplotr_logo_path    <- norm_path(system.file('figures', 'forplotR_hex_sticker.png', package = 'forplotR'))",
-    "forestplots_logo_path <- norm_path(system.file('figures', 'forestplotsnet_logo.png',   package = 'forplotR'))",
-    "",
-    "raw_it <- if (!is.null(params$input_type)) params$input_type else if (!is.null(params$metadata$input_type)) params$metadata$input_type else ''",
-    "input_type  <- tolower(trimws(as.character(raw_it)))",
-    "is_monitora <- (input_type == 'monitora')",
-    "",
-    "monitora_candidates <- character(0)",
-    "if (length(forestplots_logo_path) && nzchar(forestplots_logo_path)) {",
-    "  mon_dir <- dirname(forestplots_logo_path[1])",
-    "  monitora_candidates <- c(monitora_candidates, file.path(mon_dir, 'monitora_logo.png'))",
-    "}",
-    "monitora_candidates <- c(",
-    "  monitora_candidates,",
-    "  'figures/monitora_logo.png',",
-    "  system.file('figures', 'monitora_logo.png', package = 'forplotR')",
-    ")",
-    "monitora_candidates <- norm_path(monitora_candidates)",
-    "monitora_candidates <- monitora_candidates[nzchar(monitora_candidates)]",
-    "",
-    "monitora_logo_path <- ''",
-    "if (is_monitora) {",
-    "  idx <- which(file.exists(monitora_candidates))",
-    "  if (length(idx) > 0) {",
-    "    monitora_logo_path <- monitora_candidates[idx[1]]",
-    "  } else {",
-    "    url <- 'https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora/@@collective.cover.banner/af7c14b7-6562-4da9-8056-dc56a2b69f7d/@@images/f86d904c-f11b-4b41-a283-84790263c284.png'",
-    "    tmp <- file.path(tempdir(), 'monitora_logo.png')",
-    "    try(utils::download.file(url, tmp, mode = 'wb', quiet = TRUE), silent = TRUE)",
-    "    if (file.exists(tmp)) monitora_logo_path <- norm_path(tmp)",
-    "  }",
-    "}",
-    "",
-    "partner_logo_path <- if (is_monitora && nzchar(monitora_logo_path)) monitora_logo_path else forestplots_logo_path",
-    "partner_href      <- if (is_monitora) 'https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora' else 'https://forestplots.net'",
-    "partner_width     <- if (is_monitora) \"0.28\\\\linewidth\" else \"0.40\\\\linewidth\"",
-    "",
-    "cat('\\\\vspace*{1cm}\n')",
-    "cat('\\\\begin{center}\n')",
-    "cat(sprintf('\\\\href{https://dboslab.github.io/forplotR-website/}{\\\\includegraphics[width=0.20\\\\linewidth]{%s}}', forplotr_logo_path), '\n')",
-    "cat('\\\\end{center}\n')",
-    "",
-    "cat('\\\\begin{center}\n')",
-    "if (is_monitora && !nzchar(partner_logo_path)) {",
-    "  # Fallback",
-    "  cat('MONITORA Program', '\\n')",
-    "} else {",
-    "  cat(sprintf('\\\\href{%s}{\\\\includegraphics[width=%s,keepaspectratio]{%s}}',",
-    "              partner_href, partner_width, partner_logo_path), '\n')",
-    "}",
-    "cat('\\\\end{center}\n')",
-    "cat('\\\\vspace*{2cm}\n')",
-    "```",
-    
-    
-    # -- TABLE OF CONTENTS --
-    "## Contents {#contents}",
-    "\\vspace*{-1cm}",
-    "\\thispagestyle{plain}",
-    "\\tableofcontents",
-    "\\newpage",
-    "",
-    
-    # -- METADATA --
-    "## Metadata {#metadata}",
-    "",
-    "**Plot Name:** `r params$metadata$plot_name`",
-    "",
-    "**Plot Code:** `r params$metadata$plot_code`",
-    "",
-    "**Team:** `r params$metadata$team`",
-    "",
-    "\\vspace{0.6\\baselineskip}", 
-    "\\hrule",
-    "",
-    
-    # -- MULTI-CENSO (só se houver >1 censo) --
-    "```{r meta-census, echo=FALSE, results='asis'}",
-    "yrs <- params$metadata$census_years; yrs <- yrs[is.finite(yrs)]",
-    "if (length(yrs) > 1) {",
-    "  cat(paste0('**Number of census:** ', length(yrs), '\\n\\n'))",
-    "  cat(paste0('**Dates of census:** ', paste(yrs, collapse = ' | '), '\\n\\n'))",
-    "}",
-    "```",
-    "\\hrule",
-    "",
-    
-    # -- SPECIMEN COUNTS --
-    "## Specimen Counts {#counts}",
-    "",
-    "- **Total Specimens:** `r params$stats$total`",
-    "- **Collected (excluding palms):** `r params$stats$collected`",
-    "- **Not Collected (excluding palms):** `r params$stats$uncollected`",
-    "- **Palms (Arecaceae):** `r params$stats$palms`",
-    "",
-    "\\hrule",
-    "```{r counts-mc, echo=FALSE, results='asis'}",
-    "yrs <- params$metadata$census_years",
-    "dead_total <- params$stats$dead_since_first",
-    "recr_total <- params$stats$recruits_since_first",
-    "if (!is.null(yrs) && length(yrs) > 1) {",
-    "  if (!is.null(dead_total) && is.finite(dead_total))",
-    "    cat(paste0('- **Dead trees since first census:** ', dead_total, '\\n'))",
-    "  if (!is.null(recr_total) && is.finite(recr_total))",
-    "    cat(paste0('- **Recruits since first census:** ', recr_total, '\\n'))",
-    "}",
-    "```"
-  )
-  
-  # -- AGB TABLE --
-  if (has_agb) {
-    mid_section <- c(mid_section,
-                     "",
-                     "## Above-ground Biomass {#agb}",
-                     "",
-                     "```{r agb-table, echo=FALSE, results='asis'}",
-                     "if (!is.null(params$agb)) {",
-                     "  agb_val <- round(params$agb[[2]][1], 2)",
-                     "  cat(paste0(\"**Above-ground biomass:** \", agb_val, \" t ha$^{-1}$\\n\\n\"))",
-                     "  cat('\\\\hrule\\n')",
-                     "}",
-                     "```"
-    )
-  }
-  
-  mid_section <- c(mid_section, "\\newpage")
-  
-  nav_targets <- c("[Back to Contents](#contents)",
-                   "[Metadata](#metadata)",
-                   "[Specimen Counts](#counts)")
-  
-  if (has_agb) nav_targets <- c(nav_targets, "[AGB](#agb)")
-  nav_targets <- c(nav_targets, "[General Plot](#general-plot)")
-  if (any(tf_col)) nav_targets <- c(nav_targets, "[Collected Only](#collected-only)")
-  if (any(tf_uncol)) nav_targets <- c(nav_targets, "[Not Collected](#uncollected)")
-  if (any(tf_palm)) nav_targets <- c(nav_targets, "[Palms](#uncollected-palm)")
-  nav_targets <- c(nav_targets, "[Subplot Index](#subplot-index)", "[Checklist](#checklist)")
-  
-  nav_links <- c(
-    #   "\\vspace*{\\fill}",                         # <-- empurra para o rodapé
-    "\\begingroup\\tiny\\color{gray}",
-    paste("«", paste(nav_targets, collapse = " | ")),
-    "\\endgroup"
-  )
-  
-  gencol_section <- c(    "",
-                          "## General Plot {#general-plot}", 
-                          "```{r general-plot, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",   
-                          "print(params$main_plot)",
-                          "```",
-                          "\n",
-                          "\n",
-                          nav_links,
-                          "",
-                          "\\newpage"
-  )
-  
-  col_section <- c(
-    "## Collected Only {#collected-only}",
-    "```{r collected-only, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",   
-    "print(params$collected_plot)",
-    "```",
-    "\n",
-    "\n",
-    nav_links,
-    "",
-    "\\newpage"
-  )
-  
-  uncol_section <- c(
-    "## Not Collected {#uncollected}",
-    "```{r uncollected,fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",   
-    "print(params$uncollected_plot)",
-    "```",
-    "\n",
-    "\n",
-    nav_links,
-    "",
-    "\\newpage"
-  )
-  
-  palm_section <- c(
-    "## Not Collected Palms {#uncollected-palm}",
-    "```{r uncollected-palm, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",   
-    "print(params$uncollected_palm_plot)",
-    "```",
-    "\n",
-    "\n",
-    nav_links,
-    "",
-    "\\newpage"
-  )
-  
-  index_section <- c(
-    "",
-    "\\newpage",
-    "",
-    "## Subplot Index {#subplot-index}",
-    "",
-    "```{r toc, results='asis', echo=FALSE}",
-    "cols <- 5",
-    "n <- length(params$subplots_list)",
-    "per_col <- ceiling(n / cols)",
-    "header <- paste(rep('Subplots', cols), collapse = ' | ')",
-    "separator <- paste(rep('---', cols), collapse = ' | ')",
-    "toc_lines <- c(header, separator)",
-    "for (i in 1:per_col) {",
-    "  row <- character(cols)",
-    "  for (j in 0:(cols - 1)) {",
-    "    idx <- i + j * per_col",
-    "    if (idx <= n) {",
-    "      row[j + 1] <- paste0('[Subplot ', idx, '](#subplot-', idx, ')')",
-    "    } else {",
-    "      row[j + 1] <- ' '",
-    "    }",
-    "  }",
-    "  toc_lines <- c(toc_lines, paste(row, collapse = ' | '))",
-    "}",
-    "cat(paste(toc_lines, collapse = '\\n'))",
-    "```",
-    "\n",
-    "\n",
-    nav_links,
-    "",
-    "\\newpage"
-  )
-  
-  subplot_sections <- unlist(lapply(seq_along(subplot_plots), function(i) {
-    c(
-      sprintf("\\hypertarget{subtag-%d}{}", i),
-      
-      sprintf("```{r anchors-%d, results='asis', echo=FALSE}", i),
-      sprintf("tags_i <- params$subplots_list[[%d]]$data$`New Tag No`", i),
-      "tags_i <- trimws(as.character(tags_i))",
-      "tags_i <- tags_i[!is.na(tags_i) & nzchar(tags_i)]",
-      sprintf("sp_number <- unique(params$subplots_list[[%d]]$data$T1)[1]", i),
-      "anchors <- sprintf('\\\\hypertarget{tag-%s-S%s}{}', tags_i, sp_number)",
-      "cat(paste(anchors, collapse = '\\n'))",
-      "```",
-      "",
-      
-      # subplot title and label
-      sprintf("### Subplot %d {#subplot-%d .unlisted .unnumbered}", i, i),
-      "",
-      
-      # subplot graphic
-      sprintf("```{r subplot-%d, fig.width=12, fig.height=9}", i),
-      sprintf("print(params$subplots_list[[%d]]$plot)", i),
-      "```",
-      "",
-      
-      # navigation bar (now also links to the checklist)
-      # "\\vspace*{\\fill}", 
-      "\\begingroup\\tiny\\color{gray}",
-      "« [Back to Contents](#contents) | [Metadata](#metadata) | [Specimen Counts](#counts) | [General Plot](#general-plot) | [Collected Only](#collected-only) | [Not Collected](#uncollected) | [Palms](#uncollected-palm) | [Subplot Index](#subplot-index) | [Checklist](#checklist)",
-      "\\endgroup",
-      
-      # page break (skip after the last subplot)
-      if (i < length(subplot_plots)) "\\newpage" else NULL,
-      ""
-    )
-  }))
-  
-  checklist_section <- c(
-    "",
-    "\\newpage",
-    "",
-    "## Species Check-list {#checklist}",
-    "",
-    "```{r checklist, results='asis', echo=FALSE}",
-    "library(dplyr)",
-    "cat('\\n')",
-    "for (fam in unique(spec_df$Family)) {",
-    "  cat(\"\\n\\n### \", fam, \"\\n\\n\", sep = \"\")",
-    "  fam_df <- spec_df %>% filter(Family == fam)",
-    "",
-    "  for (i in seq_len(nrow(fam_df))) {",
-    "    sp <- fam_df$Species_fmt[i]",
-    "    tag_vec <- fam_df$tag_vec[[i]]",
-    "",
-    "    tag_vec <- as.character(tag_vec)",
-    "    tag_vec <- trimws(tag_vec)",
-    "    tag_vec <- tag_vec[!is.na(tag_vec) & nzchar(tag_vec)]",
-    "    if (length(tag_vec) == 0) next",
-    "",
-    "    ids <- safe_id(tag_vec)",
-    "    t2s_df <- params$tag_to_subplot",
-    "    tag_df <- data.frame(",
-    "      tag = tag_vec,",
-    "      id  = ids,",
-    "      stringsAsFactors = FALSE)",
-    "",
-    "# subplot informatiom",
-    "t2s_df <- params$tag_to_subplot",
-    "",
-    "# input_type normalised",
-    "is_monitora <- tolower(trimws(as.character(params$input_type))) == \"monitora\"",
-    "",
-    "if (is_monitora) {",
-    "  # Monitora: T1 (N/S/L/O), T2 (1..10) e índice real (1..40)",
-    "  tag_df <- merge(tag_df, t2s_df, by.x = \"tag\", by.y = \"New Tag No\", all.x = TRUE, sort = FALSE)",
-    "  tag_df$target_idx <- ifelse(!is.na(tag_df$subplot_index), tag_df$subplot_index, tag_df$T1)",
-    "  has_fields <- !is.na(tag_df$subunit_letter) & !is.na(tag_df$T2)",
-    "  tag_df$subplot_code <- ifelse(has_fields, paste0(tag_df$subunit_letter, tag_df$T2), paste0(\"S\", tag_df$target_idx))",
-    "  o <- order(tag_df$target_idx, suppressWarnings(as.numeric(tag_df$tag)))",
-    "  tag_df <- tag_df[o, , drop = FALSE]",
-    "  tag_links <- paste(sprintf(\"[ %s → %s ](#subplot-%s)\",",
-    "                           tag_df$tag, tag_df$subplot_code, tag_df$target_idx),",
-    "                     collapse = \" | \")",
-    "} else {",
-    "  # Non-Monitora: original behavior using T1",
-    "  tag_df <- merge(tag_df, t2s_df, by.x = \"tag\", by.y = \"New Tag No\", all.x = TRUE, sort = FALSE)",
-    "  tag_df$target_idx <- tag_df$T1",
-    "  o <- order(tag_df$target_idx, suppressWarnings(as.numeric(tag_df$tag)))",
-    "  tag_df <- tag_df[o, , drop = FALSE]",
-    "  tag_links <- paste(sprintf(\"[ %s - S%s ](#subplot-%s)\",",
-    "                           tag_df$tag, tag_df$target_idx, tag_df$target_idx),",
-    "                     collapse = \" | \")",
-    "}",
-    "",
-    "# prints this species checklist line",
-    "cat(\"* \", sp, \": \", tag_links, \"\\n\", sep = \"\")",
-    "}",     
-    "}",     
-    "```",
-    "",
-    nav_links,
-    ""
-  )
-  
-  rmd_content <- yaml_head
-  add_body <- function(...) rmd_content <<- c(rmd_content, ...)
-  
-  if (any(tf_col) && !any(tf_uncol) && !any(tf_palm)) {
-    add_body(mid_section, gencol_section, col_section, index_section)
-  } else if (!any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
-    add_body(mid_section, gencol_section, uncol_section, index_section)
-  } else if (any(tf_col) && any(tf_uncol) && any(tf_palm)) {
-    add_body(mid_section, gencol_section, col_section, uncol_section, palm_section, index_section)
-  } else if (any(tf_col) && any(tf_uncol) && !any(tf_palm)) {
-    add_body(mid_section, gencol_section, col_section, uncol_section, index_section)
-  } else if (any(tf_col) && !any(tf_uncol) && any(tf_palm)) {
-    add_body(mid_section, gencol_section, col_section, palm_section, index_section)
-  } else if (!any(tf_col) && any(tf_uncol) && any(tf_palm)) {
-    add_body(mid_section, gencol_section, uncol_section, palm_section, index_section)
-  } else {
-    add_body(mid_section, gencol_section, index_section)
-  }
-  
-  add_body("## Individual Subplots {#individual-subplots}", subplot_sections, checklist_section)
-  return(rmd_content)
-}
-
-# Safely extract a character row from a data.frame / matrix / vector
+# Extract a character row from a data.frame / matrix / vector
 .safe_char_row <- function(x, row = 1L) {
-  # Se o objeto for NULL ou sem linhas, retorna vetor vazio
-  if (is.null(x) || NROW(x) < row) return(character())
+
+    if (is.null(x) || NROW(x) < row) return(character())
   
-  # Se for data.frame ou matriz: pega a linha pedida
   if (is.data.frame(x) || is.matrix(x)) {
     v <- x[row, , drop = TRUE]
   } else if (is.atomic(x)) {
-    # Se já for vetor atômico (character, numeric, etc.)
     v <- x
   } else {
-    # Fallback muito genérico (lista, etc.)
     v <- x[[row]]
   }
   
@@ -1698,19 +1300,19 @@ plot_for_balance <- function(fp_file_path = NULL,
     df[, !duplicated(base), drop = FALSE]
   }
   
-  ## 3 ─ merge → dedup → CalcAGB ---------------------------------------------
+  #### merge → dedup → CalcAGB ---------------------------------------------
   dat <- BiomasaFP::mergefp(trees, md, wd) %>% dedup_base()
-  base_nms <- sub("\\..*$", "", names(dat))   # tira sufixos .x .y .1 …
+  base_nms <- sub("\\..*$", "", names(dat))   
   dup_troncos <- unique(base_nms[duplicated(base_nms)])
   dat[, base_nms %in% dup_troncos] |> names()
   dat <- BiomasaFP::CalcAGB(
     dat,
     dbh = "D4",
-    height.data = NULL,  # curva Weibull global
+    height.data = NULL,  
     AGBFun = BiomasaFP::AGBChv14
   )
   
-  ## 4 ─ AGB Sum plot (kg → tons per ha) -------------------------------
+  #### AGB Sum plot  -------------------------------
   tibble::as_tibble(dat) %>%
     dplyr::group_by(PlotCode) %>%
     dplyr::summarise(
@@ -1719,3 +1321,4 @@ plot_for_balance <- function(fp_file_path = NULL,
     )
 }
 
+ 
