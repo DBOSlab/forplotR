@@ -58,25 +58,24 @@ format is JABOT, with support for BRAHMS or a custom format
 ``` r
 library(forplotR)
 
-herbarium_df <- fp_herb_converter(
-                       forestplots_file_path = NULL,
-                       herb_file_path = NULL,
-                       language = "en",
-                       herbarium_format = "jabot",
-                       country = "Brazil",
-                       majorarea = NULL,
-                       minorarea = NULL,
-                       protectedarea = NULL,
-                       locnotes = NULL,
-                       project = NULL,
-                       collector = NULL,
-                       addcoll = NULL,
-                       lat = NULL,
-                       long = NULL,
-                       alt = NULL,
-                       dir = "Results_rainfor_herb",
-                       filename = "rainfor_to_herb"
-                 )
+fp_herb_converter(forestplots_file_path = NULL,
+     herb_file_path = NULL,
+     language = "en",
+     herbarium_format = "jabot",
+     country = "Brazil",
+     majorarea = NULL,
+     minorarea = NULL,
+     protectedarea = NULL,
+     locnotes = NULL,
+     project = NULL,
+     collector = NULL,
+     addcoll = NULL,
+     lat = NULL,
+     long = NULL,
+     alt = NULL,
+     dir = "Results_rainfor_herb",
+     filename = "rainfor_to_herb"
+)
 ```
 
   
@@ -111,8 +110,10 @@ herbarium specimens or field vouchers need to be grouped by collector,
 number, or taxonomic name.
 
 ``` r
-mk_voucher_dirs(input_df = my_dataframe,
-                base_dir = "herbarium_vouchers",)
+mk_voucher_dirs(
+     input_df = my_dataframe,
+     base_dir = "herbarium_vouchers"
+)
 ```
 
   
