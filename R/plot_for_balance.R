@@ -599,36 +599,13 @@ plot_for_balance <- function(fp_file_path = NULL,
   
   
   #### Prepare RMarkdown sections for each subplot with navigation and page breaks ####
-  if (language == "pt") {
-    rmd_content <- .create_rmd_content_pt(
+    rmd_content <- .create_rmd_content(
       subplot_plots,
       tf_col, tf_uncol, tf_palm,
       plot_name, plot_code, spec_df,
       has_agb = !is.null(agb_tbl)
-    )
-  } else if (language == "en") {
-    rmd_content <- .create_rmd_content_en(
-      subplot_plots,
-      tf_col, tf_uncol, tf_palm,
-      plot_name, plot_code, spec_df,
-      has_agb = !is.null(agb_tbl)
-    )
-  } else if (language == "es") {
-    rmd_content <- .create_rmd_content_es(
-      subplot_plots,
-      tf_col, tf_uncol, tf_palm,
-      plot_name, plot_code, spec_df,
-      has_agb = !is.null(agb_tbl)
-    )
-  } else if (language == "ma") {
-    rmd_content <- .create_rmd_content_ma(
-      subplot_plots,
-      tf_col, tf_uncol, tf_palm,
-      plot_name, plot_code, spec_df,
-      has_agb = !is.null(agb_tbl)
-    )
-  }
-  
+      language = language
+      
   # Write Rmd content to file
   writeLines(c(rmd_content, ""), rmd_path)
   
