@@ -63,7 +63,7 @@ extract the altitude from geographic coordinates dataset.}
 \item{add_census_notes}{If \code{'TRUE'}, census notes will be included in the
 herbarium  sheet's notes. If \code{'FALSE'}, census notes will be omitted.}
 
-\item{validate_locality}{If \code{TRUE} (default), validates whether the 
+\item{validate_locality}{If \code{TRUE} (default), validates whether the
 coordinates fall within the provided administrative division (country/majorarea).}
 
 \item{dir}{Pathway to the computer's directory, where the file will be saved.
@@ -131,7 +131,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
                               add_census_notes = TRUE,
                               validate_locality = TRUE,
                               dir = "Results_filled_herbarium_sheet",
-                              filename =  "forestplot_to_herbarium_sheet")
+                              filename = "forestplot_to_herbarium_sheet")
 
 }
 \author{

@@ -22,7 +22,7 @@ plot_for_balance(fp_file_path = NULL,
                  filename = "plot_specimen")
 }
 \arguments{
-\item{fp_file_path}{Path to the Excel file (field or query sheet) in 
+\item{fp_file_path}{Path to the Excel file (field or query sheet) in
 ForestPlots format.}
 
 \item{language}{Character. One of en (english), pt (portuguese), es
@@ -58,7 +58,7 @@ using \code{BiomasaFP} and adds a summary section to the PDF report.}
 biomass (AGB) estimation. Can be either a data frame or a file path
 (character) to the "Data.csv" file downloaded via ForestPlots "Advanced Search".}
 
-\item{wd_csv}{Optional wood density file, with wood density for each 
+\item{wd_csv}{Optional wood density file, with wood density for each
 individual tree (by PlotViewID) downloaded from the ForestPlots
 "Query Library". Can be a data frame or a file path.}
 
@@ -79,40 +79,37 @@ statistics per subplot.
 \description{
 Processes field data collected using the
 \href{https://forestplots.net/}{ForestPlots.net} format (field sheets or
-Query Library output) or 
+Query Library output) or
 \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}
-{Monitora program} layouts, and generates a specimen map with 
+{Monitora program} layouts, and generates a specimen map with
 collection status and spatial distribution of individuals across subplots.
-It creates a PDF report with plot-level and subplot-level maps, an optional 
+It creates a PDF report with plot-level and subplot-level maps, an optional
 above-ground biomass summary, and an Excel spreadsheet summarizing the
 percentage of collected specimens per subplot. The function performs the
 following steps: (i) validates all input arguments and checks/creates output
-folders; (ii) reads the input sheet, extracts metadata (team, plot name, plot 
+folders; (ii) reads the input sheet, extracts metadata (team, plot name, plot
 code), and cleans the data; (iii) normalizes and cleans coordinate and
-diameter values, computing global plot coordinates; (iv) builds a PDF report 
-including plot metadata, the main map, collected and uncollected specimen 
-maps, an optional palm map and navigable subplot maps; (v) optionally 
-generates a spreadsheet with the collection percentage per subplot (including 
+diameter values, computing global plot coordinates; (iv) builds a PDF report
+including plot metadata, the main map, collected and uncollected specimen
+maps, an optional palm map and navigable subplot maps; (v) optionally
+generates a spreadsheet with the collection percentage per subplot (including
 totals), separating palms from non-palms.
 }
 \examples{
 \dontrun{
-plot_for_balance(fp_file_path = "data/forestplot.xlsx",
-                 language = c("en", "pt", "es", "ma"),
-                 input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-                 plot_size = 1,
-                 subplot_size = 10,
-                 highlight_palms = TRUE,
-                 station_name = NULL,
-                 plot_name = NULL,
-                 plot_code = NULL,
-                 team = NULL,
-                 calc_agb = FALSE,
-                 trees_csv = NULL,
-                 md_csv = NULL,
-                 wd_csv = NULL,
-                 dir = "Results_map_plot",
-                 filename = "plot_specimen")
+# Basic usage with field sheet
+plot_for_balance(
+  fp_file_path = "data/forestplot.xlsx",
+  language = "en",
+  input_type = "field_sheet"
+)
+
+# With Monitora data
+plot_for_balance(
+  fp_file_path = "data/monitora_data.xlsx",
+  input_type = "monitora",
+  station_name = "Station1"
+)
 }
 
 }

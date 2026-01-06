@@ -97,7 +97,7 @@
 #' @importFrom dplyr mutate if_else group_by arrange select distinct filter bind_rows any_of
 #' @importFrom magrittr "%>%"
 #' @importFrom grDevices pdf dev.off colorRampPalette
-#' @importFrom utils capture.output download.file
+#' @importFrom utils capture.output download.file read.csv
 #' @importFrom rmarkdown render pdf_document
 #' @importFrom openxlsx read.xlsx createWorkbook addWorksheet writeData createStyle addStyle saveWorkbook
 #' @importFrom tinytex latexmk
@@ -108,25 +108,23 @@
 #' @importFrom tidyr replace_na
 #' @importFrom grid unit
 #' @importFrom writexl write_xlsx
+#' @importFrom stats na.omit setNames
 #'
 #' @examples
 #' \dontrun{
-#' plot_for_balance(fp_file_path = "data/forestplot.xlsx",
-#'                  language = c("en", "pt", "es", "ma"),
-#'                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-#'                  plot_size = 1,
-#'                  subplot_size = 10,
-#'                  highlight_palms = TRUE,
-#'                  station_name = NULL,
-#'                  plot_name = NULL,
-#'                  plot_code = NULL,
-#'                  team = NULL,
-#'                  calc_agb = FALSE,
-#'                  trees_csv = NULL,
-#'                  md_csv = NULL,
-#'                  wd_csv = NULL,
-#'                  dir = "Results_map_plot",
-#'                  filename = "plot_specimen")
+#' # Basic usage with field sheet
+#' plot_for_balance(
+#'   fp_file_path = "data/forestplot.xlsx",
+#'   language = "en",
+#'   input_type = "field_sheet"
+#' )
+#'
+#' # With Monitora data
+#' plot_for_balance(
+#'   fp_file_path = "data/monitora_data.xlsx",
+#'   input_type = "monitora",
+#'   station_name = "Station1"
+#' )
 #' }
 #'
 #' @export
@@ -442,7 +440,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   if (input_type == "monitora") {
     # >>> MONITORA: create 40 subplots (N,S,L,O × 1..10)
     arms_order <- c("N","S","L","O")
-    arm_id <- setNames(1:4, arms_order)
+    arm_id <- stats::setNames(1:4, arms_order)
 
     full_idx <- do.call(rbind, lapply(arms_order, function(a) {
       data.frame(subunit_letter = a, T2 = 1:10, stringsAsFactors = FALSE)
@@ -479,7 +477,7 @@ plot_for_balance <- function(fp_file_path = NULL,
       # convert coordinates to  0..10 × 0..10 inside subplot zig-zag
       sp_plot <- .monitora_to_cell_coords(sp_data)  # devolve colunas x10,y10
       brk <- .safe_breaks(sp_plot$diameter)
-      brk <- unique(na.omit(brk))
+      brk <- unique(stats::na.omit(brk))
       if (length(brk) < 2) brk <- c(brk, brk + 0.01)
       if (anyDuplicated(brk)) brk <- unique(round(brk, 2))
       brk <- sort(brk)
@@ -534,7 +532,7 @@ plot_for_balance <- function(fp_file_path = NULL,
       } else {
         breaks_d <- c(1,3,7,10)
       }
-      breaks_d <- unique(na.omit(round(breaks_d, 1)))
+      breaks_d <- unique(stats::na.omit(round(breaks_d, 1)))
       if (length(breaks_d) < 2) breaks_d <- c(breaks_d, breaks_d + 0.01)
       p <- ggplot2::ggplot(sp_data, ggplot2::aes(x = X, y = Y)) +
         ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size),
@@ -1262,7 +1260,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   read_fp <- function(x) {
     if (is.data.frame(x)) return(x[, !duplicated(names(x))])
     stopifnot(is.character(x), length(x) == 1, file.exists(x))
-    df <- read.csv(x, stringsAsFactors = FALSE)
+    df <- utils::read.csv(x, stringsAsFactors = FALSE)
     df[, !duplicated(names(df))]
   }
   trees <- read_fp(trees)

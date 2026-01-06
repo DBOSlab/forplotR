@@ -134,7 +134,8 @@
 #' @importFrom magrittr "%>%"
 #' @importFrom scales rescale
 #' @importFrom openxlsx read.xlsx
-#' @importFrom data.table fread
+#' @importFrom data.table fread :=
+#' @importFrom stats na.omit
 #'
 #' @export
 plot_html_map <- function(fp_file_path = NULL,
@@ -1370,7 +1371,7 @@ function addFilterControl(el,x){
     vv <- .voucher_from_any_census(fp_df, collector_fallback = collector_fallback)
     last <- vapply(vv$collector, .lastname_from_freeform, FUN.VALUE = character(1))
     num <- .norm_num(vv$number)
-    need_pairs <- unique(na.omit(
+    need_pairs <- unique(stats::na.omit(
       ifelse(nzchar(last) & nzchar(num), paste(last, num, sep = "||"), NA_character_)
     ))
 
