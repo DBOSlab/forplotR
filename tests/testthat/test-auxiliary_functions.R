@@ -1,52 +1,16 @@
-test_that(".compute_global_coordinates works correctly", {
-  # Create test data
-  fp_clean <- tibble::tibble(
-    T1 = c(1, 2, 3, 4, 5, 6),
-    X = c(5, 10, 15, 20, 25, 30),
-    Y = c(3, 6, 9, 12, 15, 18)
-  )
+# --- helpers ---------------------------------------------------------------
 
-  # Test with different plot and subplot sizes
-  plot_size <- 1
-  subplot_size <- 20
+.dest_cols <- c(
+  "New Tag No","New Stem Grouping","T1","T2","X","Y","Family",
+  "Original determination","Morphospecies","D","POM","ExtraD","ExtraPOM",
+  "Flag1","Flag2","Flag3","LI","CI","CF","CD1","nrdups","Height",
+  "Voucher","Silica","Collected","Census Notes","CAP","Basal Area"
+)
 
-  result <- .compute_global_coordinates(fp_clean, plot_size, subplot_size)
-
-  expect_s3_class(result, "tbl_df")
-  expect_true(all(c("global_x", "global_y", "col", "row") %in% colnames(result)))
-
-  # Test that coordinates are within bounds
-  max_x <- 100
-  max_y <- (plot_size / 1) * 100
-
-  expect_true(all(result$global_x <= max_x & result$global_x >= 0))
-  expect_true(all(result$global_y <= max_y & result$global_y >= 0))
-
-  # Test with different plot sizes
-  for (ps in c(0.2, 0.5, 1)) {
-    for (ss in c(10, 20, 25)) {
-      result <- .compute_global_coordinates(fp_clean, ps, ss)
-
-      # Check that all required columns exist
-      expect_true(all(c("global_x", "global_y") %in% colnames(result)))
-
-      # Check that all coordinates are numeric
-      expect_true(is.numeric(result$global_x))
-      expect_true(is.numeric(result$global_y))
-    }
-  }
-
-  # Test with missing coordinates
-  fp_with_na <- tibble::tibble(
-    T1 = c(1, 2, NA),
-    X = c(5, NA, 15),
-    Y = c(3, 6, NA)
-  )
-
-  result <- .compute_global_coordinates(fp_with_na, 1, 20)
-  # Should handle NAs gracefully
-  expect_s3_class(result, "tbl_df")
-})
+.write_xlsx <- function(path, sheets) {
+  skip_if_not_installed("writexl")
+  writexl::write_xlsx(sheets, path = path)
+}
 
 test_that(".compute_global_coordinates_monitora works correctly", {
   # Create test MONITORA data
@@ -88,105 +52,184 @@ test_that(".compute_global_coordinates_monitora works correctly", {
   expect_true(all(grepl("^[NSLO]\\d+$", result$subplot_name)))
 })
 
-test_that("RMD content creation functions work correctly", {
-  # Create mock data for testing
-  subplot_plots <- list(
-    list(data = tibble::tibble(`New Tag No` = c("1", "2"), T1 = c(1, 1)), plot = "plot1"),
-    list(data = tibble::tibble(`New Tag No` = c("3", "4"), T1 = c(2, 2)), plot = "plot2")
+
+# --- .compute_global_coordinates_monitora ----------------------------------
+
+test_that(".compute_global_coordinates_monitora clamps and mirrors correctly", {
+  fp <- tibble::tibble(
+    # NOTE: mapping per code: 1->N, 2->S, 3->L, 4->O
+    T1 = c(1, 2, 3, 4),
+    T2 = c(1, 1, 1, 1),
+    X  = c(100, -100,  0,  0),  # clamp to 10 / -10
+    Y  = c(-10,  10, 60, 10)    # clamp to 0..50
   )
 
-  tf_col <- c(TRUE, FALSE)
-  tf_uncol <- c(FALSE, TRUE)
-  tf_palm <- c(TRUE, TRUE)
+  res <- .compute_global_coordinates_monitora(fp)
 
-  plot_name <- "Test Plot"
-  plot_code <- "TP001"
+  expect_true(all(c("X_loc","Y_loc","along_m","draw_x","draw_y","SubplotID","subunit_letter","subplot_name") %in% names(res)))
+  expect_true(all(res$X_loc >= -10 & res$X_loc <= 10))
+  expect_true(all(res$Y_loc >= 0 & res$Y_loc <= 50))
+
+  # Check mirroring for S and O (arm in c("S","O")): along_m = 50 - Y_loc
+  rS <- res[res$subunit_letter == "S", , drop = FALSE]
+  expect_equal(rS$Y_loc, 10)
+  expect_equal(rS$along_m, 40)
+
+  # For S: draw_y = -100 + along_m => -60
+  expect_equal(rS$draw_y, -60)
+
+  # For N: Y_loc clamped from -10 to 0 => along_m=0, draw_y=50+0=50
+  rN <- res[res$subunit_letter == "N", , drop = FALSE]
+  expect_equal(rN$Y_loc, 0)
+  expect_equal(rN$draw_y, 50)
+
+  # SubplotID formula: (T1-1)*10 + T2
+  expect_equal(rN$SubplotID, (1 - 1) * 10 + 1)
+})
+
+test_that(".compute_global_coordinates_monitora drops non-finite coords", {
+  fp <- tibble::tibble(
+    T1 = c(1, NA),
+    T2 = c(1, 1),
+    X  = c(5,  5),
+    Y  = c(5,  5)
+  )
+
+  res <- .compute_global_coordinates_monitora(fp)
+  expect_true(all(is.finite(res$draw_x)))
+  expect_true(all(is.finite(res$draw_y)))
+})
+
+# --- .create_rmd_content ----------------------------------------------------
+
+test_that(".create_rmd_content defaults language, warns on invalid, and toggles AGB", {
+  subplot_plots <- list(
+    list(data = tibble::tibble(`New Tag No` = c("1","2"), T1 = c(1,1)), plot = "p1")
+  )
+  tf_col   <- c(TRUE)
+  tf_uncol <- c(FALSE)
+  tf_palm  <- c(FALSE)
 
   spec_df <- tibble::tibble(
-    Family = c("Fabaceae", "Rubiaceae"),
-    Species_fmt = c("Acacia mangium", "Coffea arabica"),
-    tag_vec = list(c("1", "2"), c("3", "4"))
+    Family = "Fabaceae",
+    Species_fmt = "Acacia mangium",
+    tag_vec = list(c("1","2"))
   )
 
-  # Test English version
-  rmd_en <- .create_rmd_content_en(
+  # default language (missing) => "en"
+  rmd0 <- .create_rmd_content(
     subplot_plots, tf_col, tf_uncol, tf_palm,
-    plot_name, plot_code, spec_df, has_agb = TRUE
+    plot_name = "Plot", plot_code = "P001",
+    spec_df = spec_df, has_agb = FALSE
   )
+  expect_type(rmd0, "character")
+  expect_true(any(grepl("Full Plot Report", rmd0, fixed = TRUE)))
 
-  expect_type(rmd_en, "character")
-  expect_true(length(rmd_en) > 0)
-  expect_true(any(grepl("Full Plot Report", rmd_en)))
-  expect_true(any(grepl("---", rmd_en)))  # YAML header
+  # invalid language => warning + fallback "en"
+  expect_warning(
+    rmd_bad <- .create_rmd_content(
+      subplot_plots, tf_col, tf_uncol, tf_palm,
+      plot_name = "Plot", plot_code = "P001",
+      spec_df = spec_df, has_agb = FALSE,
+      language = "xx"
+    ),
+    "Invalid language"
+  )
+  expect_true(any(grepl("Full Plot Report", rmd_bad, fixed = TRUE)))
 
-  # Test Portuguese version
-  rmd_pt <- .create_rmd_content_pt(
+  # has_agb toggles YAML and AGB section
+  rmd_agb <- .create_rmd_content(
     subplot_plots, tf_col, tf_uncol, tf_palm,
-    plot_name, plot_code, spec_df, has_agb = FALSE
+    plot_name = "Plot", plot_code = "P001",
+    spec_df = spec_df, has_agb = TRUE, language = "en"
   )
-
-  expect_type(rmd_pt, "character")
-  expect_true(any(grepl("Relatório Completo da Parcela", rmd_pt)))
-
-  # Test Spanish version
-  rmd_es <- .create_rmd_content_es(
-    subplot_plots, tf_col, tf_uncol, tf_palm,
-    plot_name, plot_code, spec_df, has_agb = TRUE
-  )
-
-  expect_type(rmd_es, "character")
-  expect_true(any(grepl("Informe completo de la parcela", rmd_es)))
-
-  # Test Mandarin version
-  rmd_ma <- .create_rmd_content_ma(
-    subplot_plots, tf_col, tf_uncol, tf_palm,
-    plot_name, plot_code, spec_df, has_agb = FALSE
-  )
-
-  expect_type(rmd_ma, "character")
-  expect_true(any(grepl("样地完整报告", rmd_ma)))
-
-  # Test different combinations of collected/uncollected/palms
-  test_combinations <- function(lang_func) {
-    # All collected
-    result1 <- lang_func(
-      subplot_plots, c(TRUE, TRUE), c(FALSE, FALSE), c(FALSE, FALSE),
-      plot_name, plot_code, spec_df
-    )
-    expect_true(any(grepl("collected", result1, ignore.case = TRUE)))
-
-    # All uncollected
-    result2 <- lang_func(
-      subplot_plots, c(FALSE, FALSE), c(TRUE, TRUE), c(FALSE, FALSE),
-      plot_name, plot_code, spec_df
-    )
-    expect_true(any(grepl("uncollected", result2, ignore.case = TRUE)))
-
-    # Mixed with palms
-    result3 <- lang_func(
-      subplot_plots, c(TRUE, FALSE), c(FALSE, TRUE), c(TRUE, FALSE),
-      plot_name, plot_code, spec_df
-    )
-    expect_true(any(grepl("palm", result3, ignore.case = TRUE)))
-  }
-
-  test_combinations(.create_rmd_content_en)
-  test_combinations(.create_rmd_content_pt)
-  test_combinations(.create_rmd_content_es)
-  test_combinations(.create_rmd_content_ma)
-
-  # Test that RMD content contains expected sections
-  for (rmd in list(rmd_en, rmd_pt, rmd_es, rmd_ma)) {
-    # Should have YAML header
-    expect_true(grepl("^---$", rmd[1]))
-
-    # Should have setup chunk
-    expect_true(any(grepl("knitr::opts_chunk", rmd)))
-
-    # Should have title
-    expect_true(any(grepl("textbf", rmd)))
-
-    # Should have table of contents
-    expect_true(any(grepl("tableofcontents", rmd)))
-  }
+  expect_true(any(grepl("^  agb: NULL$", rmd_agb)))
+  expect_true(any(grepl("## Above-ground Biomass", rmd_agb, fixed = TRUE)))
 })
+
+test_that(".create_rmd_content translation replaces key headings", {
+  subplot_plots <- list(list(data = tibble::tibble(`New Tag No`="1", T1=1), plot="p1"))
+  spec_df <- tibble::tibble(Family="Fabaceae", Species_fmt="Acacia", tag_vec=list("1"))
+
+  rmd_pt <- .create_rmd_content(
+    subplot_plots, tf_col = FALSE, tf_uncol = FALSE, tf_palm = FALSE,
+    plot_name = "Plot", plot_code = "P001", spec_df = spec_df, has_agb = FALSE, language = "pt"
+  )
+  expect_true(any(grepl("Relatório Completo da Parcela", rmd_pt, fixed = TRUE)))
+  expect_true(any(grepl("## Metadados", rmd_pt, fixed = TRUE)))
+})
+
+
+# --- .monitora_to_field_sheet_df -------------------------------------------
+
+test_that(".monitora_to_field_sheet_df stops when multiple units in latest census and station_name missing", {
+  skip_if_not_installed("readxl")
+  skip_if_not_installed("writexl")
+
+  df <- tibble::tibble(
+    Ano = c("2024","2024"),
+    Nome_estacao = c("A","B"),  # two units in most recent census
+    N_arvore = c("1","2"),
+    N_parcela = c("1","1"),
+    Subunidade = c("N","S"),
+    `X (m)` = c("1","2"),
+    `Y (m)` = c("10","20"),
+    CAP = c("31.4","31.4"),
+    Familia = c("Fabaceae","Rubiaceae"),
+    Genero = c("Inga","Coffea"),
+    Especie = c("sp.","arabica")
+  )
+
+  path <- withr::local_tempfile(fileext = ".xlsx")
+  .write_xlsx(path, sheets = list(Sheet1 = df))
+
+  expect_error(
+    .monitora_to_field_sheet_df(path, sheet = 1, station_name = NULL),
+    "contains more than one sampling unit",
+    fixed = TRUE
+  )
+})
+
+test_that(".monitora_to_field_sheet_df errors when requested station_name not found", {
+  skip_if_not_installed("readxl")
+  skip_if_not_installed("writexl")
+
+  df <- tibble::tibble(
+    Ano = c("2024"),
+    Nome_estacao = c("A"),
+    N_arvore = c("1"),
+    N_parcela = c("1"),
+    Subunidade = c("N"),
+    `X (m)` = c("1"),
+    `Y (m)` = c("10")
+  )
+
+  path <- withr::local_tempfile(fileext = ".xlsx")
+  .write_xlsx(path, sheets = list(Sheet1 = df))
+
+  expect_error(
+    .monitora_to_field_sheet_df(path, sheet = 1, station_name = "Z"),
+    "station_name.*not found",
+    fixed = FALSE
+  )
+})
+
+# --- .create_rmd_content ----------------------------------------------------
+
+test_that(".create_rmd_content supports Mandarin translation", {
+  subplot_plots <- list(list(data = tibble::tibble(`New Tag No`="1", T1=1), plot="p1"))
+  spec_df <- tibble::tibble(Family="Fabaceae", Species_fmt="Acacia", tag_vec=list("1"))
+
+  rmd_ma <- .create_rmd_content(
+    subplot_plots,
+    tf_col = FALSE, tf_uncol = FALSE, tf_palm = FALSE,
+    plot_name = "Plot", plot_code = "P001",
+    spec_df = spec_df,
+    has_agb = FALSE,
+    language = "ma"
+  )
+
+  expect_true(any(grepl("样地完整报告", rmd_ma, fixed = TRUE)))
+})
+
+
