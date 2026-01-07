@@ -51,8 +51,8 @@
 #' layout.
 #'
 #' @param vertex_coords Data frame, path to an Excel file, or numeric vector.
-#' For \code{"field_sheet"} and \code{"fp_query_sheet"}, provide four plot
-#' corners (Latitude/Longitude). For \code{"monitora"}, provide a single
+#' For \code{"field_sheet"} and \code{"fp_query_sheet"}, provide the four plot
+#' corners in latitude and longitude. For \code{"monitora"}, provide a single
 #' central Latitude/Longitude used as the cross center. A numeric vector of
 #' length two is interpreted either as \code{c(lat, lon)} or as a named vector
 #' with elements \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.
@@ -138,6 +138,7 @@
 #' @importFrom stats na.omit
 #'
 #' @export
+
 plot_html_map <- function(fp_file_path = NULL,
                           input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                           vertex_coords = NULL,
