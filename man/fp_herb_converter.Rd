@@ -4,7 +4,7 @@
 \alias{fp_herb_converter}
 \title{Fill empty herbarium spreadsheet from forestplots-formatted data}
 \usage{
-fp_herb_converter(forestplots_file_path = NULL,
+fp_herb_converter(fp_file_path = NULL,
                   herb_file_path = NULL,
                   language = "en",
                   herbarium_format = "jabot",
@@ -21,10 +21,12 @@ fp_herb_converter(forestplots_file_path = NULL,
                   alt = NULL,
                   add_census_notes = TRUE,
                   validate_locality = TRUE,
-                  dir = "Results_rainfor_herb",
-                  filename = "rainfor_to_herb")
+                  dir = "Results_herb_label",
+                  filename = "plot_to_herb_sheet")
 }
 \arguments{
+\item{fp_file_path}{File path to the forestplots dataset.}
+
 \item{herb_file_path}{File path of the herbarium empty template dataset.}
 
 \item{language}{Language for output metadata. Default is "en", options are
@@ -67,13 +69,11 @@ herbarium  sheet's notes. If \code{'FALSE'}, census notes will be omitted.}
 coordinates fall within the provided administrative division (country/majorarea).}
 
 \item{dir}{Pathway to the computer's directory, where the file will be saved.
-The default is to create a directory named **Results_filled_herbarium_sheet**
+The default is to create a directory named **Results_herb_labelt**
 and the search results will be saved within a subfolder named after the current
 date.}
 
-\item{filename}{Name of the output file. Default is **forestplot_to_herbarium_sheet**.}
-
-\item{forestplots_file_path}{File path to the forestplots dataset.}
+\item{filename}{Name of the output file. Default is **plot_to_herb_sheet**.}
 }
 \value{
 A data frame in herbarium format with the processed data from
@@ -94,7 +94,7 @@ data, saved in a directory named after the current date.
 This function automatically converts field codes from the Rainfor protocol
 (e.g., tree condition codes and light exposure codes) into their full
 descriptive meanings, and incorporates them into the final herbarium notes.
-For example, the code "A" is converted to "alive normal" (or "árvore viva
+For example, the code "A" is converted to "alive normal" (or "arvore viva
 normal" in Portuguese). These translations are integrated into a standardized
 descriptive text alongside other information extracted directly from the
 forestplots sheet, such as DBH, field notes, and subplot coordinates.
@@ -113,25 +113,12 @@ are supported in three languages: English, Portuguese, and Spanish, depending
 on the value set in the `language` argument.
 }
 \examples{
-fp_herb_converter <- function(fp_file_path = NULL,
-                              herb_file_path = NULL,
-                              language = "en",
-                              herbarium_format = "jabot",
-                              country = "Brazil",
-                              majorarea = NULL,
-                              minorarea = NULL,
-                              protectedarea = NULL,
-                              locnotes = NULL,
-                              project = NULL,
-                              collector = NULL,
-                              addcoll = NULL,
-                              lat = NULL,
-                              long = NULL,
-                              alt = NULL,
-                              add_census_notes = TRUE,
-                              validate_locality = TRUE,
-                              dir = "Results_filled_herbarium_sheet",
-                              filename = "forestplot_to_herbarium_sheet")
+\dontrun{
+fp_herb_converter(
+  fp_file_path = "your_forestplots_file.xlsx",
+  herb_file_path = "your_herbarium_template.xlsx"
+)
+}
 
 }
 \author{

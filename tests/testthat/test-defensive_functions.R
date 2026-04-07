@@ -235,20 +235,10 @@ test_that(".validate_plot_size works correctly", {
   expect_silent(.validate_plot_size(0.5))
   expect_silent(.validate_plot_size(1))
 
-  # Test with invalid plot sizes
-  expect_error(
-    .validate_plot_size(0.1),
-    "`plot_size` must be one of: 0.2, 0.5, or 1 hectare."
-  )
-
-  expect_error(
-    .validate_plot_size(2),
-    "`plot_size` must be one of: 0.2, 0.5, or 1 hectare."
-  )
-
-  # Test with numeric that's not exactly equal (floating point)
-  expect_silent(.validate_plot_size(1.0))
-  expect_error(.validate_plot_size(1.0001))
+  # Agora função é permissiva → não deve dar erro
+  expect_silent(.validate_plot_size(0.1))
+  expect_silent(.validate_plot_size(2))
+  expect_silent(.validate_plot_size(1.0001))
 })
 
 test_that(".validate_subplot_size works correctly", {
@@ -258,18 +248,8 @@ test_that(".validate_subplot_size works correctly", {
   expect_silent(.validate_subplot_size(20))
   expect_silent(.validate_subplot_size(25))
 
-  # Test with invalid subplot sizes
-  expect_error(
-    .validate_subplot_size(5),
-    "`subplot_size` must be one of: 10, 20, or 25 meters."
-  )
-
-  expect_error(
-    .validate_subplot_size(30),
-    "`subplot_size` must be one of: 10, 20, or 25 meters."
-  )
-
-  # Test with numeric that's not exactly equal
-  expect_silent(.validate_subplot_size(10.0))
-  expect_error(.validate_subplot_size(10.001))
+  # Agora função é permissiva → não deve dar erro
+  expect_silent(.validate_subplot_size(5))
+  expect_silent(.validate_subplot_size(30))
+  expect_silent(.validate_subplot_size(10.001))
 })

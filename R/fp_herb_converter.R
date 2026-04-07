@@ -16,7 +16,7 @@
 #' This function automatically converts field codes from the Rainfor protocol
 #' (e.g., tree condition codes and light exposure codes) into their full
 #' descriptive meanings, and incorporates them into the final herbarium notes.
-#' For example, the code "A" is converted to "alive normal" (or "árvore viva
+#' For example, the code "A" is converted to "alive normal" (or "arvore viva
 #' normal" in Portuguese). These translations are integrated into a standardized
 #' descriptive text alongside other information extracted directly from the
 #' forestplots sheet, such as DBH, field notes, and subplot coordinates.
@@ -35,7 +35,7 @@
 #' on the value set in the `language` argument.
 
 #' @usage
-#' fp_herb_converter(forestplots_file_path = NULL,
+#' fp_herb_converter(fp_file_path = NULL,
 #'                   herb_file_path = NULL,
 #'                   language = "en",
 #'                   herbarium_format = "jabot",
@@ -52,10 +52,10 @@
 #'                   alt = NULL,
 #'                   add_census_notes = TRUE,
 #'                   validate_locality = TRUE,
-#'                   dir = "Results_rainfor_herb",
-#'                   filename = "rainfor_to_herb")
+#'                   dir = "Results_herb_label",
+#'                   filename = "plot_to_herb_sheet")
 #'
-#' @param forestplots_file_path File path to the forestplots dataset.
+#' @param fp_file_path File path to the forestplots dataset.
 #'
 #' @param herb_file_path File path of the herbarium empty template dataset.
 #'
@@ -99,35 +99,22 @@
 #' herbarium  sheet's notes. If \code{'FALSE'}, census notes will be omitted.
 #'
 #' @param dir Pathway to the computer's directory, where the file will be saved.
-#' The default is to create a directory named **Results_filled_herbarium_sheet**
+#' The default is to create a directory named **Results_herb_labelt**
 #' and the search results will be saved within a subfolder named after the current
 #' date.
 #'
-#' @param filename Name of the output file. Default is **forestplot_to_herbarium_sheet**.
+#' @param filename Name of the output file. Default is **plot_to_herb_sheet**.
 #'
 #' @return A data frame in herbarium format with the processed data from
 #' forestplots dataset.
 #'
 #' @examples
-#' fp_herb_converter <- function(fp_file_path = NULL,
-#'                               herb_file_path = NULL,
-#'                               language = "en",
-#'                               herbarium_format = "jabot",
-#'                               country = "Brazil",
-#'                               majorarea = NULL,
-#'                               minorarea = NULL,
-#'                               protectedarea = NULL,
-#'                               locnotes = NULL,
-#'                               project = NULL,
-#'                               collector = NULL,
-#'                               addcoll = NULL,
-#'                               lat = NULL,
-#'                               long = NULL,
-#'                               alt = NULL,
-#'                               add_census_notes = TRUE,
-#'                               validate_locality = TRUE,
-#'                               dir = "Results_filled_herbarium_sheet",
-#'                               filename = "forestplot_to_herbarium_sheet")
+#' \dontrun{
+#' fp_herb_converter(
+#'   fp_file_path = "your_forestplots_file.xlsx",
+#'   herb_file_path = "your_herbarium_template.xlsx"
+#' )
+#' }
 #'
 #' @importFrom readxl read_excel
 #' @importFrom openxlsx write.xlsx
@@ -156,8 +143,8 @@ fp_herb_converter <- function(fp_file_path = NULL,
                               alt = NULL,
                               add_census_notes = TRUE,
                               validate_locality = TRUE,
-                              dir = "Results_filled_herbarium_sheet",
-                              filename =  "forestplot_to_herbarium_sheet") {
+                              dir = "Results_herb_label",
+                              filename =  "plot_to_herb_sheet") {
 
 
   # Apply defensive functions. to verify if required arguments are present
@@ -271,7 +258,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
   fp_sheet <- fp_sheet[-1, ]
 
   # Edit original info in the forestplot sheet
-  # Filtrar apenas as linhas com alguma informação na coluna 'Collected'
+  # Filtrar apenas as linhas com alguma informacao na coluna 'Collected'
   fp_sheet <- fp_sheet[!is.na(fp_sheet$Collected) & fp_sheet$Collected != "", ]
   fp_sheet$D <- as.numeric(fp_sheet$D)/10
   fp_sheet$'Census Notes' <- gsub("[.]$", "", fp_sheet$'Census Notes')
@@ -305,7 +292,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
 
     # Update genus and sp1 based on 'Original determination' column
     for (i in 1:nrow(fp_sheet)) {
-      # Split the 'Original determination' into components (gênero e espécie)
+      # Split the 'Original determination' into components (genero e especie)
       determination <- strsplit(as.character(fp_sheet$`Original determination`)[i], " ")[[1]]
 
       # Fill genus (first word), and replace "indet" with ""
@@ -358,7 +345,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
 
     # Update GenusName and SpeciesName based on 'Original determination' column
     for (i in 1:nrow(fp_sheet)) {
-      # Split the 'Original determination' into components (gênero e espécie)
+      # Split the 'Original determination' into components (genero e especie)
       determination <- strsplit(as.character(fp_sheet$`Original determination`)[i], " ")[[1]]
       # Fill GenusName (first word), and replace "indet" with ""
       herb_sheet$GenusName[i] <- ifelse(length(determination) > 0,
@@ -413,7 +400,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
 
     # Update GenusName and SpeciesName based on 'Original determination' column
     for (i in 1:nrow(fp_sheet)) {
-      # Split the 'Original determination' into components (gênero e espécie)
+      # Split the 'Original determination' into components (genero e especie)
       determination <- strsplit(as.character(fp_sheet$`Original determination`)[i], " ")[[1]]
       # Fill GenusName (first word), and replace "indet" with ""
       herb_sheet[[column_map$genus]][i] <- ifelse(length(determination) > 0,
@@ -468,7 +455,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
 
     # Update GenusName and SpeciesName based on 'Original determination' column
     for (i in 1:nrow(fp_sheet)) {
-      # Split the 'Original determination' into components (gênero e espécie)
+      # Split the 'Original determination' into components (genero e especie)
       determination <- strsplit(as.character(fp_sheet$`Original determination`)[i], " ")[[1]]
       # Fill GenusName (first word), and replace "indet" with ""
       herb_sheet[[column_map$genus]][i] <- ifelse(length(determination) > 0,
@@ -513,22 +500,22 @@ fp_herb_converter <- function(fp_file_path = NULL,
         description = c(
           "viva normal",
           "com fuste/copa quebrado/a e com rebroto, ou pelo menos com floema/xilema vivo",
-          "inclinada ≥10%",
-          "caída (por ex. no chão)",
+          "inclinada \u226510%",
+          "ca\u00edda (por ex. no ch\u00e3o)",
           "acanalada e/ou fenestrada",
           "com caule oco",
-          "com caule podre e/ou com presença de fungos de prateleira (ou de suporte)",
-          "com múltiplos fustes",
+          "com caule podre e/ou com presen\u00e7a de fungos de prateleira (ou de suporte)",
+          "com m\u00faltiplos fustes",
           "sem folhas/com poucas folhas",
           "com caule queimado",
           "com caule quebrado <1,3m",
-          "com liana ≥ 10cm de diâmetro no caule ou na copa",
+          "com liana \u2265 10cm de di\u00e2metro no caule ou na copa",
           "coberta por lianas",
           "que sofreu danos causados por raio",
           "cortada",
           "com casca solta/descamando",
           "com estrangulador",
-          "com uma ferida e/ou câmbio exposto",
+          "com uma ferida e/ou c\u00e2mbio exposto",
           "danificada por elefantes",
           "danificada por cupins",
           "com baixa produtividade (quase morta)"
@@ -541,7 +528,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
         description = c(
           "alive normal",
           "with broken stem/top & resprouting, or at least live phloem/xylem",
-          "leaning by ≥10%",
+          "leaning by \u226510%",
           "fallen (e.g. on ground)",
           "fluted or/fenestrated",
           "with hollow",
@@ -550,7 +537,7 @@ fp_herb_converter <- function(fp_file_path = NULL,
           "no leaves, few leaves",
           "burnt",
           "snapped < 1.3m",
-          "with liana ≥10cm diameter on stem or in canopy",
+          "with liana \u226510cm diameter on stem or in canopy",
           "covered by lianas",
           "with lightning damage",
           "cut",
@@ -569,24 +556,24 @@ fp_herb_converter <- function(fp_file_path = NULL,
         description = c(
           "vivo normal",
           "con tallo partido y con rebrotes, o por lo menos hay floema/xilema vivo",
-          "inclinado ≥10%",
-          "caído (por ejemplo: sobre el suelo)",
+          "inclinado \u226510%",
+          "ca\u00eddo (por ejemplo: sobre el suelo)",
           "acanalado y/o fenestrado",
           "con tallo hueco",
           "con tallo podrido",
-          "con tallos múltiples",
+          "con tallos m\u00faltiples",
           "sin o con pocas hojas",
           "con tallo quemado",
           "con tallo partido <1.3m",
-          "con liana ≥ 10cm de diámetro en el tronco o en la copa del árbol",
+          "con liana \u2265 10cm de di\u00e1metro en el tronco o en la copa del \u00e1rbol",
           "cubierto por lianas",
-          "dañado por un rayo",
+          "da\u00f1ado por un rayo",
           "cortado",
           "con corteza pelada",
           "con un estrangulador",
           "con una herida o cambio expuesto",
-          "dañado por elefantes",
-          "dañado por termitas",
+          "da\u00f1ado por elefantes",
+          "da\u00f1ado por termitas",
           "con baja productividad (casi muerto)"
         ))
       )
@@ -602,12 +589,12 @@ fp_herb_converter <- function(fp_file_path = NULL,
       return(data.frame(
         code = c("5", "4", "3b", "3a", "2c", "2b", "2a", "1"),
         description = c(
-          "copa totalmente exposta à luz vertical e lateral numa curva de 45 graus",
-          "copa totalmente exposta à luz vertical, mas a luz lateral está bloqueada por alguns ou todos os cones invertidos de 90 graus que englobam a copa",
+          "copa totalmente exposta \u00e0 luz vertical e lateral numa curva de 45 graus",
+          "copa totalmente exposta \u00e0 luz vertical, mas a luz lateral est\u00e1 bloqueada por alguns ou todos os cones invertidos de 90 graus que englobam a copa",
           "sob muita luz vertical (>50%)",
-          "sob pouca luz vertical (menos de 50% da copa está exposta à luz vertical)",
+          "sob pouca luz vertical (menos de 50% da copa est\u00e1 exposta \u00e0 luz vertical)",
           "sob muita luz lateral",
-          "sob média luz lateral",
+          "sob m\u00e9dia luz lateral",
           "sob pouca luz lateral",
           "sem luz direta"
         ))
@@ -631,8 +618,8 @@ fp_herb_converter <- function(fp_file_path = NULL,
         code = c("5", "4", "3b", "3a", "2c", "2b", "2a", "1"),
         description = c(
           "copa completamente expuesta a luz vertical y horizontal en una curva de 45 grados",
-          "copa completamente expuesta a luz vertical, pero la luz lateral está bloqueada",
-          "sob iluminación vertical alta (más que 50%)",
+          "copa completamente expuesta a luz vertical, pero la luz lateral est\u00e1 bloqueada",
+          "sob iluminaci\u00f3n vertical alta (m\u00e1s que 50%)",
           "sob poca luz vertical (menos que 50%)",
           "sob luz lateral alta",
           "sob luz lateral media",
@@ -722,26 +709,26 @@ fp_herb_converter <- function(fp_file_path = NULL,
 
       # Portuguese version
       if (add_census_notes) {
-        herb_sheet[[notes]][i] <- paste0("Árvore, ",
+        herb_sheet[[notes]][i] <- paste0("\u00c1rvore, ",
                                          ifelse(!is.na(fp_sheet$D[i]) & fp_sheet$D[i] != "",
-                                                paste0(fp_sheet$D[i], "cm de diâmetro à altura do peito (DAP), "), ""),
+                                                paste0(fp_sheet$D[i], "cm de di\u00e2metro \u00e0 altura do peito (DAP), "), ""),
                                          description_flag, ", ",
                                          ifelse(!is.na(fp_sheet$'Census Notes'[i]) & fp_sheet$'Census Notes'[i] != "",
                                                 paste0(fp_sheet$'Census Notes'[i], ", "), ""),
                                          description_li, ". ",
                                          ifelse(!is.na(fp_sheet$'New Tag No'[i]) & fp_sheet$'New Tag No'[i] != "",
-                                                paste0("Indivíduo #", fp_sheet$'New Tag No'[i]), ""),
+                                                paste0("Indiv\u00edduo #", fp_sheet$'New Tag No'[i]), ""),
                                          ifelse(!is.na(fp_sheet$T1[i]) & fp_sheet$T1[i] != "",
                                                 paste0(" na subparcela ", fp_sheet$T1[i], ", x = ", fp_sheet$X, "m, y = ", fp_sheet$Y, "m."), ""))
 
       } else {
-        herb_sheet[[notes]][i] <- paste0("Árvore, ",
+        herb_sheet[[notes]][i] <- paste0("\u00c1rvore, ",
                                          ifelse(!is.na(fp_sheet$D[i]) & fp_sheet$D[i] != "",
-                                                paste0(fp_sheet$D[i], "cm de diâmetro à altura do peito (DAP), "), ""),
+                                                paste0(fp_sheet$D[i], "cm de di\u00e2metro \u00e0 altura do peito (DAP), "), ""),
                                          description_flag, ", ",
                                          description_li, ". ",
                                          ifelse(!is.na(fp_sheet$'New Tag No'[i]) & fp_sheet$'New Tag No'[i] != "",
-                                                paste0("Indivíduo #", fp_sheet$'New Tag No'[i]), ""),
+                                                paste0("Indiv\u00edduo #", fp_sheet$'New Tag No'[i]), ""),
                                          ifelse(!is.na(fp_sheet$T1[i]) & fp_sheet$T1[i] != "",
                                                 paste0(" na subparcela ", fp_sheet$T1[i], ", x = ", fp_sheet$X, "m, y = ", fp_sheet$Y, "m."), ""))
       }
@@ -750,9 +737,9 @@ fp_herb_converter <- function(fp_file_path = NULL,
 
       # Spanish version
       if (add_census_notes) {
-        herb_sheet[[notes]][i] <- paste0("Árbol, ",
+        herb_sheet[[notes]][i] <- paste0("\u00c1rbol, ",
                                          ifelse(!is.na(fp_sheet$D[i]) & fp_sheet$D[i] != "",
-                                                paste0(fp_sheet$D[i], "cm de diámetro a la altura del pecho (DAP), "), ""),
+                                                paste0(fp_sheet$D[i], "cm de di\u00e1metro a la altura del pecho (DAP), "), ""),
                                          description_flag, ", ",
                                          ifelse(!is.na(fp_sheet$'Census Notes'[i]) & fp_sheet$'Census Notes'[i] != "",
                                                 paste0(fp_sheet$'Census Notes'[i], ", "), ""),
@@ -763,9 +750,9 @@ fp_herb_converter <- function(fp_file_path = NULL,
                                                 paste0(" en la subparcelas ", fp_sheet$T1[i], ", x = ", fp_sheet$X, "m, y = ", fp_sheet$Y, "m."), ""))
 
       } else {
-        herb_sheet[[notes]][i] <- paste0("Árbol, ",
+        herb_sheet[[notes]][i] <- paste0("\u00c1rbol, ",
                                          ifelse(!is.na(fp_sheet$D[i]) & fp_sheet$D[i] != "",
-                                                paste0(fp_sheet$D[i], "cm de diámetro a la altura del pecho (DAP), "), ""),
+                                                paste0(fp_sheet$D[i], "cm de di\u00e1metro a la altura del pecho (DAP), "), ""),
                                          description_flag, ", ",
                                          description_li, ". ",
                                          ifelse(!is.na(fp_sheet$'New Tag No'[i]) & fp_sheet$'New Tag No'[i] != "",

@@ -13,10 +13,12 @@ plot_html_map(fp_file_path = NULL,
                      filename = "plot_map",
                      station_name = NULL,
                      collector = NULL,
+                     collector_map = NULL,
                      herbaria_lookup = FALSE,
                      herbaria = NULL,
-                     jabot_cache_rds = "jabot_index.rds",
-                     jabot_force_refresh = FALSE)
+                     herbaria_force_refresh = FALSE,
+                     keep_herbaria_downloads = FALSE,
+                     herbaria_verbose = FALSE)
 }
 \arguments{
 \item{fp_file_path}{Character. Path to the Excel file containing tree data.}
@@ -54,9 +56,14 @@ station names is given, the function calls itself once per station.}
 compact voucher codes are provided (e.g. \code{"GCO1095"} without an explicit
 collector string).}
 
+\item{collector_map}{Named character vector or \code{NULL}. Optional mapping
+used to expand voucher prefixes into full collector names before herbarium
+matching, for example \code{c("DC" = "D. Cardoso", "PWM" = "P. W. Moonlight")}.}
+
 \item{herbaria_lookup}{Logical. If \code{TRUE}, the function performs a local
 herbarium lookup and adds a \code{herbaria_link} column to the specimen data,
-building a minimal index from JABOT DwC-A downloads (via \pkg{jabotR}).}
+building a minimal index from DwC-A downloads from the JBRJ IPTs (JABOT +
+REFLORA) using internal helper functions.}
 
 \item{herbaria}{Character vector or \code{NULL}. Herbarium codes to be used
 in the herbaria lookup, e.g. \code{c("RB","UPCB")}. When
@@ -64,36 +71,41 @@ in the herbaria lookup, e.g. \code{c("RB","UPCB")}. When
 by default it is \code{NULL} and no herbaria search is performed unless the
 user explicitly supplies the herbarium codes.}
 
-\item{jabot_cache_rds}{Character. Path to an \code{.rds} file used to cache
-the JABOT-based index (keys and catalog numbers) between runs. Defaults to
-\code{"jabot_index.rds"} in the working directory.}
+\item{herbaria_force_refresh}{Logical. If \code{TRUE}, forces rebuilding the
+combined JABOT+REFLORA index from local DwC-A archives, ignoring any existing
+cached index.}
 
-\item{jabot_force_refresh}{Logical. If \code{TRUE}, forces rebuilding the
-JABOT-based index from the local DwC-A archives, ignoring any existing
-cache file.}
+\item{keep_herbaria_downloads}{Logical. Controls disk usage during
+\code{herbaria_lookup}. If \code{FALSE} (default), DwC-A archives downloaded
+to \code{jabot_download/} and \code{reflora_download/} are deleted at the end of
+the run (the small cached index remains). Set \code{TRUE} to keep the downloaded
+archives to speed up sequential runs.}
+
+\item{herbaria_verbose}{Logical. If \code{TRUE}, prints detailed messages
+during herbarium lookup for debugging. Default is \code{FALSE}.}
 }
 \description{
 Generates an interactive and self-contained HTML map for forest plots
 following either the \href{https://forestplots.net/}{ForestPlots plot protocol}
-or the \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}
-{MONITORA monitoring program}, using Leaflet and based on vouchered tree data
-and plot coordinates. The function handles both standard ForestPlots layouts
+or the \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{Monitora program},
+using Leaflet and based on vouchered tree data and plot coordinates.
+The function handles both standard ForestPlots layouts
 (1 ha or 0.5 ha plots defined by four corner vertices) and MONITORA
 layouts (Maltese cross design defined by a single central coordinate).
 It: (i) converts local subplot coordinates (X, Y) to geographic coordinates
-using geospatial interpolation from plot vertices or a  central point;
+using geospatial interpolation from plot vertices or a central point;
 (ii) extracts metadata such as team name, plot name, and plot code from the
 input file; (iii) draws the plot boundary polygon or Maltese cross arms over
 selectable basemaps; (iv) colors tree points by collection status and palms
 (palms = yellow, collected = gray, missing = red); (v) embeds image carousels in
 specimen popups when matching voucher images are found in the specified
-folder; (vi) optionally performs a local herbarium lookup (e.g. JABOT DwC-A
-downloads) to attach direct “Herbarium image” links to each voucher when
-available; (vii) adds an interactive filter sidebar with checkboxes,
-multi-select inputs, and a search box for filtering by family, species,
-collection status, subplot, and presence of photos; (viii) displays
-informative popups for each tree, showing tag number, subplot, family,
-species, DBH, voucher code, herbarium image link (if found), and photos;
+folder; (vi) optionally performs a local herbarium lookup (JABOT + REFLORA
+DwC-A downloads, via internal helper functions) to attach direct "Herbarium
+image" links to each voucher when available; (vii) adds an interactive filter
+sidebar with checkboxes, multi-select inputs, and a search box for filtering
+by family, species, collection status, subplot, and presence of photos;
+(viii) displays informative popups for each tree, showing tag number, subplot,
+family, species, DBH, voucher code, herbarium image link (if found), and photos;
 and (x) saves the resulting map as a date-stamped standalone HTML file with
 multiple interactive Leaflet map options for easy sharing, archiving, or
 field consultation.
@@ -105,7 +117,6 @@ vertex_df <- data.frame(
   Longitude = c(-60.012, -60.010, -60.012, -60.010)
 )
 
-# Basic example (field_sheet)
 plot_html_map(
   fp_file_path = "data/tree_data.xlsx",
   input_type = "field_sheet",
@@ -114,7 +125,6 @@ plot_html_map(
   filename = "plot_map"
 )
 
-# Example with herbaria lookup
 plot_html_map(
   fp_file_path = "data/RUS_plot.xlsx",
   input_type = "field_sheet",
@@ -122,7 +132,7 @@ plot_html_map(
   voucher_imgs = "voucher_imgs",
   collector = "G. C. Ottino",
   herbaria_lookup = TRUE,
-  herbaria = c("RB", "UPCB"),
+  herbaria = "RB",
   filename = "rus_plot_map"
 )
 }

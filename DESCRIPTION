@@ -35,9 +35,10 @@ LazyData: true
 Depends: 
     R (>= 3.5.0)
 Imports:
-    BiomasaFP,
     data.table,
+    DBI,
     dplyr,
+    duckdb,
     geodata,
     geosphere,
     ggplot2,
@@ -46,14 +47,9 @@ Imports:
     here,
     htmltools,
     htmlwidgets,
-    httr,
-    jabotR,
-    jsonlite,
     leaflet,
-    lubridate,
     magrittr,
     openxlsx,
-    purrr,
     readr,
     readxl,
     rmarkdown,
@@ -66,10 +62,11 @@ Imports:
     tinytex,
     tools,
     utils,
-    writexl,
-    DT
+    writexl
 Suggests:
-    testthat (>= 3.0.0)
+    curl,
+    testthat (>= 3.0.0),
+    withr
 RoxygenNote: 7.3.3
 URL:
     https://dboslab.github.io/forplotR-website/

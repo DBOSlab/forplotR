@@ -5,7 +5,7 @@
 \title{Generate forest plot specimen map and collection balance}
 \usage{
 plot_for_balance(fp_file_path = NULL,
-                 language = c("en", "pt", "es", "ma"),
+                 language = c("en", "pt", "es", "fr", "ma", "pa"),
                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,
@@ -14,10 +14,6 @@ plot_for_balance(fp_file_path = NULL,
                  plot_name = NULL,
                  plot_code = NULL,
                  team = NULL,
-                 calc_agb = FALSE,
-                 trees_csv = NULL,
-                 wd_csv = NULL,
-                 md_csv = NULL,
                  dir = "Results_map_plot",
                  filename = "plot_specimen")
 }
@@ -26,7 +22,7 @@ plot_for_balance(fp_file_path = NULL,
 ForestPlots format.}
 
 \item{language}{Character. One of en (english), pt (portuguese), es
-(spanish), ma (mandarin) (default = en)}
+(spanish), fr (french), ma (mandarin), pa (panara) (default = en)}
 
 \item{input_type}{Character. One of `"field_sheet"`, `"fp_query_sheet"` or
 `"monitora"`. Specifies the type/layout of the input file.}
@@ -51,20 +47,6 @@ extracted from the input file metadata.}
 \item{team}{Optional team or PI name. If provided, overrides the team
 extracted from the input file metadata.}
 
-\item{calc_agb}{Logical. If `TRUE`, calculates above-ground biomass (AGB)
-using \code{BiomasaFP} and adds a summary section to the PDF report.}
-
-\item{trees_csv}{Optional. Tree-level measurement data used for above-ground
-biomass (AGB) estimation. Can be either a data frame or a file path
-(character) to the "Data.csv" file downloaded via ForestPlots "Advanced Search".}
-
-\item{wd_csv}{Optional wood density file, with wood density for each
-individual tree (by PlotViewID) downloaded from the ForestPlots
-"Query Library". Can be a data frame or a file path.}
-
-\item{md_csv}{Optional metadata file downloaded from the ForestPlots
-"Query Library". Can be a data frame or a file path.}
-
 \item{dir}{Directory path where output will be saved
 (default is `"Results_map_plot"`). A date-stamped subfolder will be created
 inside this directory.}
@@ -80,11 +62,10 @@ statistics per subplot.
 Processes field data collected using the
 \href{https://forestplots.net/}{ForestPlots.net} format (field sheets or
 Query Library output) or
-\href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}
-{Monitora program} layouts, and generates a specimen map with
-collection status and spatial distribution of individuals across subplots.
-It creates a PDF report with plot-level and subplot-level maps, an optional
-above-ground biomass summary, and an Excel spreadsheet summarizing the
+\href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{Monitora program}
+layouts, and generates a specimen map with collection status and spatial
+Distribution of individuals across subplots. It creates a PDF report with
+plot-level and subplot-level maps and an Excel spreadsheet summarizing the
 percentage of collected specimens per subplot. The function performs the
 following steps: (i) validates all input arguments and checks/creates output
 folders; (ii) reads the input sheet, extracts metadata (team, plot name, plot

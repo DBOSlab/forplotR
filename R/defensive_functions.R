@@ -23,32 +23,32 @@
 #_______________________________________________________________________________
 
 .arg_check_majorarea <- function(majorarea, country) {
-  
+
   if (missing(majorarea)) {
     stop("'majorarea' is required.")
   }
-  
+
   if (country == "Brasil") {
-    valid_states <- c("Acre" = "AC", "Alagoas" = "AL", "Amapá" = "AP", "Amazonas" = "AM",
-                      "Bahia" = "BA", "Ceará" = "CE", "Distrito Federal" = "DF",
-                      "Espírito Santo" = "ES", "Goiás" = "GO", "Maranhão" = "MA",
+    valid_states <- c("Acre" = "AC", "Alagoas" = "AL", "Amap\u00e1" = "AP", "Amazonas" = "AM",
+                      "Bahia" = "BA", "Cear\u00e1" = "CE", "Distrito Federal" = "DF",
+                      "Esp\u00edrito Santo" = "ES", "Goi\u00e1s" = "GO", "Maranh\u00e3o" = "MA",
                       "Mato Grosso" = "MT", "Mato Grosso do Sul" = "MS", "Minas Gerais" = "MG",
-                      "Pará" = "PA", "Paraíba" = "PB", "Paraná" = "PR", "Pernambuco" = "PE",
-                      "Piauí" = "PI", "Rio de Janeiro" = "RJ", "Rio Grande do Norte" = "RN",
-                      "Rio Grande do Sul" = "RS", "Rondônia" = "RO", "Roraima" = "RR",
-                      "Santa Catarina" = "SC", "São Paulo" = "SP", "Sergipe" = "SE",
+                      "Par\u00e1" = "PA", "Para\u00edba" = "PB", "Paran\u00e1" = "PR", "Pernambuco" = "PE",
+                      "Piau\u00ed" = "PI", "Rio de Janeiro" = "RJ", "Rio Grande do Norte" = "RN",
+                      "Rio Grande do Sul" = "RS", "Rond\u00f4nia" = "RO", "Roraima" = "RR",
+                      "Santa Catarina" = "SC", "S\u00e3o Paulo" = "SP", "Sergipe" = "SE",
                       "Tocantins" = "TO")
-    
+
     valid_states_full <- names(valid_states)
     valid_states_acronyms <- unname(valid_states)
-    
+
     states_no_diacritics <- stringi::stri_trans_general(majorarea, "Latin-ASCII")
     valid_states_full_no_diacritics <- stringi::stri_trans_general(valid_states_full, "Latin-ASCII")
     valid_states_acronyms_no_diacritics <- stringi::stri_trans_general(valid_states_acronyms, "Latin-ASCII")
-    
+
     match_full <- match(states_no_diacritics, valid_states_full_no_diacritics)
     match_acronym <- match(states_no_diacritics, valid_states_acronyms_no_diacritics)
-    
+
     if (!is.na(match_full)) {
       return(valid_states_full[match_full])
     } else if (!is.na(match_acronym)) {
@@ -57,8 +57,8 @@
       stop(paste0("'", majorarea, "' is not a Brazilian state."))
     }
   }
-  
-  # Retorna o valor original se não for Brasil
+
+  # Retorna o valor original se nao for Brasil
   return(majorarea)
 }
 
@@ -131,29 +131,29 @@
   # Lista de nomes padronizados
   standard_names <- c("Brazil", "Argentina", "Colombia", "Peru", "France",
                       "Spain", "Mexico", "Chile", "Paraguay", "Uruguay", "Bolivia")
-  
+
   # Mapeamento de variantes conhecidas
   country_map <- list(
-    "Brazil" = c("Brasil", "Brésil"),
+    "Brazil" = c("Brasil", "Br\u00e9sil"),
     "Argentina" = c("Argentine"),
-    "Colombia" = c("Colômbia", "Colombie"),
-    "Peru" = c("Pérou"),
-    "France" = c("França"),
-    "Spain" = c("España", "Espanha", "Espagne"),
-    "Mexico" = c("México", "Mexique"),
+    "Colombia" = c("Col\u00f4mbia", "Colombie"),
+    "Peru" = c("P\u00e9rou"),
+    "France" = c("Fran\u00e7a"),
+    "Spain" = c("Espa\u00f1a", "Espanha", "Espagne"),
+    "Mexico" = c("M\u00e9xico", "Mexique"),
     "Paraguay" = c("Paraguai"),
     "Uruguay" = c("Uruguai"),
-    "Bolivia" = c("Bolívia", "Bolivie")
+    "Bolivia" = c("Bol\u00edvia", "Bolivie")
   )
-  
+
   # Normaliza o nome de entrada removendo acentos
   normalized_input <- stringi::stri_trans_general(user_country_input, "Latin-ASCII")
-  
-  # Caso já seja um nome padrão, retorna direto
+
+  # Caso ja seja um nome padrao, retorna direto
   if (normalized_input %in% standard_names) {
     return(normalized_input)
   }
-  
+
   # Verifica se corresponde a alguma variante
   for (country in names(country_map)) {
     normalized_variants <- stringi::stri_trans_general(country_map[[country]], "Latin-ASCII")
@@ -161,7 +161,7 @@
       return(country)
     }
   }
-  
+
   stop(paste0("Unknown country: ", user_country_input))
 }
 
@@ -170,65 +170,62 @@
 # Main function to validate if coordinates fall within the specified administrative division ####
 
 .check_point_in_admin <- function(lat, long, majorarea, country, level = 1) {
-  library(terra)
-  library(geodata)
-  library(stringi)
-  
+
   # Translate country name to standardized format
   standardized_country <- .translate_country(country)
-  
+
   # Brazilian state abbreviations to full names
   state_name_map <- c(
-    "AC" = "Acre", "AL" = "Alagoas", "AP" = "Amapá", "AM" = "Amazonas",
-    "BA" = "Bahia", "CE" = "Ceará", "DF" = "Distrito Federal", "ES" = "Espírito Santo",
-    "GO" = "Goiás", "MA" = "Maranhão", "MT" = "Mato Grosso", "MS" = "Mato Grosso do Sul",
-    "MG" = "Minas Gerais", "PA" = "Pará", "PB" = "Paraíba", "PR" = "Paraná",
-    "PE" = "Pernambuco", "PI" = "Piauí", "RJ" = "Rio de Janeiro", "RN" = "Rio Grande do Norte",
-    "RS" = "Rio Grande do Sul", "RO" = "Rondônia", "RR" = "Roraima",
-    "SC" = "Santa Catarina", "SP" = "São Paulo", "SE" = "Sergipe", "TO" = "Tocantins"
+    "AC" = "Acre", "AL" = "Alagoas", "AP" = "Amap\u00e1", "AM" = "Amazonas",
+    "BA" = "Bahia", "CE" = "Cear\u00e1", "DF" = "Distrito Federal", "ES" = "Esp\u00edrito Santo",
+    "GO" = "Goi\u00e1s", "MA" = "Maranh\u00e3o", "MT" = "Mato Grosso", "MS" = "Mato Grosso do Sul",
+    "MG" = "Minas Gerais", "PA" = "Par\u00e1", "PB" = "Para\u00edba", "PR" = "Paran\u00e1",
+    "PE" = "Pernambuco", "PI" = "Piau\u00ed", "RJ" = "Rio de Janeiro", "RN" = "Rio Grande do Norte",
+    "RS" = "Rio Grande do Sul", "RO" = "Rond\u00f4nia", "RR" = "Roraima",
+    "SC" = "Santa Catarina", "SP" = "S\u00e3o Paulo", "SE" = "Sergipe", "TO" = "Tocantins"
   )
-  
+
   # Convert abbreviation to full state name if applicable
   if (majorarea %in% names(state_name_map)) {
     majorarea <- state_name_map[majorarea]
   }
-  
+
   # Download administrative boundaries
   boundaries <- geodata::gadm(country = standardized_country, level = level, path = tempdir())
-  
+
   if (is.null(boundaries) || nrow(boundaries) == 0) {
-    stop("❌ No administrative boundaries found for the selected country. Check the country name.")
+    stop("\u274c No administrative boundaries found for the selected country. Check the country name.")
   }
-  
+
   # Standardize admin names by removing accents and trimming
   majorarea_clean <- stri_trim_both(stri_trans_general(majorarea, "Latin-ASCII"))
   boundaries$NAME_1 <- as.character(boundaries$NAME_1)
   boundaries$NAME_CLEAN <- stri_trim_both(stri_trans_general(boundaries$NAME_1, "Latin-ASCII"))
-  
+
   # Match by exact name
   match_idx <- which(boundaries$NAME_CLEAN == majorarea_clean)
-  
+
   # If no exact match, try partial match
   if (length(match_idx) == 0) {
     match_idx <- grep(majorarea_clean, boundaries$NAME_CLEAN, ignore.case = TRUE)
   }
-  
+
   if (length(match_idx) == 0) {
-    stop(paste0("❌ Could not match '", majorarea, "' to any administrative region.\n",
+    stop(paste0("\u274c Could not match '", majorarea, "' to any administrative region.\n",
                 "Please check spelling, abbreviation, or administrative level."))
   }
-  
+
   # Extract matched geometry
   admin_geom <- boundaries[match_idx, ]
-  
+
   # Create point geometry
   point <- vect(matrix(c(long, lat), ncol = 2), type = "points", crs = crs(boundaries))
-  
+
   # Check if point lies within administrative polygon
   inside <- any(relate(point, admin_geom, "intersects"))
-  
+
   if (!inside) {
-    stop("❌ The latitude and longitude DO NOT fall within the specified administrative region.\n",
+    stop("\u274c The latitude and longitude DO NOT fall within the specified administrative region.\n",
          "Please verify coordinates and the provided administrative name.")
   }
 }
