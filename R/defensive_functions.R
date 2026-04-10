@@ -235,8 +235,8 @@
 # Check plot size when plotting forest balance ####
 
 .validate_plot_size <- function(plot_size) {
-  if (!plot_size %in% c(0.2, 0.5, 1)) {
-    stop("`plot_size` must be one of: 0.2, 0.5, or 1 hectare.", call. = FALSE)
+  if (!is.numeric(plot_size) || length(plot_size) != 1 || is.na(plot_size) || plot_size <= 0) {
+    stop("`plot_size` must be a single positive numeric value in hectares.", call. = FALSE)
   }
 }
 

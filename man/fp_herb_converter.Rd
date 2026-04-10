@@ -6,8 +6,12 @@
 \usage{
 fp_herb_converter(fp_file_path = NULL,
                   herb_file_path = NULL,
+                  input_type = c("forestplots", "monitora"),
+                  sheet = 1,
+                  station_name = NULL,
                   language = "en",
                   herbarium_format = "jabot",
+                  column_map = NULL,
                   country = "Brazil",
                   majorarea = NULL,
                   minorarea = NULL,
@@ -25,9 +29,21 @@ fp_herb_converter(fp_file_path = NULL,
                   filename = "plot_to_herb_sheet")
 }
 \arguments{
-\item{fp_file_path}{File path to the forestplots dataset.}
+\item{fp_file_path}{File path to the input dataset. This can be either a
+ForestPlots field sheet or a MONITORA spreadsheet, depending on the value of
+\code{input_type}.}
 
 \item{herb_file_path}{File path of the herbarium empty template dataset.}
+
+\item{input_type}{Type of input dataset. Options are "forestplots" (default)
+and "monitora". For \code{"monitora"}, the function converts the input table
+to a forestplots-like structure before filling the herbarium template.}
+
+\item{sheet}{Sheet index or name to read from the input Excel file.}
+
+\item{station_name}{Optional station name or station number used to filter
+MONITORA data before conversion. For \code{input_type = "monitora"}, this
+value is matched against station-related columns in the input dataset.}
 
 \item{language}{Language for output metadata. Default is "en", options are
 "en", "pt" and "es".}
@@ -36,48 +52,62 @@ fp_herb_converter(fp_file_path = NULL,
 additional options is "brahms", "custom" herbarium format, where column names
 must be specified by the user.}
 
+\item{column_map}{Named list used when \code{herbarium_format = "custom"}.
+It must map the output herbarium fields to the corresponding columns in the
+custom herbarium template.}
+
 \item{country}{Country where the data was collected. Default is "Brazil".}
 
 \item{majorarea}{State where the data was collected.}
 
 \item{minorarea}{Municipality where the data was collected.}
 
-\item{protectedarea}{Name of the protected area (if applicable).}
+\item{protectedarea}{Name of the protected area (if applicable). For
+\code{input_type = "monitora"}, if \code{NULL}, the function attempts to
+recover this value from the corresponding protected-area / plot-name columns
+in the input dataset.}
 
 \item{locnotes}{Notes of the locality where the data was collected.}
 
-\item{project}{Project name or description (if applicable).}
+\item{project}{Project name or description (if applicable). For
+\code{input_type = "monitora"}, if \code{NULL}, the function attempts to
+recover this value from the corresponding station / plot-code columns in the
+input dataset.}
 
-\item{collector}{Main collector name. If \code{'NULL'}, extract the 'Team'
-information of forestplots dataset. the first member of the team will be
-considered as the main collector.}
+\item{collector}{Main collector name. If \code{NULL}, the function attempts
+to extract this information from the input dataset metadata. For
+\code{input_type = "monitora"}, this information is inferred preferentially
+from voucher-collector columns, and falls back to team-related columns when
+needed.}
 
-\item{addcoll}{Character. Additional collector(s) name(s).If \code{'NULL'},
-extract the additional members of the 'Team' in forestplots dataset.}
+\item{addcoll}{Character. Additional collector(s) name(s). If \code{NULL},
+the function attempts to extract this information from the input dataset
+metadata. For \code{input_type = "monitora"}, this information is inferred
+from team-related columns when available.}
 
 \item{lat}{Latitude in decimal degrees of the collection site.}
 
 \item{long}{Longitude in decimal degrees of the collection site.}
 
-\item{alt}{Altitude in meters of the collection site. If \code{'NULL'},
+\item{alt}{Altitude in meters of the collection site. If \code{NULL},
 extract the altitude from geographic coordinates dataset.}
 
-\item{add_census_notes}{If \code{'TRUE'}, census notes will be included in the
-herbarium  sheet's notes. If \code{'FALSE'}, census notes will be omitted.}
+\item{add_census_notes}{If \code{TRUE}, census notes will be included in the
+herbarium sheet's notes. If \code{FALSE}, census notes will be omitted.}
 
 \item{validate_locality}{If \code{TRUE} (default), validates whether the
 coordinates fall within the provided administrative division (country/majorarea).}
 
 \item{dir}{Pathway to the computer's directory, where the file will be saved.
-The default is to create a directory named **Results_herb_labelt**
+The default is to create a directory named **Results_herb_label**
 and the search results will be saved within a subfolder named after the current
 date.}
 
 \item{filename}{Name of the output file. Default is **plot_to_herb_sheet**.}
 }
 \value{
-A data frame in herbarium format with the processed data from
-forestplots dataset.
+A data frame in herbarium format with the processed data from the
+input dataset.
 }
 \description{
 Function to process data collected in the \href{https://forestplots.net/}{Forestplots format}
@@ -88,9 +118,13 @@ and custom herbarium formats, where the user can specify the column names in
 column_map list. The function performs the following steps: (i) Reads the input
 forestplots field sheet template and herbarium datasets; (ii) Ensures all
 required metadata (e.g., majorarea, minorarea, lat, long) is correctly
-provided;(iii) Processes taxonomic, spatial, and additional metadata to fill
-the herbarium format sheet; (iv) Generates a new xlsx file with the converted
-data, saved in a directory named after the current date.
+provided. When \code{input_type = "monitora"}, the function first converts the
+MONITORA spreadsheet into a field-sheet-like data frame and infers plot-level
+metadata (e.g., station, protected area, team, and census year) from the
+corresponding columns in the input dataset; (iii) Processes taxonomic,
+spatial, and additional metadata to fill the herbarium format sheet;
+(iv) Generates a new xlsx file with the converted data, saved in a directory
+named after the current date.
 This function automatically converts field codes from the Rainfor protocol
 (e.g., tree condition codes and light exposure codes) into their full
 descriptive meanings, and incorporates them into the final herbarium notes.
@@ -106,8 +140,8 @@ For instance, a final note in English might read:
 
 The phrases "with peeling bark" and "crown completely exposed to vertical
 and lateral light..." are automatically generated from the Rainfor codes,
-while phrases such as "small buttress roots" and "bark with  reddish plates"
-come from the original field notes recorded in the Forestplots sheet.The
+while phrases such as "small buttress roots" and "bark with reddish plates"
+come from the original field notes recorded in the Forestplots sheet. The
 conversion of Rainfor codes and the construction of this descriptive text
 are supported in three languages: English, Portuguese, and Spanish, depending
 on the value set in the `language` argument.
@@ -116,7 +150,16 @@ on the value set in the `language` argument.
 \dontrun{
 fp_herb_converter(
   fp_file_path = "your_forestplots_file.xlsx",
-  herb_file_path = "your_herbarium_template.xlsx"
+  herb_file_path = "your_herbarium_template.xlsx",
+  input_type = "forestplots"
+)
+
+fp_herb_converter(
+  fp_file_path = "your_monitora_file.xlsx",
+  herb_file_path = "your_herbarium_template.xlsx",
+  input_type = "monitora",
+  sheet = 1,
+  station_name = "MTQ-01"
 )
 }
 

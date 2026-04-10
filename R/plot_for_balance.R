@@ -25,11 +25,16 @@
 #'                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
 #'                  plot_size = 1,
 #'                  subplot_size = 10,
+#'                  plot_width_m = 100,
+#'                  plot_length_m = NULL,
 #'                  highlight_palms = TRUE,
 #'                  station_name = NULL,
 #'                  plot_name = NULL,
 #'                  plot_code = NULL,
 #'                  team = NULL,
+#'                  render_html = TRUE,
+#'                  render_pdf = TRUE,
+#'                  write_xlsx = TRUE,
 #'                  dir = "Results_map_plot",
 #'                  filename = "plot_specimen")
 #'
@@ -42,9 +47,16 @@
 #' @param input_type Character. One of `"field_sheet"`, `"fp_query_sheet"` or
 #'   `"monitora"`. Specifies the type/layout of the input file.
 #'
-#' @param plot_size Total plot size in hectares (default = 1).
+#' @param plot_size Total plot size in hectares. Used for `"field_sheet"` and
+#' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
 #'
 #' @param subplot_size Side length of each subplot in meters (default = 10).
+#'
+#' @param plot_width_m Plot width in meters. Used for `"field_sheet"` and
+#' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
+#'
+#' @param plot_length_m Plot length in meters. Used for `"field_sheet"` and
+#' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
 #'
 #' @param highlight_palms Logical. If `TRUE`, highlights Arecaceae individuals
 #' in the plots.
@@ -61,6 +73,12 @@
 #'
 #' @param team Optional team or PI name. If provided, overrides the team
 #' extracted from the input file metadata.
+#'
+#' @param render_html Logical. If `TRUE`, renders the HTML report.
+#'
+#' @param render_pdf Logical. If `TRUE`, renders the PDF report.
+#'
+#' @param write_xlsx Logical. If `TRUE`, writes the Excel summary workbook.
 #'
 #' @param dir Directory path where output will be saved
 #' (default is `"Results_map_plot"`). A date-stamped subfolder will be created
@@ -115,19 +133,87 @@ plot_for_balance <- function(fp_file_path = NULL,
                              input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                              plot_size = 1,
                              subplot_size = 10,
+                             plot_width_m = 100,
+                             plot_length_m = NULL,
                              highlight_palms = TRUE,
                              station_name = NULL,
                              plot_name = NULL,
                              plot_code = NULL,
                              team = NULL,
+                             render_html = TRUE,
+                             render_pdf = TRUE,
+                             write_xlsx = TRUE,
                              dir = "Results_map_plot",
                              filename = "plot_specimen") {
 
-  .validate_plot_size(plot_size)
   .validate_subplot_size(subplot_size)
+
+  input_type <- tolower(trimws(as.character(input_type)))
+  input_type <- match.arg(input_type, c("field_sheet", "fp_query_sheet", "monitora"))
+
+  if (!is.logical(render_html) || length(render_html) != 1 || is.na(render_html)) {
+    stop("`render_html` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (!is.logical(render_pdf) || length(render_pdf) != 1 || is.na(render_pdf)) {
+    stop("`render_pdf` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (!is.logical(write_xlsx) || length(write_xlsx) != 1 || is.na(write_xlsx)) {
+    stop("`write_xlsx` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (input_type %in% c("field_sheet", "fp_query_sheet")) {
+    .validate_plot_size(plot_size)
+
+    plot_area_m2 <- plot_size * 10000
+
+    if (!is.null(plot_width_m)) {
+      if (!is.numeric(plot_width_m) || length(plot_width_m) != 1 || is.na(plot_width_m) || plot_width_m <= 0) {
+        stop("`plot_width_m` must be a single positive numeric value.", call. = FALSE)
+      }
+    }
+
+    if (!is.null(plot_length_m)) {
+      if (!is.numeric(plot_length_m) || length(plot_length_m) != 1 || is.na(plot_length_m) || plot_length_m <= 0) {
+        stop("`plot_length_m` must be a single positive numeric value.", call. = FALSE)
+      }
+    }
+
+    if (is.null(plot_width_m) && is.null(plot_length_m)) {
+      plot_width_m <- 100
+    }
+
+    if (is.null(plot_length_m)) {
+      plot_length_m <- plot_area_m2 / plot_width_m
+    }
+
+    if (is.null(plot_width_m)) {
+      plot_width_m <- plot_area_m2 / plot_length_m
+    }
+
+    if (abs((plot_width_m * plot_length_m) - plot_area_m2) > 1e-6) {
+      stop(
+        "`plot_width_m * plot_length_m` must match the area implied by `plot_size`.",
+        call. = FALSE
+      )
+    }
+
+    if ((plot_width_m %% subplot_size) != 0 || (plot_length_m %% subplot_size) != 0) {
+      stop(
+        "`plot_width_m` and `plot_length_m` must be exact multiples of `subplot_size`.",
+        call. = FALSE
+      )
+    }
+  } else {
+    plot_width_m <- NULL
+    plot_length_m <- NULL
+  }
 
   language <- match.arg(tolower(trimws(as.character(language))),
                         c("en", "pt", "es", "fr", "ma", "pa"))
+
+  tr <- .plot_i18n(language)
 
   dir <- .arg_check_dir(dir)
 
@@ -139,9 +225,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   arg_plot_code <- plot_code
   arg_team <- team
 
-  input_type <- tolower(trimws(as.character(input_type)))
-  input_type <- match.arg(input_type, c("field_sheet", "fp_query_sheet", "monitora"))
-
   if (input_type == "monitora" && !is.null(station_name) && length(station_name) > 1L) {
     for (st in unique(trimws(as.character(station_name)))) {
       plot_for_balance(
@@ -149,13 +232,18 @@ plot_for_balance <- function(fp_file_path = NULL,
         input_type = "monitora",
         plot_size = plot_size,
         subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
         highlight_palms = highlight_palms,
-        dir = dir,
-        filename = paste0(filename, "_station_", st),
         station_name = st,
         plot_name = arg_plot_name,
         plot_code = arg_plot_code,
         team = arg_team,
+        render_html = render_html,
+        render_pdf = render_pdf,
+        write_xlsx = write_xlsx,
+        dir = dir,
+        filename = paste0(filename, "_station_", st),
         language = language
       )
     }
@@ -410,8 +498,9 @@ plot_for_balance <- function(fp_file_path = NULL,
   } else {
     fp_coords <- .compute_global_coordinates(
       fp_clean = fp_clean,
-      plot_size = plot_size,
-      subplot_size = subplot_size
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m
     )
   }
 
@@ -447,7 +536,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     subplot_labels <- tibble::tibble(T1 = sort(unique(fp_coords$T1))) %>%
       dplyr::mutate(
         T1 = suppressWarnings(as.numeric(T1)),
-        n_subplots_per_col = (plot_size / 1) * 100 / subplot_size,
+        n_subplots_per_col = floor(plot_length_m / subplot_size),
         col_index = (T1 - 1) %/% n_subplots_per_col,
         row_index = (T1 - 1) %% n_subplots_per_col,
         subplot_y = dplyr::if_else(
@@ -466,18 +555,21 @@ plot_for_balance <- function(fp_file_path = NULL,
     base_plot <- .build_fp_base_plot(
       fp_coords = fp_coords,
       subplot_labels = subplot_labels,
-      plot_size = plot_size,
       subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
       plot_name = plot_name,
       plot_code = plot_code,
-      highlight_palms = highlight_palms
+      highlight_palms = highlight_palms,
+      language = language
     )
   } else {
     base_plot <- .build_monitora_base_plot(
       fp_coords = fp_coords,
       plot_name = plot_name,
       plot_code = plot_code,
-      highlight_palms = highlight_palms
+      highlight_palms = highlight_palms,
+      language = language
     )
   }
 
@@ -563,10 +655,11 @@ plot_for_balance <- function(fp_file_path = NULL,
         dplyr::filter(subunit_letter == sub, T2 == t2) %>%
         dplyr::mutate(
           Status = dplyr::case_when(
-            highlight_palms & Family == "Arecaceae" ~ "Palms",
-            !is.na(Collected) & Collected != "" ~ "Collected",
-            TRUE ~ "Uncollected"
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
           ),
+          Status = factor(Status, levels = c(tr["collected"], tr["uncollected"], tr["palms"])),
           diameter = D / 10
         )
 
@@ -584,18 +677,26 @@ plot_for_balance <- function(fp_file_path = NULL,
         ggplot2::geom_point(ggplot2::aes(size = diameter, fill = Status),
                             shape = 21, color = "black", stroke = 0.2, alpha = 0.9) +
         ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.7) +
-        ggplot2::scale_fill_manual(values = c(Collected = "gray", Uncollected = "red", Palms = "gold"),
-                                   name = "Status") +
-        ggplot2::scale_size_area(name = "DBH (cm)",
-                                 breaks = brk,
-                                 labels = sprintf("%.1f", brk),
-                                 limits = range(brk, na.rm = TRUE),
-                                 max_size = 10,
-                                 guide = "legend") +
+        ggplot2::scale_fill_manual(
+          values = stats::setNames(
+            c("gray", "red", "gold"),
+            c(tr["collected"], tr["uncollected"], tr["palms"])
+          ),
+          name = tr["status"]
+        ) +
+        ggplot2::scale_size_area(
+          name = tr["dbh"],
+          breaks = brk,
+          labels = sprintf("%.1f", brk),
+          limits = range(brk, na.rm = TRUE),
+          max_size = 10,
+          guide = "legend"
+        ) +
         ggplot2::labs(
-          title = paste("Subunit", sub, "\u2014 Subplot", t2),
-          subtitle = paste("Plot Name:", plot_name, "| Plot Code:", plot_code),
-          x = "Local X (m)", y = "Local Y (m)"
+          title = paste(tr["subunit"], sub, "—", tr["subplot"], t2),
+          subtitle = paste(tr["plot_name"], plot_name, "|", tr["plot_code"], plot_code),
+          x = tr["local_x_m"],
+          y = tr["local_y_m"]
         ) +
         ggplot2::coord_fixed() +
         ggplot2::theme_bw() +
@@ -606,7 +707,7 @@ plot_for_balance <- function(fp_file_path = NULL,
         ) +
         ggplot2::guides(
           fill = ggplot2::guide_legend(override.aes = list(size = 5), order = 1),
-          size = ggplot2::guide_legend(title = "DBH (cm)", order = 2)
+          size = ggplot2::guide_legend(title = tr["dbh"], order = 2)
         )
 
       subplot_plots[[length(subplot_plots) + 1]] <- list(plot = p, data = sp_plot)
@@ -618,10 +719,11 @@ plot_for_balance <- function(fp_file_path = NULL,
         dplyr::filter(T1 == i) %>%
         dplyr::mutate(
           Status = dplyr::case_when(
-            highlight_palms & Family == "Arecaceae" ~ "Palms",
-            !is.na(Collected) & Collected != "" ~ "Collected",
-            TRUE ~ "Uncollected"
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
           ),
+          Status = factor(Status, levels = c(tr["collected"], tr["uncollected"], tr["palms"])),
           diameter = D / 10
         )
 
@@ -645,10 +747,15 @@ plot_for_balance <- function(fp_file_path = NULL,
         ggplot2::geom_point(ggplot2::aes(size = diameter, fill = Status),
                             shape = 21, color = "black", stroke = 0.2, alpha = 0.9) +
         ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.7) +
-        ggplot2::scale_fill_manual(values = c(Collected = "gray", Uncollected = "red", Palms = "gold"),
-                                   name = "Status") +
+        ggplot2::scale_fill_manual(
+          values = stats::setNames(
+            c("gray", "red", "gold"),
+            c(tr["collected"], tr["uncollected"], tr["palms"])
+          ),
+          name = tr["status"]
+        ) +
         ggplot2::scale_size_area(
-          name = "DBH (cm)",
+          name = tr["dbh"],
           breaks = breaks_d,
           labels = sprintf("%.1f", breaks_d),
           limits = range(breaks_d, na.rm = TRUE),
@@ -656,9 +763,10 @@ plot_for_balance <- function(fp_file_path = NULL,
           guide = "legend"
         ) +
         ggplot2::labs(
-          title = paste("Plot Name:", plot_name),
-          subtitle = paste0("Plot Code: ", plot_code),
-          x = "X (m)", y = "Y (m)"
+          title = paste(tr["plot_name"], plot_name),
+          subtitle = paste0(tr["plot_code"], " ", plot_code),
+          x = tr["x_m"],
+          y = tr["y_m"]
         ) +
         ggplot2::coord_fixed() +
         ggplot2::theme_bw() +
@@ -669,7 +777,7 @@ plot_for_balance <- function(fp_file_path = NULL,
         ) +
         ggplot2::guides(
           fill = ggplot2::guide_legend(override.aes = list(size = 5), order = 1),
-          size = ggplot2::guide_legend(title = "DBH (cm)", order = 2)
+          size = ggplot2::guide_legend(title = tr["dbh"], order = 2)
         )
 
       subplot_plots[[length(subplot_plots) + 1]] <- list(plot = p, data = sp_data)
@@ -755,40 +863,52 @@ plot_for_balance <- function(fp_file_path = NULL,
   if (!is.null(uncollected_plot)) param_list$uncollected_plot <- uncollected_plot
   if (!is.null(palms_plot)) param_list$uncollected_palm_plot <- palms_plot
 
-  latex_engine <- if (language == "ma") "xelatex" else "pdflatex"
-  latex_engine <- if (language == "pa") "xelatex" else "pdflatex"
+  latex_engine <- if (language %in% c("ma", "pa")) "xelatex" else "pdflatex"
 
-  html_report <- .render_plot_report(
-    rmd_path = rmd_path,
-    output_path = foldername,
-    output_name = final_html,
-    params = param_list,
-    format = "html",
-    latex_engine = latex_engine
-  )
+  html_report <- NULL
+  pdf_report <- NULL
+  xlsx_report <- NULL
 
-  pdf_report <- tryCatch(
-    .render_plot_report(
+  if (isTRUE(render_html)) {
+    html_report <- .render_plot_report(
       rmd_path = rmd_path,
       output_path = foldername,
-      output_name = final_pdf,
+      output_name = final_html,
       params = param_list,
-      format = "pdf",
+      format = "html",
       latex_engine = latex_engine
-    ),
-    error = function(e) {
-      warning("HTML report generated successfully, but PDF generation failed: ", conditionMessage(e), call. = FALSE)
-      NULL
-    }
-  )
+    )
+  }
 
-  .collection_percentual(
-    fp_sheet = fp_coords,
-    dir = foldername,
-    plot_name = plot_name,
-    plot_code = plot_code,
-    team = team
-  )
+  if (isTRUE(render_pdf)) {
+    pdf_report <- tryCatch(
+      .render_plot_report(
+        rmd_path = rmd_path,
+        output_path = foldername,
+        output_name = final_pdf,
+        params = param_list,
+        format = "pdf",
+        latex_engine = latex_engine
+      ),
+      error = function(e) {
+        warning("PDF generation failed: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  }
+
+  if (isTRUE(write_xlsx)) {
+    xlsx_report <- .collection_percentual(
+      fp_sheet = fp_coords,
+      dir = foldername,
+      plot_name = plot_name,
+      plot_code = plot_code,
+      team = team,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
+      subplot_size = subplot_size
+    )
+  }
 
   unlink(rmd_path, force = TRUE)
   unlink(gsub("_temp[.]Rmd", "_temp.knit.md", rmd_path), force = TRUE)
@@ -796,6 +916,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   invisible(list(
     html_report = html_report,
     pdf_report = pdf_report,
+    xlsx_report = xlsx_report,
     output_dir = foldername
   ))
 }
@@ -836,25 +957,155 @@ plot_for_balance <- function(fp_file_path = NULL,
       Collected = as.character(Collected)
     )
 }
+.plot_i18n <- function(language = "en") {
+  language <- tolower(trimws(as.character(language)[1]))
+  if (!language %in% c("en", "pt", "es", "fr", "ma", "pa")) {
+    language <- "en"
+  }
+
+  dict <- list(
+    en = c(
+      status = "Status",
+      collected = "Collected",
+      uncollected = "Uncollected",
+      palms = "Palms",
+      dbh = "DBH (cm)",
+      plot_name = "Plot Name:",
+      plot_code = "Plot Code:",
+      team = "Team:",
+      x_m = "X (m)",
+      y_m = "Y (m)",
+      local_x_m = "Local X (m)",
+      local_y_m = "Local Y (m)",
+      collection_balance = "Collection Balance",
+      subplot = "Subplot",
+      subunit = "Subunit"
+    ),
+    pt = c(
+      status = "Status",
+      collected = "Coletados",
+      uncollected = "Não Coletados",
+      palms = "Palmeiras",
+      dbh = "DAP (cm)",
+      plot_name = "Nome da Parcela:",
+      plot_code = "Código da Parcela:",
+      team = "Equipe:",
+      x_m = "X (m)",
+      y_m = "Y (m)",
+      local_x_m = "X local (m)",
+      local_y_m = "Y local (m)",
+      collection_balance = "Balanço de Coleta",
+      subplot = "Subparcela",
+      subunit = "Subunidade"
+    ),
+    es = c(
+      status = "Estado",
+      collected = "Colectados",
+      uncollected = "No Colectados",
+      palms = "Palmas",
+      dbh = "DAP (cm)",
+      plot_name = "Nombre de la Parcela:",
+      plot_code = "Código de la Parcela:",
+      team = "Equipo:",
+      x_m = "X (m)",
+      y_m = "Y (m)",
+      local_x_m = "X local (m)",
+      local_y_m = "Y local (m)",
+      collection_balance = "Balance de Recolección",
+      subplot = "Subparcela",
+      subunit = "Subunidad"
+    ),
+    fr = c(
+      status = "Statut",
+      collected = "Collectés",
+      uncollected = "Non Collectés",
+      palms = "Palmiers",
+      dbh = "DHP (cm)",
+      plot_name = "Nom de la Parcelle :",
+      plot_code = "Code de la Parcelle :",
+      team = "Équipe :",
+      x_m = "X (m)",
+      y_m = "Y (m)",
+      local_x_m = "X local (m)",
+      local_y_m = "Y local (m)",
+      collection_balance = "Bilan de Collecte",
+      subplot = "Sous-parcelle",
+      subunit = "Sous-unité"
+    ),
+    ma = c(
+      status = "状态",
+      collected = "已采集",
+      uncollected = "未采集",
+      palms = "棕榈科",
+      dbh = "胸径 (cm)",
+      plot_name = "样地名称：",
+      plot_code = "样地代码：",
+      team = "团队：",
+      x_m = "X（米）",
+      y_m = "Y（米）",
+      local_x_m = "局部 X（米）",
+      local_y_m = "局部 Y（米）",
+      collection_balance = "采集平衡",
+      subplot = "子样地",
+      subunit = "子单元"
+    ),
+    pa = c(
+      status = "Junti hẽ si mẽra",
+      collected = "Pâri sonswa",
+      uncollected = "Pâri rõrĩ",
+      palms = "Kwatisômẽra",
+      dbh = "Classes de DAP",
+      plot_name = "Issi rê tâ kukâri:",
+      plot_code = "Código da Parcela:",
+      team = "Sâpêrãtê:",
+      x_m = "X (m)",
+      y_m = "Y (m)",
+      local_x_m = "X local (m)",
+      local_y_m = "Y local (m)",
+      collection_balance = "Kukâra krepãã Sââ",
+      subplot = "Kukâra krepãã Sââ",
+      subunit = "Subunit"
+    )
+  )
+
+  dict[[language]]
+}
+
+.plot_tr <- function(key, language = "en") {
+  vals <- .plot_i18n(language)
+  if (!key %in% names(vals)) return(key)
+  vals[[key]]
+}
+
 # Build fp base plot
 .build_fp_base_plot <- function(fp_coords,
                                 subplot_labels,
-                                plot_size,
                                 subplot_size,
+                                plot_width_m,
+                                plot_length_m,
                                 plot_name,
                                 plot_code,
-                                highlight_palms) {
-  max_x <- 100
-  max_y <- (plot_size / 1) * 100
+                                highlight_palms,
+                                language = "en") {
+  tr <- .plot_i18n(language)
+
+  status_levels <- c(tr["collected"], tr["uncollected"], tr["palms"])
+  status_values <- stats::setNames(
+    c("gray", "red", "gold"),
+    status_levels
+  )
+
+  max_x <- floor(plot_width_m / subplot_size) * subplot_size
+  max_y <- floor(plot_length_m / subplot_size) * subplot_size
 
   base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
     ggplot2::geom_vline(
-      xintercept = seq(0, max_x, subplot_size),
+      xintercept = seq(0, max_x, by = subplot_size),
       color = "gray50",
       linewidth = 0.2
     ) +
     ggplot2::geom_hline(
-      yintercept = seq(0, max_y, subplot_size),
+      yintercept = seq(0, max_y, by = subplot_size),
       color = "gray50",
       linewidth = 0.2
     ) +
@@ -877,11 +1128,11 @@ plot_for_balance <- function(fp_file_path = NULL,
         size = diameter,
         fill = factor(
           dplyr::case_when(
-            highlight_palms & Family == "Arecaceae" ~ "Palms",
-            !is.na(Collected) & Collected != "" ~ "Collected",
-            TRUE ~ "Uncollected"
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
           ),
-          levels = c("Collected", "Uncollected", "Palms")
+          levels = status_levels
         )
       ),
       shape = 21,
@@ -897,7 +1148,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     ) +
     ggplot2::scale_x_continuous(
       limits = c(0, max_x),
-      breaks = seq(0, 100, by = subplot_size)
+      breaks = seq(0, max_x, by = subplot_size)
     ) +
     ggplot2::scale_y_continuous(
       limits = c(0, max_y),
@@ -905,19 +1156,15 @@ plot_for_balance <- function(fp_file_path = NULL,
     ) +
     ggplot2::coord_fixed(ratio = 1, clip = "off") +
     ggplot2::scale_fill_manual(
-      values = c(
-        "Collected" = "gray",
-        "Uncollected" = "red",
-        "Palms"  = "gold"
-      ),
-      name = "Status"
+      values = status_values,
+      name = tr["status"]
     ) +
     ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
     ggplot2::labs(
-      x = "X (m)",
-      y = "Y (m)",
-      title = paste0("Collection Balance ", plot_name),
-      subtitle = paste0("Plot Code: ", plot_code)
+      x = tr["x_m"],
+      y = tr["y_m"],
+      title = paste0(tr["collection_balance"], " ", plot_name),
+      subtitle = paste0(tr["plot_code"], " ", plot_code)
     ) +
     ggplot2::theme_bw() +
     ggplot2::theme(
@@ -938,9 +1185,17 @@ plot_for_balance <- function(fp_file_path = NULL,
     plot_name,
     plot_code,
     highlight_palms,
+    language = "en",
     arm_offset = 18,
     pad = 4
 ) {
+  tr <- .plot_i18n(language)
+
+  status_levels <- c(tr["collected"], tr["uncollected"], tr["palms"])
+  status_values <- stats::setNames(
+    c("gray", "red", "gold"),
+    status_levels
+  )
   stopifnot(all(c("draw_x","draw_y","subunit_letter","D","Collected","Family") %in% names(fp_coords)))
 
   # ---- constants ----
@@ -1073,11 +1328,11 @@ plot_for_balance <- function(fp_file_path = NULL,
         size = (D/10),
         fill = factor(
           dplyr::case_when(
-            highlight_palms & Family == "Arecaceae" ~ "Palms",
-            !is.na(Collected) & Collected != "" ~ "Collected",
-            TRUE ~ "Uncollected"
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
           ),
-          levels = c("Collected","Uncollected","Palms")
+          levels = status_levels
         )
       ),
       shape = 21, stroke = 0.2, color = "black", alpha = 0.9
@@ -1085,12 +1340,12 @@ plot_for_balance <- function(fp_file_path = NULL,
     ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 0.65, show.legend = FALSE) +
     ggplot2::annotate("text",
                       x = gx_min + left_inset, y = gy_max + gap_title + gap_sub,
-                      label = paste0("Collection Balance \u2014 ", plot_name),
+                      label = paste0(tr["collection_balance"], " \u2014 ", plot_name),
                       size = 5, hjust = 0, vjust = 1
     ) +
     ggplot2::annotate("text",
                       x = gx_min + left_inset, y = gy_max + gap_title,
-                      label = paste0("Plot Code: ", ifelse(is.null(plot_code),"",plot_code)),
+                      label = paste0(tr["plot_code"], " ", ifelse(is.null(plot_code), "", plot_code)),
                       size = 3.8, hjust = 0, vjust = 1
     ) +
     ggplot2::scale_x_continuous(limits = c(gx_min, gx_max),
@@ -1099,8 +1354,10 @@ plot_for_balance <- function(fp_file_path = NULL,
                                 expand = ggplot2::expansion(add = c(8, 0))) +  # extra bottom room for "10 m"
     ggplot2::coord_fixed(clip = "off") +
     ggplot2::theme_void() +
-    ggplot2::scale_fill_manual(values = c(Collected = "gray", Uncollected = "red", Palms = "gold"),
-                               name = "Status") +
+    ggplot2::scale_fill_manual(
+      values = status_values,
+      name = tr["status"]
+    ) +
     ggplot2::scale_size_continuous(range = c(2,6), guide = "none") +
     ggplot2::geom_text(
       data = arm_labels,
@@ -1121,10 +1378,14 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 # Get percentual values ####
+
 .collection_percentual <- function(fp_sheet, dir = getwd(),
-                                   plot_name = plot_name,
-                                   plot_code = plot_name,
-                                   team = "") {
+                                   plot_name = "",
+                                   plot_code = "",
+                                   team = "",
+                                   plot_width_m,
+                                   plot_length_m,
+                                   subplot_size = 10) {
   if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
 
   output_file <- file.path(dir, "collection_balance.xlsx")
@@ -1138,20 +1399,44 @@ plot_for_balance <- function(fp_file_path = NULL,
       T1 = as.character(T1)
     )
 
+  n_cols <- floor(plot_width_m / subplot_size)
+  n_rows <- floor(plot_length_m / subplot_size)
+  total_subplots <- n_cols * n_rows
+  all_subplots <- tibble::tibble(subplot = as.character(seq_len(total_subplots)))
+
   resume <- fp_sheet %>%
     dplyr::group_by(subplot = as.character(T1)) %>%
     dplyr::summarise(
       total_individuals = dplyr::n(),
       total_non_arecaceae = sum(Family != "Arecaceae", na.rm = TRUE),
       collected = sum(!is.na(Collected) & Collected != "", na.rm = TRUE),
+      collected_non_arecaceae = sum(!is.na(Collected) & Collected != "" & Family != "Arecaceae", na.rm = TRUE),
       uncollected_non_arecaceae = sum((is.na(Collected) | Collected == "") & Family != "Arecaceae", na.rm = TRUE),
       arecaceae_count = sum(Family == "Arecaceae", na.rm = TRUE),
-      collected_percentual = round(100 * collected / total_individuals, 1),
-      collected_percentual_without_arecaceae = round(
-        100 * sum(!is.na(Collected) & Collected != "" & Family != "Arecaceae", na.rm = TRUE) /
-          total_non_arecaceae, 1
-      ),
       .groups = "drop"
+    )
+
+  resume <- all_subplots %>%
+    dplyr::left_join(resume, by = "subplot") %>%
+    tidyr::replace_na(list(
+      total_individuals = 0,
+      total_non_arecaceae = 0,
+      collected = 0,
+      collected_non_arecaceae = 0,
+      uncollected_non_arecaceae = 0,
+      arecaceae_count = 0
+    )) %>%
+    dplyr::mutate(
+      collected_percentual = dplyr::if_else(
+        total_individuals > 0,
+        round(100 * collected / total_individuals, 1),
+        NA_real_
+      ),
+      collected_percentual_without_arecaceae = dplyr::if_else(
+        total_non_arecaceae > 0,
+        round(100 * collected_non_arecaceae / total_non_arecaceae, 1),
+        NA_real_
+      )
     )
 
   resume$subplot_num <- suppressWarnings(as.numeric(resume$subplot))
@@ -1165,15 +1450,20 @@ plot_for_balance <- function(fp_file_path = NULL,
       total_individuals = sum(total_individuals, na.rm = TRUE),
       total_non_arecaceae = sum(total_non_arecaceae, na.rm = TRUE),
       collected = sum(collected, na.rm = TRUE),
+      collected_non_arecaceae = sum(collected_non_arecaceae, na.rm = TRUE),
       uncollected_non_arecaceae = sum(uncollected_non_arecaceae, na.rm = TRUE),
       arecaceae_count = sum(arecaceae_count, na.rm = TRUE)
     ) %>%
     dplyr::mutate(
-      collected_percentual = round(100 * collected / total_individuals, 1),
-      collected_percentual_without_arecaceae = round(
-        100 * sum(!is.na(fp_sheet$Collected) & fp_sheet$Collected != "" & fp_sheet$Family != "Arecaceae", na.rm = TRUE) /
-          sum(fp_sheet$Family != "Arecaceae", na.rm = TRUE),
-        1
+      collected_percentual = dplyr::if_else(
+        total_individuals > 0,
+        round(100 * collected / total_individuals, 1),
+        NA_real_
+      ),
+      collected_percentual_without_arecaceae = dplyr::if_else(
+        total_non_arecaceae > 0,
+        round(100 * collected_non_arecaceae / total_non_arecaceae, 1),
+        NA_real_
       )
     )
 
@@ -1279,7 +1569,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 # Extract a character row from a data.frame / matrix / vector
 .safe_char_row <- function(x, row = 1L) {
 
-    if (is.null(x) || NROW(x) < row) return(character())
+  if (is.null(x) || NROW(x) < row) return(character())
 
   if (is.data.frame(x) || is.matrix(x)) {
     v <- x[row, , drop = TRUE]

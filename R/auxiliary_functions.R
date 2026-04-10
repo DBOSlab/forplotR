@@ -4,13 +4,14 @@
 # Revised: 08/Mar/2026
 # =============================================================================
 
-#' Normalize HERE CHANGED
+#' Normalize names for matching
 #'
 #' @param x Character vector.
 #'
 #' @return Character vector normalized to lowercase ASCII alphanumeric text.
 #'
 #' @keywords internal
+#' @noRd
 .norm_nm <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
@@ -31,6 +32,7 @@
 #' @return Character scalar or `NA_character_`.
 #'
 #' @keywords internal
+#' @noRd
 .pick_colname <- function(df, candidates) {
   cn_raw <- names(df)
   cn <- .norm_nm(cn_raw)
@@ -60,6 +62,7 @@
 #' @return Logical scalar.
 #'
 #' @keywords internal
+#' @noRd
 .has_any <- function(df, candidates) {
   !is.na(.pick_colname(df, candidates))
 }
@@ -71,6 +74,7 @@
 #' @return Numeric vector.
 #'
 #' @keywords internal
+#' @noRd
 .parse_num <- function(x) {
   z <- as.character(x)
   z[is.na(z)] <- ""
@@ -94,6 +98,7 @@
 #' @return Vector of length `nrow(df)`.
 #'
 #' @keywords internal
+#' @noRd
 .best_numeric_vec <- function(df, candidates, default = NA_real_) {
   cn <- unique(stats::na.omit(vapply(
     candidates,
@@ -126,6 +131,7 @@
 #' @return Character vector.
 #'
 #' @keywords internal
+#' @noRd
 .clean_chr <- function(x) {
   x <- as.character(x)
   x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
@@ -142,6 +148,7 @@
 #' @return Integer vector.
 #'
 #' @keywords internal
+#' @noRd
 .parse_year <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
@@ -163,6 +170,7 @@
 #' @return Character vector.
 #'
 #' @keywords internal
+#' @noRd
 .normalize_station_name <- function(x) {
   x <- .clean_chr(x)
   tolower(x)
@@ -175,6 +183,7 @@
 #' @return Character vector.
 #'
 #' @keywords internal
+#' @noRd
 .normalize_station_number <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
@@ -190,6 +199,7 @@
 #' @return Character vector of canonical column names.
 #'
 #' @keywords internal
+#' @noRd
 .field_sheet_cols <- function() {
   c(
     "New Tag No", "New Stem Grouping", "T1", "T2", "X", "Y", "Family",
@@ -206,6 +216,7 @@
 #' @return Integer score.
 #'
 #' @keywords internal
+#' @noRd
 .score_plot_sheet <- function(df) {
   dest_cols <- .field_sheet_cols()
   s <- 0L
@@ -248,6 +259,7 @@
 #' @return Data frame with `sheet_name` attribute.
 #'
 #' @keywords internal
+#' @noRd
 .read_best_plot_sheet <- function(path, sheet = NULL) {
   if (!grepl("\\.xlsx?$", path, ignore.case = TRUE)) {
     stop("This helper expects an Excel workbook path.", call. = FALSE)
@@ -372,6 +384,7 @@
 #' @return Tibble in field-sheet-like format, or a named list of such tibbles.
 #'
 #' @keywords internal
+#' @noRd
 .fp_query_to_field_sheet_df <- function(path,
                                         sheet = NULL,
                                         plot_code = NULL,
@@ -644,6 +657,7 @@
 #' with metadata row, header row and data rows.
 #'
 #' @keywords internal
+#' @noRd
 .monitora_to_field_sheet_df <- function(path,
                                         sheet = 1,
                                         station_name = NULL) {
@@ -862,9 +876,10 @@
             "coletado", "collected"
           ))
 
-  col_voucher_c <- if ("voucher/Coletor" %in% nm) "voucher/Coletor" else
-    if ("voucher/coletor" %in% nm) "voucher/coletor" else
-      .find_best_col(df, c("voucher/coletor", "voucher_coletor", "vouchercoletor", "coletor"))
+  col_voucher_c <- .find_best_col(df, c(
+    "voucher/coletor", "voucher_coletor", "vouchercoletor",
+    "coletor", "collector"
+  ))
 
   col_voucher_n <- if ("voucher/n\u00famero" %in% nm) "voucher/n\u00famero" else
     if ("voucher/numero" %in% nm) "voucher/numero" else
@@ -1083,14 +1098,25 @@
   morpho_vec <- if (!is.na(col_nomecomum) && col_nomecomum %in% names(df_use)) clean_spaces(df_use[[col_nomecomum]]) else rep(NA_character_, nrow(df_use))
   morpho_vec[!nzchar(morpho_vec)] <- NA_character_
 
-  collected_raw <- if (!is.na(col_coletado) && col_coletado %in% names(df_use)) clean_spaces(df_use[[col_coletado]]) else rep("", nrow(df_use))
+  collected_raw <- if (!is.na(col_coletado) && col_coletado %in% names(df_use)) {
+    clean_spaces(df_use[[col_coletado]])
+  } else {
+    rep("", nrow(df_use))
+  }
+
+  voucher_collector_raw <- if (!is.na(col_voucher_c) && col_voucher_c %in% names(df_use)) {
+    clean_spaces(df_use[[col_voucher_c]])
+  } else {
+    rep("", nrow(df_use))
+  }
 
   collected_norm <- tolower(collected_raw)
-  collected_vec <- ifelse(
-    collected_norm %in% c("sim", "s", "yes", "y", "true", "1", "coletado", "coletada"),
-    "Sim",
-    NA_character_
-  )
+
+  is_collected <- collected_norm %in% c(
+    "sim", "s", "yes", "y", "true", "1", "coletado", "coletada"
+  ) | nzchar(voucher_collector_raw)
+
+  collected_vec <- ifelse(is_collected, "Sim", NA_character_)
 
   notes_vec <- if (!is.na(col_obs) && col_obs %in% names(df_use)) clean_spaces(df_use[[col_obs]]) else rep(NA_character_, nrow(df_use))
   notes_vec[!nzchar(notes_vec)] <- NA_character_
@@ -1126,6 +1152,7 @@
     nrdups = NA_character_,
     Height = height_vec,
     Voucher = voucher_vec,
+    `Voucher Collector` = voucher_collector_raw,
     Silica = NA_character_,
     Collected = collected_vec,
     `Census Notes` = notes_vec,
@@ -1213,29 +1240,40 @@
 #' @return Data frame with draw/global coordinates.
 #'
 #' @keywords internal
-.compute_global_coordinates <- function(fp_clean, plot_size, subplot_size) {
-  max_x <- 100
-  max_y <- (plot_size / 1) * 100
-  n_rows <- floor(max_y / subplot_size)
+#' @noRd
+.compute_global_coordinates <- function(fp_clean,
+                                        subplot_size,
+                                        plot_width_m,
+                                        plot_length_m) {
+  n_rows <- floor(plot_length_m / subplot_size)
+  n_cols <- floor(plot_width_m / subplot_size)
+
+  if (n_rows <= 0 || n_cols <= 0) {
+    stop("Invalid plot dimensions relative to `subplot_size`.", call. = FALSE)
+  }
+
+  max_x <- n_cols * subplot_size
+  max_y <- n_rows * subplot_size
+
   fp_clean %>%
     dplyr::mutate(
-      T1 = as.numeric(T1),
-      X = as.numeric(X),
-      Y = as.numeric(Y),
+      T1 = suppressWarnings(as.numeric(T1)),
+      X = suppressWarnings(as.numeric(X)),
+      Y = suppressWarnings(as.numeric(Y)),
       col = floor((T1 - 1) / n_rows),
       row = (T1 - 1) %% n_rows,
       global_x = col * subplot_size + X,
-      global_y = if_else(
+      global_y = dplyr::if_else(
         col %% 2 == 0,
         row * subplot_size + Y,
         (n_rows - row - 1) * subplot_size + Y
       )
     ) %>%
     dplyr::filter(
-      global_x <= max_x,
-      global_y <= max_y,
       global_x >= 0,
-      global_y >= 0
+      global_y >= 0,
+      global_x < max_x,
+      global_y < max_y
     )
 }
 
@@ -1265,6 +1303,8 @@
 #' end, after the local subplot coordinates have been computed.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .compute_monitora_geometry <- function(fp_df, keep_only_cell = TRUE) {
 
   if (is.null(fp_df) || !nrow(fp_df)) {
@@ -1356,6 +1396,8 @@
 #' @return Named list with species, family and diversity metrics.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .calculate_phytosociological_metrics <- function(fp_sheet,
                                                  plot_size_ha = 1,
                                                  subplot_size_m = 10) {
@@ -1456,6 +1498,8 @@
 #' @return Named list with summary tables and plots.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .prepare_report_dashboard <- function(fp_sheet,
                                       plot_size_ha = 1,
                                       subplot_size_m = 10,
@@ -1919,6 +1963,7 @@
 
 #' @keywords internal
 #' @noRd
+#'
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }
@@ -1937,6 +1982,8 @@
 #' @return Character vector containing the full `.Rmd` content.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .create_rmd_content <- function(subplot_plots,
                                 tf_col,
                                 tf_uncol,
@@ -2048,7 +2095,7 @@
       "Palmeiras = Palms",
       "\u00cdndice de Subparcelas = Subplot Index",
       "Subparcelas = Subplots",
-      "Subparcela  = Subplot ",
+      "Subparcela   = Subplot  ",
       "Lista de Esp\u00e9cies = Checklist",
       "Subparcelas Individuais = Individual Subplots"
     ),
@@ -2219,7 +2266,7 @@
       "Swan kukrek\u00e2ra = Metric Summary",
       "Inkj\u00eati tip\u0129njakjura = Most Common Families",
       "Sotinkj\u00eati sop\u00e2ri m\u1ebdra = Most Abundant Species",
-      "Percentual de Coleta por Subparcela = Collection Percentage by Subplot",
+      "Jyy ti he P\u00e2ri m\u1ebdra karêrãkjan kukâri s\u00e2\u00e2  = Collection Percentage by Subplot",
       "Classes de DAP = DBH Classes",
       "Classe de DAP = DBH Class",
       "N\u00famero de indiv\u00edduos = Number of individuals",
@@ -2228,11 +2275,11 @@
       "P\u0129rak\u00e2ri = Species",
       "P\u0129rak\u00e2ri kyapi\u00e2hapi\u00e2ra = Family",
       "Abund\u00e2ncia = Abundance",
-      "Subparcelas = Subplots",
+      "Kuk\u00e2ra krep\u00e3\u00e3 S\u00e2\u00e2 = Subplots",
       "Dens. rel. (%) = Rel. density (%)",
       "Freq. rel. (%) = Rel. frequency (%)",
       "VI = IV",
-      "Riqueza = Richness",
+      "sop\u00e2ri m\u1ebdra = Richness",
       "P\u00e3p\u00e3 kypapr\u1ebdpi kuk\u00e2ri = General Plot",
       "P\u00e2ri sonswa kypa kuk\u00e2ri kran = Collected Only",
       "R\u00f5\u00f5rin kwatis\u00f4m\u00eara kuk\u00e2ri kran = Not Collected Palms",
@@ -2240,7 +2287,7 @@
       "Kwatis\u00f4m\u1ebdra = Palms",
       "T\u00e4 sokkjaraa r\u00ea t\u00e2 kuk\u00e2ra kran = Subplot Index",
       "Kuk\u00e2ra krep\u00e3\u00e3 S\u00e2\u00e2 = Subplots",
-      "Kuk\u00e2ra krep\u00e3\u00e3 S\u00e2\u00e2  = Subplot ",
+      "Kuk\u00e2ra krep\u00e3\u00e3 S\u00e2\u00e2   = Subplot ",
       "Issi pyr\u00e3h\u00e3 p\u00e2rijnsim\u1ebdra = Checklist",
       "Kuk\u00e2ra krep\u00e3\u00e3 S\u00e2\u00e2 pyti = Individual Subplots"
     )
@@ -2254,7 +2301,7 @@
     }
 
     clean_translation <- function(x) {
-      trimws(sub("\\s+=\\s+.*$", "", x))
+      sub("=\\s+.*$", "", x)
     }
 
     dict_translated <- dict
@@ -2262,6 +2309,7 @@
 
     out <- lines
     in_r_chunk <- FALSE
+    ord <- order(nchar(dict_translated$en), decreasing = TRUE)
 
     for (j in seq_along(lines)) {
       line <- lines[j]
@@ -2283,7 +2331,7 @@
         next
       }
 
-      for (i in seq_len(nrow(dict_translated))) {
+      for (i in ord) {
         line <- gsub(dict_translated$en[[i]], dict_translated[[lang]][[i]], line, fixed = TRUE)
       }
 
@@ -2292,7 +2340,6 @@
 
     out
   }
-
   .chunk_id_factory <- local({
     i <- 0L
     function(prefix = "chunk") {
@@ -2462,6 +2509,7 @@
     "lang <- if (!is.null(params$language)) tolower(trimws(as.character(params$language))) else ''",
     "is_monitora <- identical(input_type, 'monitora')",
     "is_pa <- identical(lang, 'pa')",
+    "show_partner_logo <- !is_pa",
     "",
     "pa_logo_paths <- c(",
     "  find_logo('jbrj.png'),",
@@ -2471,10 +2519,10 @@
     ")",
     "",
     "pa_logo_hrefs <- c(",
-    " 'https://www.gov.br/jbrj/pt-br',",
-    " 'https://www.instagram.com/associacao.iakio/#',",
-    " 'https://www.socioambiental.org/',",
-    " 'https://brasil.conservation.org/'",
+    "  'https://www.gov.br/jbrj/pt-br',",
+    "  'https://www.instagram.com/associacao.iakio/#',",
+    "  'https://brasil.conservation.org/',",
+    "  'https://www.socioambiental.org/'",
     ")",
     "",
     "partner_logo_path <- if (is_monitora) monitora_logo_path else forestplots_logo_path",
@@ -2501,13 +2549,14 @@
     "  cat('\\\\vspace{0.25cm}\\n')",
     "  cat('\\\\begin{minipage}{\\\\textwidth}\\\\centering\\n')",
     "",
-    "  if (nzchar(partner_logo_path) && file.exists(partner_logo_path)) {",
+    "  if (show_partner_logo && nzchar(partner_logo_path) && file.exists(partner_logo_path)) {",
     "    cat(sprintf(",
     "      '\\\\href{%s}{\\\\includegraphics[width=%s,keepaspectratio]{%s}}',",
     "      partner_href, partner_width, partner_logo_path",
     "    ), '\\n')",
-    "  } else {",
-    "    cat(if (is_monitora) 'MONITORA Program\\n' else 'ForestPlots.net\\n')",
+    "  } else if (show_partner_logo) {",
+    "    cat(sprintf('{\\\\large %s}\\n',",
+    "      if (is_monitora) 'MONITORA Program' else 'ForestPlots.net'))",
     "  }",
     "",
     "  if (is_pa && length(pa_logo_paths) > 0) {",
@@ -2541,12 +2590,12 @@
     "",
     "  cat('<div style=\"margin-top:0.2rem;\">\\n')",
     "",
-    "  if (nzchar(partner_logo_path) && file.exists(partner_logo_path)) {",
+    "  if (show_partner_logo && nzchar(partner_logo_path) && file.exists(partner_logo_path)) {",
     "    cat(sprintf(",
     "      '<a href=\"%s\"><img src=\"%s\" style=\"width:180px; margin:0.3rem 0.6rem; vertical-align:middle;\"></a>',",
     "      partner_href, partner_logo_path",
     "    ))",
-    "  } else {",
+    "  } else if (show_partner_logo) {",
     "    cat(sprintf('<span style=\"font-size:1.1rem; margin:0 0.8rem;\">%s</span>',",
     "      if (is_monitora) 'MONITORA Program' else 'ForestPlots.net'))",
     "  }",
@@ -2891,6 +2940,8 @@
 #' @return Invisibly TRUE.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .arg_check_herbarium <- function(x) {
   if (is.null(x) || !length(x)) {
     stop("`herbaria` must be a non-empty character vector.", call. = FALSE)
@@ -2920,6 +2971,8 @@
 #' @return Named list with cache directory and DuckDB path.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .herbaria_cache_paths <- function() {
   cache_dir <- getOption("forplotR.herbaria_cache_dir")
 
@@ -2951,6 +3004,7 @@
 #' @return Character vector with extracted number token.
 #'
 #' @keywords internal
+#' @noRd
 .extract_number_token <- function(x) {
   if (is.na(x) || !nzchar(trimws(x))) {
     return(NA_character_)
@@ -2981,6 +3035,7 @@
 #' @return Character vector with only digits.
 #'
 #' @keywords internal
+#' @noRd
 .normalize_number_token <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
@@ -2996,6 +3051,7 @@
 #' @return Character vector of candidate person strings.
 #'
 #' @keywords internal
+#' @noRd
 .split_recordedby_people <- function(recordedBy) {
   if (is.na(recordedBy) || !nzchar(trimws(recordedBy))) {
     return(character(0))
@@ -3049,6 +3105,7 @@
 #' @return Named character vector with primary and fallback tokens.
 #'
 #' @keywords internal
+#' @noRd
 .collector_tokens_one <- function(name_raw) {
   if (is.na(name_raw) || !nzchar(trimws(name_raw))) {
     return(c(primary = NA_character_, fallback = NA_character_))
@@ -3120,6 +3177,7 @@
 #' @return Character scalar or NA.
 #'
 #' @keywords internal
+#' @noRd
 .expand_collector_code <- function(prefix, collector_codes = NULL) {
   if (is.null(collector_codes) || !length(collector_codes)) {
     return(NA_character_)
@@ -3157,6 +3215,7 @@
 #' @return Named character vector with collector and number.
 #'
 #' @keywords internal
+#' @noRd
 .parse_voucher_one <- function(voucher,
                                collector_fallback = NULL,
                                collector_codes = NULL) {
@@ -3228,6 +3287,7 @@
 #' @return Data frame with raw and normalized voucher identity fields.
 #'
 #' @keywords internal
+#' @noRd
 .parse_census_identity <- function(voucher,
                                    collector_fallback = NULL,
                                    collector_codes = NULL) {
@@ -3282,6 +3342,8 @@
 #' @return Character scalar.
 #'
 #' @keywords internal
+#' @noRd
+#'
 .resource_guess_herbarium <- function(resource_id) {
   rid <- tolower(trimws(as.character(resource_id)))
   rid <- sub("^.*[?&]r=", "", rid)
@@ -3309,6 +3371,7 @@
 #' @return Named list with version, published_on and records.
 #'
 #' @keywords internal
+#' @noRd
 .get_latest_version_info <- function(resource_url) {
   x <- tryCatch(
     suppressWarnings(readLines(resource_url, encoding = "UTF-8", warn = FALSE)),
@@ -3359,6 +3422,7 @@
 #' @return Data frame with discovered resources.
 #'
 #' @keywords internal
+#' @noRd
 .get_ipt_info <- function(herbarium,
                           ipt = c("jabot", "reflora"),
                           resource_map = NULL) {
@@ -3493,6 +3557,7 @@
 #' @return Character path to extracted archive directory, or NULL.
 #'
 #' @keywords internal
+#' @noRd
 .download_dwca_one <- function(info_row,
                                dir,
                                verbose = FALSE,
@@ -3591,6 +3656,7 @@
 #' @return DuckDB connection.
 #'
 #' @keywords internal
+#' @noRd
 .herbaria_db_connect <- function() {
   for (pkg in c("DBI", "duckdb")) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -3660,6 +3726,7 @@
 #' @return Logical.
 #'
 #' @keywords internal
+#' @noRd
 .duckdb_load_occurrence <- function(con,
                                     occurrence_path,
                                     herbarium,
@@ -3792,6 +3859,7 @@
 #' @return Logical.
 #'
 #' @keywords internal
+#' @noRd
 .duckdb_match_resource <- function(con,
                                    herbarium,
                                    source,
@@ -3943,8 +4011,7 @@
 #' @return Character scalar URL or NA.
 #'
 #' @keywords internal
-# FIX: adicionada validacao explicita de catalogNumber vazio apos trimws,
-# e padronizacao do herbarium antes de montar a URL.
+#' @noRd
 .make_jabot_url <- function(catalogNumber, herbarium) {
   cat_str <- trimws(as.character(catalogNumber))
   if (is.na(catalogNumber) || !nzchar(cat_str)) {
@@ -3973,15 +4040,7 @@
 #' @return Character scalar URL or NA.
 #'
 #' @keywords internal
-# FIX: a versao anterior fazia gsub("\\D", "", occurrenceID) sobre o valor
-# bruto, o que destruia UUIDs (concatenando todos os digitos) e URIs com
-# segmentos nao-numericos. A logica correta e:
-#   1. Se a string termina com um segmento numerico apos "/" (URI padrao REFLORA),
-#      extrair apenas esse segmento.
-#   2. Se a string inteira ja e numerica, usa-la diretamente.
-#   3. Caso contrario, tentar extrair o maior bloco numerico continuo como
-#      ultimo recurso (fallback antigo), mas somente se o resultado for
-#      plausivel (>= 3 digitos).
+#' @noRd
 .make_reflora_url <- function(occurrenceID) {
   if (is.na(occurrenceID) || !nzchar(trimws(as.character(occurrenceID)))) {
     return(NA_character_)
@@ -4060,6 +4119,7 @@
 #'   `NA_character_` or an HTML fragment containing a herbarium link.
 #'
 #' @keywords internal
+#' @noRd
 .herbaria_lookup_links <- function(fp_df,
                                    herbariums,
                                    force_refresh = FALSE,

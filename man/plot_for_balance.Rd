@@ -9,11 +9,16 @@ plot_for_balance(fp_file_path = NULL,
                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,
+                 plot_width_m = 100,
+                 plot_length_m = NULL,
                  highlight_palms = TRUE,
                  station_name = NULL,
                  plot_name = NULL,
                  plot_code = NULL,
                  team = NULL,
+                 render_html = TRUE,
+                 render_pdf = TRUE,
+                 write_xlsx = TRUE,
                  dir = "Results_map_plot",
                  filename = "plot_specimen")
 }
@@ -27,9 +32,16 @@ ForestPlots format.}
 \item{input_type}{Character. One of `"field_sheet"`, `"fp_query_sheet"` or
 `"monitora"`. Specifies the type/layout of the input file.}
 
-\item{plot_size}{Total plot size in hectares (default = 1).}
+\item{plot_size}{Total plot size in hectares. Used for `"field_sheet"` and
+`"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.}
 
 \item{subplot_size}{Side length of each subplot in meters (default = 10).}
+
+\item{plot_width_m}{Plot width in meters. Used for `"field_sheet"` and
+`"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.}
+
+\item{plot_length_m}{Plot length in meters. Used for `"field_sheet"` and
+`"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.}
 
 \item{highlight_palms}{Logical. If `TRUE`, highlights Arecaceae individuals
 in the plots.}
@@ -46,6 +58,12 @@ extracted from the input file metadata.}
 
 \item{team}{Optional team or PI name. If provided, overrides the team
 extracted from the input file metadata.}
+
+\item{render_html}{Logical. If `TRUE`, renders the HTML report.}
+
+\item{render_pdf}{Logical. If `TRUE`, renders the PDF report.}
+
+\item{write_xlsx}{Logical. If `TRUE`, writes the Excel summary workbook.}
 
 \item{dir}{Directory path where output will be saved
 (default is `"Results_map_plot"`). A date-stamped subfolder will be created

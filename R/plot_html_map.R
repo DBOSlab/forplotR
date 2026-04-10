@@ -183,9 +183,10 @@ plot_html_map <- function(fp_file_path = NULL,
     raw <- .monitora_to_field_sheet_df(fp_file_path, station_name = station_name)
     fp_sheet <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
 
-    team <- ""
-    plot_name <- ""
-    plot_code <- ""
+    meta <- attr(raw, "plot_meta")
+    team <- if (!is.null(meta$team)) meta$team else ""
+    plot_name <- if (!is.null(meta$plot_name)) meta$plot_name else ""
+    plot_code <- if (!is.null(meta$plot_code)) meta$plot_code else ""
 
   } else if (input_type == "fp_query_sheet") {
     if (!exists(".fp_query_to_field_sheet_df", mode = "function")) {
@@ -282,11 +283,14 @@ plot_html_map <- function(fp_file_path = NULL,
       stop("No valid points to plot after cleaning MONITORA X/Y values.", call. = FALSE)
     }
 
-    if (!exists(".compute_global_coordinates_monitora", mode = "function")) {
-      stop("Missing helper `.compute_global_coordinates_monitora()` for MONITORA layout.", call. = FALSE)
+    if (!exists(".compute_monitora_geometry", mode = "function")) {
+      stop("Missing helper `.compute_monitora_geometry()` for MONITORA layout.", call. = FALSE)
     }
 
-    fp_coords <- .compute_global_coordinates_monitora(fp_clean)
+    fp_coords <- .compute_monitora_geometry(
+      fp_df = fp_clean,
+      keep_only_cell = FALSE
+    )
 
     if (!all(c("draw_x", "draw_y") %in% names(fp_coords))) {
       stop("MONITORA helper must add 'draw_x' and 'draw_y' columns (meters).", call. = FALSE)

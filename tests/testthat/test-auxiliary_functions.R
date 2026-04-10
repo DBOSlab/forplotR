@@ -387,7 +387,13 @@ test_that(".compute_global_coordinates computes serpentine plot coordinates", {
     Y = c(1, 2, 3)
   )
 
-  res <- .compute_global_coordinates(fp_df, plot_size = 1, subplot_size = 10)
+  res <- .compute_global_coordinates(
+    fp_df,
+    subplot_size = 10,
+    plot_width_m = 100,
+    plot_length_m = 100
+  )
+
   expect_true(all(c("global_x", "global_y", "col", "row") %in% names(res)))
   expect_equal(res$global_x[1], 1)
   expect_equal(res$global_y[1], 1)
@@ -395,9 +401,39 @@ test_that(".compute_global_coordinates computes serpentine plot coordinates", {
 })
 
 test_that(".compute_global_coordinates filters out coordinates outside plot bounds", {
-  fp_df <- tibble::tibble(T1 = c(1, 1), X = c(1, 200), Y = c(1, 1))
-  res <- .compute_global_coordinates(fp_df, plot_size = 1, subplot_size = 10)
+  fp_df <- tibble::tibble(
+    T1 = c(1, 1),
+    X = c(1, 200),
+    Y = c(1, 1)
+  )
+
+  res <- .compute_global_coordinates(
+    fp_df,
+    subplot_size = 10,
+    plot_width_m = 100,
+    plot_length_m = 100
+  )
+
   expect_equal(nrow(res), 1)
+})
+
+test_that(".compute_global_coordinates supports non-square plot dimensions", {
+  fp_df <- tibble::tibble(
+    T1 = c(1, 100, 101),
+    X = c(1, 2, 3),
+    Y = c(1, 2, 3)
+  )
+
+  res <- .compute_global_coordinates(
+    fp_df,
+    subplot_size = 10,
+    plot_width_m = 100,
+    plot_length_m = 1000
+  )
+
+  expect_true(nrow(res) > 0)
+  expect_true(all(res$global_x >= 0))
+  expect_true(all(res$global_y >= 0))
 })
 
 test_that(".compute_monitora_geometry works for full layout and local cell filtering", {
@@ -621,15 +657,33 @@ test_that(".find_field_header_row finds the best matching header row", {
 # -----------------------------------------------------------------------------
 
 test_that(".collection_percentual writes workbook with expected sheets", {
-  skip_if_not_installed("openxlsx")
+  out_dir <- tempdir()
 
-  fp <- .make_field_sheet_df()
-  out_dir <- withr::local_tempdir()
-  xlsx_path <- .collection_percentual(fp, dir = out_dir, plot_name = "Plot", plot_code = "P1", team = "Team")
+  fp <- tibble::tibble(
+    `New Tag No` = c("1", "2", "3"),
+    T1 = c(1, 1, 2),
+    Family = c("Fabaceae", "Arecaceae", "Myrtaceae"),
+    Collected = c("yes", NA, "yes")
+  )
 
-  expect_true(file.exists(xlsx_path))
-  sheets <- openxlsx::getSheetNames(xlsx_path)
-  expect_setequal(sheets, c("COLLECTION_PERCENTUAL", "NOT_COLLECTED", "COLLECTED"))
+  out_file <- .collection_percentual(
+    fp_sheet = fp,
+    dir = out_dir,
+    plot_name = "Plot",
+    plot_code = "P1",
+    team = "Team",
+    plot_width_m = 100,
+    plot_length_m = 100,
+    subplot_size = 10
+  )
+
+  expect_true(file.exists(out_file))
+
+  sheets <- openxlsx::getSheetNames(out_file)
+  expect_equal(
+    sort(sheets),
+    sort(c("COLLECTION_PERCENTUAL", "NOT_COLLECTED", "COLLECTED"))
+  )
 })
 
 # -----------------------------------------------------------------------------
