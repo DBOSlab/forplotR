@@ -4,7 +4,7 @@
 # Revised: 08/Mar/2026
 # =============================================================================
 
-#' Normalize names for matching
+#' Normalize HERE CHANGED
 #'
 #' @param x Character vector.
 #'
