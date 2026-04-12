@@ -42,6 +42,7 @@ Imports:
     geodata,
     geosphere,
     ggplot2,
+    plotly,
     grDevices,
     grid,
     here,

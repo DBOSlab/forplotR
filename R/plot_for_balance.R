@@ -22,7 +22,7 @@
 #' @usage
 #' plot_for_balance(fp_file_path = NULL,
 #'                  language = c("en", "pt", "es", "fr", "ma", "pa"),
-#'                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
+#'                  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
 #'                  plot_size = 1,
 #'                  subplot_size = 10,
 #'                  plot_width_m = 100,
@@ -31,6 +31,7 @@
 #'                  station_name = NULL,
 #'                  plot_name = NULL,
 #'                  plot_code = NULL,
+#'                  plot_census_no = NULL,
 #'                  team = NULL,
 #'                  render_html = TRUE,
 #'                  render_pdf = TRUE,
@@ -44,8 +45,8 @@
 #' @param language Character. One of en (english), pt (portuguese), es
 #' (spanish), fr (french), ma (mandarin), pa (panara) (default = en)
 #'
-#' @param input_type Character. One of `"field_sheet"`, `"fp_query_sheet"` or
-#'   `"monitora"`. Specifies the type/layout of the input file.
+#' @param input_type Character. One of `"field_sheet"`, `"field_sheet_ti"`,
+#' `"fp_query_sheet"` or `"monitora"`. Specifies the type/layout of the input file.
 #'
 #' @param plot_size Total plot size in hectares. Used for `"field_sheet"` and
 #' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
@@ -70,6 +71,9 @@
 #'
 #' @param plot_code Optional plot code. If provided, overrides the plot code
 #' extracted from the input file metadata.
+#'
+#' @param plot_census_no Optional plot census no. Default is 1, overrides the plot
+#' census number extract from a fp_query_sheet input sheet.
 #'
 #' @param team Optional team or PI name. If provided, overrides the team
 #' extracted from the input file metadata.
@@ -107,6 +111,8 @@
 #' @importFrom grid unit
 #' @importFrom writexl write_xlsx
 #' @importFrom stats na.omit setNames
+#' @importFrom plotly plot_ly layout config
+#' @importFrom htmlwidgets onRender
 #'
 #' @examples
 #' \dontrun{
@@ -130,7 +136,7 @@
 
 plot_for_balance <- function(fp_file_path = NULL,
                              language = c("en", "pt", "es", "fr", "ma", "pa"),
-                             input_type = c("field_sheet", "fp_query_sheet", "monitora"),
+                             input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
                              plot_size = 1,
                              subplot_size = 10,
                              plot_width_m = 100,
@@ -139,6 +145,7 @@ plot_for_balance <- function(fp_file_path = NULL,
                              station_name = NULL,
                              plot_name = NULL,
                              plot_code = NULL,
+                             plot_census_no = NULL,
                              team = NULL,
                              render_html = TRUE,
                              render_pdf = TRUE,
@@ -149,7 +156,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   .validate_subplot_size(subplot_size)
 
   input_type <- tolower(trimws(as.character(input_type)))
-  input_type <- match.arg(input_type, c("field_sheet", "fp_query_sheet", "monitora"))
+  input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
 
   if (!is.logical(render_html) || length(render_html) != 1 || is.na(render_html)) {
     stop("`render_html` must be TRUE or FALSE.", call. = FALSE)
@@ -163,7 +170,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     stop("`write_xlsx` must be TRUE or FALSE.", call. = FALSE)
   }
 
-  if (input_type %in% c("field_sheet", "fp_query_sheet")) {
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
     .validate_plot_size(plot_size)
 
     plot_area_m2 <- plot_size * 10000
@@ -223,6 +230,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   arg_plot_name <- plot_name
   arg_plot_code <- plot_code
+  arg_census_no_fp <- plot_census_no
   arg_team <- team
 
   if (input_type == "monitora" && !is.null(station_name) && length(station_name) > 1L) {
@@ -261,8 +269,17 @@ plot_for_balance <- function(fp_file_path = NULL,
         col_names = FALSE,
         .name_repair = "minimal"
       )
+    ),
+    "field_sheet_ti" = suppressMessages(
+      readxl::read_excel(
+        fp_file_path,
+        sheet = 1,
+        col_names = FALSE,
+        .name_repair = "minimal"
+      )
     )
   )
+
   message("RAW import check:")
   print(raw[1:15, 1:10])
 
@@ -297,12 +314,20 @@ plot_for_balance <- function(fp_file_path = NULL,
       "Unknown Plot"
     }
 
-    plot_code <- if (!is.null(arg_plot_code) && nzchar(arg_plot_code)) {
-      arg_plot_code
-    } else if (!is.null(raw_meta) &&
-               !is.null(raw_meta$plot_code) &&
-               nzchar(trimws(raw_meta$plot_code))) {
+    plot_code <- if (!is.null(raw_meta) &&
+                     !is.null(raw_meta$plot_code) &&
+                     nzchar(trimws(raw_meta$plot_code))) {
       raw_meta$plot_code
+    } else {
+      ""
+    }
+
+    plot_census_no_fp <- if (!is.null(arg_census_no_fp) && nzchar(arg_census_no_fp)) {
+      arg_census_no_fp
+    } else if (!is.null(raw_meta) &&
+               !is.null(raw_meta$census_no_fp) &&
+               nzchar(trimws(raw_meta$census_no_fp))) {
+      raw_meta$census_no_fp
     } else {
       ""
     }
@@ -355,7 +380,13 @@ plot_for_balance <- function(fp_file_path = NULL,
       if (length(hit)) sub("^\\s*(Plotcode:|Plot Code:)\\s*", "", hit[1], ignore.case = TRUE) else ""
     }
 
-    if (language == "pa") {
+    plot_census_no_fp <- if (!is.null(arg_census_no_fp) && nzchar(arg_census_no_fp)) {
+      arg_census_no_fp
+    } else {
+      "1"
+    }
+
+    if (input_type == "field_sheet_ti") {
 
       raw_data <- raw[-c(1, 2), , drop = FALSE]
       n <- nrow(raw_data)
@@ -394,7 +425,7 @@ plot_for_balance <- function(fp_file_path = NULL,
       data$Collected <- raw_data[[18]]
       data$`Census Notes` <- raw_data[[19]]
 
-      message("Detected Panar\u00e1 layout; skipping header remap and using direct column mapping.")
+      message("Detected Indigenous Land layout; skipping header remap and using direct column mapping.")
 
     } else {
 
@@ -418,11 +449,49 @@ plot_for_balance <- function(fp_file_path = NULL,
   }
   data$Collected <- gsub("^$", NA, data$Collected)
   data <- .replace_empty_with_na(data)
-  if (!has_meta && input_type == "field_sheet") {
+  if (!has_meta && input_type %in% c("field_sheet", "field_sheet_ti")) {
     message("No metadata row found; proceeding without Plot Name / Plot Code / Team.")
   }
 
   fp_sheet <- as.data.frame(data, stringsAsFactors = FALSE)
+
+  # CONSOLIDATE MULTISTEMMED TREES
+  # It identifies trees with multiple stems (same New Stem Grouping),
+  # calculates equivalent diameter, and keeps only the main stem row.
+
+  if (!is.null(fp_sheet) && nrow(fp_sheet) > 0) {
+
+    # Check if we have the necessary columns
+    if (all(c("New Stem Grouping", "New Tag No") %in% names(fp_sheet))) {
+
+      # Count rows before consolidation
+      n_before <- nrow(fp_sheet)
+
+      # Count unique stem groups
+      n_groups <- fp_sheet %>%
+        dplyr::filter(!is.na(`New Stem Grouping`) & nzchar(`New Stem Grouping`)) %>%
+        dplyr::pull(`New Stem Grouping`) %>%
+        unique() %>%
+        length()
+
+      message("\n=== MULTISTEM CONSOLIDATION ===")
+      message("Rows before consolidation: ", n_before)
+      message("Unique stem groups found: ", n_groups)
+
+      # Apply consolidation
+      fp_sheet <- .consolidate_multistem_trees(fp_sheet, min_diameter = 5)
+
+      # Report results
+      n_after <- nrow(fp_sheet)
+      message("Rows after consolidation: ", n_after)
+      message("Rows removed: ", n_before - n_after)
+      message("================================\n")
+
+    } else {
+      message("Note: Columns 'New Stem Grouping' and/or 'New Tag No' not found. ")
+      message("      Multistem consolidation skipped.")
+    }
+  }
 
   if (!("Collected" %in% names(fp_sheet))) {
     fp_sheet$Collected <- NA_character_
@@ -493,6 +562,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     }
   }
 
+  message("Computing plot coordinates...")
   if (input_type == "monitora") {
     fp_coords <- .compute_monitora_geometry(fp_clean, keep_only_cell = FALSE)
   } else {
@@ -532,7 +602,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   subplot_labels <- NULL
 
-  if (input_type %in% c("field_sheet", "fp_query_sheet")) {
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
     subplot_labels <- tibble::tibble(T1 = sort(unique(fp_coords$T1))) %>%
       dplyr::mutate(
         T1 = suppressWarnings(as.numeric(T1)),
@@ -551,8 +621,12 @@ plot_for_balance <- function(fp_file_path = NULL,
       dplyr::select(T1, center_x, center_y)
   }
 
-  if (input_type %in% c("field_sheet", "fp_query_sheet")) {
-    base_plot <- .build_fp_base_plot(
+  message("Building plot maps...")
+
+  base_plot_interactive <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    base_plot_static <- .build_fp_base_plot(
       fp_coords = fp_coords,
       subplot_labels = subplot_labels,
       subplot_size = subplot_size,
@@ -563,14 +637,29 @@ plot_for_balance <- function(fp_file_path = NULL,
       highlight_palms = highlight_palms,
       language = language
     )
+
+    if (isTRUE(render_html)) {
+      base_plot_interactive <- .build_fp_base_plot_interactive(
+        fp_coords = fp_coords,
+        subplot_labels = subplot_labels,
+        subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        highlight_palms = highlight_palms,
+        language = language
+      )
+    }
   } else {
-    base_plot <- .build_monitora_base_plot(
+    base_plot_static <- .build_monitora_base_plot(
       fp_coords = fp_coords,
       plot_name = plot_name,
       plot_code = plot_code,
       highlight_palms = highlight_palms,
       language = language
     )
+    base_plot_interactive <- NULL
   }
 
   rmd_path <- file.path(foldername, paste0(filename, "_temp.Rmd"))
@@ -581,24 +670,26 @@ plot_for_balance <- function(fp_file_path = NULL,
   uncollected_plot <- NULL
   palms_plot <- NULL
 
+  # Use static ggplot for %+%
   tf_col <- !is.na(fp_coords$Collected)
   if (any(tf_col)) {
-    collected_plot <- base_plot %+% (fp_coords %>% dplyr::filter(!is.na(Collected) & Family != "Arecaceae"))
+    collected_plot <- base_plot_static %+% (fp_coords %>% dplyr::filter(!is.na(Collected) & Family != "Arecaceae"))
   }
 
   tf_uncol <- is.na(fp_coords$Collected)
   if (any(tf_uncol)) {
-    uncollected_plot <- base_plot %+% (fp_coords %>% dplyr::filter(is.na(Collected) & Family != "Arecaceae"))
+    uncollected_plot <- base_plot_static %+% (fp_coords %>% dplyr::filter(is.na(Collected) & Family != "Arecaceae"))
   }
 
   tf_palm <- fp_coords$Family %in% "Arecaceae"
   if (any(tf_palm)) {
-    palms_plot <- base_plot %+% (fp_coords %>% dplyr::filter(is.na(Collected) & Family == "Arecaceae"))
+    palms_plot <- base_plot_static %+% (fp_coords %>% dplyr::filter(is.na(Collected) & Family == "Arecaceae"))
   }
 
+  message("Saving PNG maps...")
   ggplot2::ggsave(
     filename = file.path(foldername, paste0(filename, "_general.png")),
-    plot = base_plot,
+    plot = base_plot_static,
     width = 14, height = 11, units = "in", dpi = 300
   )
 
@@ -626,6 +717,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     )
   }
 
+  message("Building subplot maps...")
   subplot_plots <- list()
 
   if (input_type == "monitora") {
@@ -660,7 +752,7 @@ plot_for_balance <- function(fp_file_path = NULL,
             TRUE ~ tr["uncollected"]
           ),
           Status = factor(Status, levels = c(tr["collected"], tr["uncollected"], tr["palms"])),
-          diameter = D / 10
+          diameter = dplyr::if_else(is.finite(D / 10), D / 10, NA_real_)
         )
 
       sp_plot <- .compute_monitora_geometry(sp_data, keep_only_cell = TRUE)
@@ -688,7 +780,7 @@ plot_for_balance <- function(fp_file_path = NULL,
           name = tr["dbh"],
           breaks = brk,
           labels = sprintf("%.1f", brk),
-          limits = range(brk, na.rm = TRUE),
+          limits = c(0, max(brk, na.rm = TRUE)),
           max_size = 10,
           guide = "legend"
         ) +
@@ -714,7 +806,10 @@ plot_for_balance <- function(fp_file_path = NULL,
     }
 
   } else {
-    for (i in sort(unique(fp_coords$T1))) {
+    all_subplot_ids <- seq_len(
+      floor(plot_width_m / subplot_size) * floor(plot_length_m / subplot_size)
+    )
+    for (i in all_subplot_ids) {
       sp_data <- fp_coords %>%
         dplyr::filter(T1 == i) %>%
         dplyr::mutate(
@@ -724,7 +819,7 @@ plot_for_balance <- function(fp_file_path = NULL,
             TRUE ~ tr["uncollected"]
           ),
           Status = factor(Status, levels = c(tr["collected"], tr["uncollected"], tr["palms"])),
-          diameter = D / 10
+          diameter = dplyr::if_else(is.finite(D / 10), D / 10, NA_real_)
         )
 
       valid_d <- sp_data$diameter[is.finite(sp_data$diameter)]
@@ -735,15 +830,17 @@ plot_for_balance <- function(fp_file_path = NULL,
         breaks_d[1] <- min_d
         breaks_d[4] <- max_d
       } else {
+        max_d <- 10
         breaks_d <- c(1, 3, 7, 10)
       }
 
+      d_limit <- max_d
       breaks_d <- unique(stats::na.omit(round(breaks_d, 1)))
       if (length(breaks_d) < 2) breaks_d <- c(breaks_d, breaks_d + 0.01)
 
       p <- ggplot2::ggplot(sp_data, ggplot2::aes(x = X, y = Y)) +
-        ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size),
-                           fill = NA, color = "black", linewidth = 0.6) +
+        ggplot2::annotate("rect", xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size,
+                          fill = NA, color = "darkolivegreen", linewidth = 0.6) +
         ggplot2::geom_point(ggplot2::aes(size = diameter, fill = Status),
                             shape = 21, color = "black", stroke = 0.2, alpha = 0.9) +
         ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.7) +
@@ -758,13 +855,13 @@ plot_for_balance <- function(fp_file_path = NULL,
           name = tr["dbh"],
           breaks = breaks_d,
           labels = sprintf("%.1f", breaks_d),
-          limits = range(breaks_d, na.rm = TRUE),
+          limits = c(0, d_limit),
           max_size = 10,
           guide = "legend"
         ) +
         ggplot2::labs(
           title = paste(tr["plot_name"], plot_name),
-          subtitle = paste0(tr["plot_code"], " ", plot_code),
+          subtitle = paste(tr["plot_code"], plot_code),
           x = tr["x_m"],
           y = tr["y_m"]
         ) +
@@ -773,7 +870,8 @@ plot_for_balance <- function(fp_file_path = NULL,
         ggplot2::theme(
           panel.grid.minor = ggplot2::element_blank(),
           panel.grid.major = ggplot2::element_line(linewidth = 0.3, color = "gray80"),
-          legend.position = "right"
+          panel.border = ggplot2::element_rect(color = "gray80", fill = NA, linewidth = 0.3),
+          legend.position = "right",
         ) +
         ggplot2::guides(
           fill = ggplot2::guide_legend(override.aes = list(size = 5), order = 1),
@@ -837,12 +935,14 @@ plot_for_balance <- function(fp_file_path = NULL,
     input_type = input_type,
     metadata = list(
       plot_name = plot_name,
+      plot_census_no_fp = plot_census_no_fp,
       plot_code = plot_code,
       team = team,
       census_years = if (exists("monitora_census_years", inherits = TRUE)) get("monitora_census_years") else NULL,
       census_n = if (exists("monitora_census_n", inherits = TRUE)) get("monitora_census_n") else NULL
     ),
-    main_plot = base_plot,
+    main_plot = base_plot_static,
+    interactive_main_plot = base_plot_interactive,
     subplots_list = subplot_plots,
     subplot_size = subplot_size,
     stats = list(
@@ -863,13 +963,45 @@ plot_for_balance <- function(fp_file_path = NULL,
   if (!is.null(uncollected_plot)) param_list$uncollected_plot <- uncollected_plot
   if (!is.null(palms_plot)) param_list$uncollected_palm_plot <- palms_plot
 
-  latex_engine <- if (language %in% c("ma", "pa")) "xelatex" else "pdflatex"
+  # Build interactive plotly versions of the filtered maps for HTML
+  if (isTRUE(render_html) && input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    collected_data <- fp_coords %>% dplyr::filter(!is.na(Collected) & Family != "Arecaceae")
+    if (nrow(collected_data) > 0) {
+      param_list$interactive_collected_plot <- .build_fp_base_plot_interactive(
+        fp_coords = collected_data, subplot_labels = subplot_labels,
+        subplot_size = subplot_size, plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m, plot_name = plot_name,
+        plot_code = plot_code, highlight_palms = FALSE, language = language
+      )
+    }
+    uncollected_data <- fp_coords %>% dplyr::filter(is.na(Collected) & Family != "Arecaceae")
+    if (nrow(uncollected_data) > 0) {
+      param_list$interactive_uncollected_plot <- .build_fp_base_plot_interactive(
+        fp_coords = uncollected_data, subplot_labels = subplot_labels,
+        subplot_size = subplot_size, plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m, plot_name = plot_name,
+        plot_code = plot_code, highlight_palms = FALSE, language = language
+      )
+    }
+    palm_data <- fp_coords %>% dplyr::filter(is.na(Collected) & Family == "Arecaceae")
+    if (nrow(palm_data) > 0) {
+      param_list$interactive_palm_plot <- .build_fp_base_plot_interactive(
+        fp_coords = palm_data, subplot_labels = subplot_labels,
+        subplot_size = subplot_size, plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m, plot_name = plot_name,
+        plot_code = plot_code, highlight_palms = TRUE, language = language
+      )
+    }
+  }
+
+  latex_engine <- "xelatex"
 
   html_report <- NULL
   pdf_report <- NULL
   xlsx_report <- NULL
 
   if (isTRUE(render_html)) {
+    message("Rendering HTML report (this may take a few minutes)...")
     html_report <- .render_plot_report(
       rmd_path = rmd_path,
       output_path = foldername,
@@ -881,6 +1013,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   }
 
   if (isTRUE(render_pdf)) {
+    message("Rendering PDF report...")
     pdf_report <- tryCatch(
       .render_plot_report(
         rmd_path = rmd_path,
@@ -898,16 +1031,19 @@ plot_for_balance <- function(fp_file_path = NULL,
   }
 
   if (isTRUE(write_xlsx)) {
-    xlsx_report <- .collection_percentual(
-      fp_sheet = fp_coords,
-      dir = foldername,
-      plot_name = plot_name,
-      plot_code = plot_code,
-      team = team,
-      plot_width_m = plot_width_m,
-      plot_length_m = plot_length_m,
-      subplot_size = subplot_size
-    )
+    if (input_type != "monitora") {
+      xlsx_report <- .collection_percentual(
+        fp_sheet = fp_coords,
+        dir = foldername,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        plot_census_no_fp = plot_census_no_fp,
+        team = team,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        subplot_size = subplot_size
+      )
+    }
   }
 
   unlink(rmd_path, force = TRUE)
@@ -970,8 +1106,9 @@ plot_for_balance <- function(fp_file_path = NULL,
       uncollected = "Uncollected",
       palms = "Palms",
       dbh = "DBH (cm)",
-      plot_name = "Plot Name:",
-      plot_code = "Plot Code:",
+      plot_name = "Plot Name",
+      plot_code = "Plot Code",
+      plot_census_no_fp = "Census No",
       team = "Team:",
       x_m = "X (m)",
       y_m = "Y (m)",
@@ -987,8 +1124,9 @@ plot_for_balance <- function(fp_file_path = NULL,
       uncollected = "Não Coletados",
       palms = "Palmeiras",
       dbh = "DAP (cm)",
-      plot_name = "Nome da Parcela:",
-      plot_code = "Código da Parcela:",
+      plot_name = "Nome da Parcela",
+      plot_code = "Código da Parcela",
+      plot_census_no_fp = "Número do Censo",
       team = "Equipe:",
       x_m = "X (m)",
       y_m = "Y (m)",
@@ -1002,11 +1140,12 @@ plot_for_balance <- function(fp_file_path = NULL,
       status = "Estado",
       collected = "Colectados",
       uncollected = "No Colectados",
+      plot_census_no_fp = "Número de Censo",
       palms = "Palmas",
       dbh = "DAP (cm)",
-      plot_name = "Nombre de la Parcela:",
-      plot_code = "Código de la Parcela:",
-      team = "Equipo:",
+      plot_name = "Nombre de la Parcela",
+      plot_code = "Código de la Parcela",
+      team = "Equipo",
       x_m = "X (m)",
       y_m = "Y (m)",
       local_x_m = "X local (m)",
@@ -1021,9 +1160,10 @@ plot_for_balance <- function(fp_file_path = NULL,
       uncollected = "Non Collectés",
       palms = "Palmiers",
       dbh = "DHP (cm)",
-      plot_name = "Nom de la Parcelle :",
-      plot_code = "Code de la Parcelle :",
-      team = "Équipe :",
+      plot_name = "Nom de la Parcelle",
+      plot_code = "Code de la Parcelle",
+      plot_census_no_fp = "Numéro de Recensement",
+      team = "Équipe",
       x_m = "X (m)",
       y_m = "Y (m)",
       local_x_m = "X local (m)",
@@ -1038,9 +1178,10 @@ plot_for_balance <- function(fp_file_path = NULL,
       uncollected = "未采集",
       palms = "棕榈科",
       dbh = "胸径 (cm)",
-      plot_name = "样地名称：",
-      plot_code = "样地代码：",
-      team = "团队：",
+      plot_name = "样地名称",
+      plot_code = "样地代码",
+      plot_census_no_fp = "普查编号",
+      team = "团队",
       x_m = "X（米）",
       y_m = "Y（米）",
       local_x_m = "局部 X（米）",
@@ -1055,15 +1196,16 @@ plot_for_balance <- function(fp_file_path = NULL,
       uncollected = "Pâri rõrĩ",
       palms = "Kwatisômẽra",
       dbh = "Classes de DAP",
-      plot_name = "Issi rê tâ kukâri:",
-      plot_code = "Кypa kukâri:",
-      team = "Sâpêrãtê:",
+      plot_name = "Issi rê tâ kukâri",
+      plot_code = "Kypa kukâri",
+      plot_census_no_fp = "Junti hẽ rõ sên pârikran",
+      team = "Sâpêrãtê",
       x_m = "X (m)",
       y_m = "Y (m)",
       local_x_m = "X local (m)",
       local_y_m = "Y local (m)",
-      collection_balance = "Kukâra krepãã Sââ",
-      subplot = "Kukâra krepãã Sââ",
+      collection_balance = "Kukâra krepãã sââ",
+      subplot = "Kukâra krepãã sââ",
       subunit = "Subunit"
     )
   )
@@ -1076,6 +1218,164 @@ plot_for_balance <- function(fp_file_path = NULL,
   if (!key %in% names(vals)) return(key)
   vals[[key]]
 }
+
+
+# Build interactive fp base plot using plotly (client-side rendering — no SVG pre-computation)
+.build_fp_base_plot_interactive <- function(fp_coords,
+                                            subplot_labels,
+                                            subplot_size,
+                                            plot_width_m,
+                                            plot_length_m,
+                                            plot_name,
+                                            plot_code,
+                                            highlight_palms,
+                                            language = "en") {
+  tr <- .plot_i18n(language)
+
+  max_x <- floor(plot_width_m / subplot_size) * subplot_size
+  max_y <- floor(plot_length_m / subplot_size) * subplot_size
+
+  # Determine status and colour per individual
+  status <- dplyr::case_when(
+    highlight_palms & fp_coords$Family == "Arecaceae" ~ tr["palms"],
+    !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ tr["collected"],
+    TRUE ~ tr["uncollected"]
+  )
+  color_map <- stats::setNames(c("gray80", "#EF4444", "gold"),
+                               c(tr["collected"], tr["uncollected"], tr["palms"]))
+  point_colors <- unname(color_map[status])
+
+  # Marker sizes proportional to diameter (cm); fallback to minimum when NA
+  diams <- fp_coords$diameter
+  diams[!is.finite(diams)] <- 0
+  sizes <- 2 + diams * 3
+  sizes <- pmax(sizes, 6)
+
+  # Hover tooltip text
+  status_label <- dplyr::case_when(
+    !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ tr["collected"],
+    fp_coords$Family == "Arecaceae" ~ tr["palms"],
+    TRUE ~ tr["uncollected"]
+  )
+  hover_text <- paste0(
+    "<b>Tag:</b> ", fp_coords$`New Tag No`, "<br>",
+    "<b>Species:</b> ", fp_coords$`Original determination`, "<br>",
+    "<b>DBH:</b> ", round(fp_coords$D/10, 1), " cm<br>",
+    "<b>Status:</b> ", status_label
+  )
+
+  # Sanitised tag IDs matched to checklist anchors
+  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(fp_coords$`New Tag No`)))
+
+  # Grid lines and border as plotly shapes
+  v_lines <- lapply(seq(0, max_x, by = subplot_size), function(x) {
+    list(type = "line", x0 = x, x1 = x, y0 = 0, y1 = max_y,
+         line = list(color = "gray", width = 0.4), layer = "below")
+  })
+  h_lines <- lapply(seq(0, max_y, by = subplot_size), function(y) {
+    list(type = "line", x0 = 0, x1 = max_x, y0 = y, y1 = y,
+         line = list(color = "gray", width = 0.4), layer = "below")
+  })
+  border <- list(type = "rect", x0 = 0, x1 = max_x, y0 = 0, y1 = max_y,
+                 line = list(color = "darkolivegreen", width = 2.0),
+                 fillcolor = "rgba(0,0,0,0)", layer = "below")
+  all_shapes <- c(v_lines, h_lines, list(border))
+
+  # Subplot number labels as plotly annotations
+  annotations <- list()
+  if (!is.null(subplot_labels) && nrow(subplot_labels) > 0) {
+    annotations <- lapply(seq_len(nrow(subplot_labels)), function(i) {
+      list(x = subplot_labels$center_x[i],
+           y = subplot_labels$center_y[i],
+           text = as.character(subplot_labels$T1[i]),
+           showarrow = FALSE,
+           font = list(size = 9, color = "lightgray"),
+           xref = "x", yref = "y")
+    })
+  }
+
+  # Create tick values for every subplot_size (10 meters)
+  tick_vals_x <- seq(0, max_x, by = subplot_size)
+  tick_vals_y <- seq(0, max_y, by = subplot_size)
+
+  # Build the plotly scatter
+  p <- plotly::plot_ly(
+    x = fp_coords$global_x,
+    y = fp_coords$global_y,
+    type = "scatter",
+    mode = "markers+text",
+    marker = list(color = point_colors, size = sizes,
+                  line = list(color = "black", width = 0.5),
+                  symbol = "circle"),
+    text = as.character(fp_coords$`New Tag No`),
+    textposition = "middle center",
+    textfont = list(size = 7, color = "black"),
+    hovertext = hover_text,
+    hoverinfo = "text",
+    customdata = tag_ids,
+    showlegend = FALSE
+  ) %>%
+    plotly::layout(
+      title = list(
+        text = paste0("<b>", tr["collection_balance"], ": ", plot_name, "</b><br>",
+                      "<sup>", tr["plot_code"], ": ", plot_code, "</sup>"),
+        x = 0.5, xanchor = "center"
+      ),
+      xaxis = list(
+        title = list(text = tr["x_m"], standoff = 2),
+        range = c(-1, max_x + 2),
+        scaleanchor = "y",
+        scaleratio = 1,
+        showgrid = FALSE,
+        zeroline = FALSE,
+        tickmode = "array",
+        tickvals = tick_vals_x,
+        ticktext = as.character(tick_vals_x),
+        automargin = TRUE
+      ),
+      yaxis = list(
+        title = list(text = tr["y_m"], standoff = 2),
+        range = c(-1, max_y + 2),
+        showgrid = FALSE,
+        zeroline = FALSE,
+        tickmode = "array",
+        tickvals = tick_vals_y,
+        ticktext = as.character(tick_vals_y),
+        automargin = TRUE
+      ),
+      shapes = all_shapes,
+      annotations = annotations,
+      plot_bgcolor = "white",
+      paper_bgcolor = "white",
+      margin = list(l = 60, r = 60, t = 80, b = 60),  # Increased margins
+      height = 1000,  # Increased from 850 to 1000
+      width = 1200,   # Add explicit width
+      autosize = FALSE  # Change to FALSE for fixed dimensions
+    ) %>%
+    plotly::config(responsive = TRUE,
+                   displayModeBar = TRUE,
+                   scrollZoom = TRUE,
+                   doubleClick = "reset",
+                   displaylogo = FALSE,
+                   toImageButtonOptions = list(format = "png", scale = 2)
+                   ) %>%
+    htmlwidgets::onRender(
+      "function(el) {
+         el.on('plotly_click', function(eventData) {
+           if (!eventData.points || eventData.points.length === 0) return;
+           var tag = eventData.points[0].customdata;
+           if (!tag) return;
+           var anchor = document.getElementById('checklist-tag-' + tag);
+           if (anchor) {
+             anchor.scrollIntoView({behavior: 'smooth', block: 'center'});
+           }
+         });
+       }"
+    )
+
+  p
+}
+
 
 # Build fp base plot
 .build_fp_base_plot <- function(fp_coords,
@@ -1101,18 +1401,18 @@ plot_for_balance <- function(fp_file_path = NULL,
   base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
     ggplot2::geom_vline(
       xintercept = seq(0, max_x, by = subplot_size),
-      color = "gray50",
-      linewidth = 0.2
+      color = "gray80",
+      linewidth = 0.3
     ) +
     ggplot2::geom_hline(
       yintercept = seq(0, max_y, by = subplot_size),
-      color = "gray50",
-      linewidth = 0.2
+      color = "gray80",
+      linewidth = 0.3
     ) +
     ggplot2::geom_rect(
       ggplot2::aes(xmin = 0, xmax = max_x, ymin = 0, ymax = max_y),
       fill = NA,
-      color = "black",
+      color = "darkolivegreen",
       linewidth = 0.6
     ) +
     ggplot2::geom_text(
@@ -1163,15 +1463,16 @@ plot_for_balance <- function(fp_file_path = NULL,
     ggplot2::labs(
       x = tr["x_m"],
       y = tr["y_m"],
-      title = paste0(tr["collection_balance"], " ", plot_name),
-      subtitle = paste0(tr["plot_code"], " ", plot_code)
+      title = paste0(tr["collection_balance"], ": ", plot_name),
+      subtitle = paste0(tr["plot_code"], ": ", plot_code)
     ) +
     ggplot2::theme_bw() +
     ggplot2::theme(
       legend.position = "right",
       legend.justification = c(0, 1),
       legend.box.margin = ggplot2::margin(0, 5, 0, 5),
-      plot.margin = ggplot2::margin(5.5, 20, 5.5, 5.5)
+      plot.margin = ggplot2::margin(5.5, 20, 5.5, 5.5),
+      panel.border = ggplot2::element_rect(color = "gray80", fill = NA, linewidth = 0.3)
     ) +
     ggplot2::guides(
       fill = ggplot2::guide_legend(override.aes = list(size = 5))
@@ -1179,7 +1480,9 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   base_plot
 }
-# Build monitora base plot (com titulo/subtitulo via annotate)
+
+
+# Build monitora base plot
 .build_monitora_base_plot <- function(
     fp_coords,
     plot_name,
@@ -1340,12 +1643,12 @@ plot_for_balance <- function(fp_file_path = NULL,
     ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 0.65, show.legend = FALSE) +
     ggplot2::annotate("text",
                       x = gx_min + left_inset, y = gy_max + gap_title + gap_sub,
-                      label = paste0(tr["collection_balance"], " \u2014 ", plot_name),
+                      label = paste0(tr["collection_balance"], ": ", plot_name),
                       size = 5, hjust = 0, vjust = 1
     ) +
     ggplot2::annotate("text",
                       x = gx_min + left_inset, y = gy_max + gap_title,
-                      label = paste0(tr["plot_code"], " ", ifelse(is.null(plot_code), "", plot_code)),
+                      label = paste0(tr["plot_code"], ": ", ifelse(is.null(plot_code), "", plot_code)),
                       size = 3.8, hjust = 0, vjust = 1
     ) +
     ggplot2::scale_x_continuous(limits = c(gx_min, gx_max),
@@ -1382,6 +1685,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 .collection_percentual <- function(fp_sheet, dir = getwd(),
                                    plot_name = "",
                                    plot_code = "",
+                                   plot_census_no_fp = "",
                                    team = "",
                                    plot_width_m,
                                    plot_length_m,
@@ -1520,6 +1824,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   header_string <- paste(
     "Plot Name:", plot_name,
     "| Plot Code:", plot_code,
+    "| Census No:", plot_census_no_fp,
     "| Team:", team
   )
 
@@ -1566,6 +1871,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   invisible(output_file)
 }
 
+
 # Extract a character row from a data.frame / matrix / vector
 .safe_char_row <- function(x, row = 1L) {
 
@@ -1583,6 +1889,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   v[is.na(v)] <- ""
   trimws(v)
 }
+
 
 .render_plot_report <- function(
     rmd_path,
@@ -1617,7 +1924,8 @@ plot_for_balance <- function(fp_file_path = NULL,
       output_format = rmarkdown::html_document(
         toc = TRUE,
         toc_depth = 2,
-        number_sections = TRUE
+        number_sections = TRUE,
+        self_contained = TRUE
       )
     )
 
@@ -1705,6 +2013,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   invisible(final_out)
 }
+
 
 .detect_coordinate_mode <- function(df) {
   has_local_xy <- .has_any(df, c("X")) && .has_any(df, c("Y"))

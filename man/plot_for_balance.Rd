@@ -6,7 +6,7 @@
 \usage{
 plot_for_balance(fp_file_path = NULL,
                  language = c("en", "pt", "es", "fr", "ma", "pa"),
-                 input_type = c("field_sheet", "fp_query_sheet", "monitora"),
+                 input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
                  plot_size = 1,
                  subplot_size = 10,
                  plot_width_m = 100,
@@ -15,6 +15,7 @@ plot_for_balance(fp_file_path = NULL,
                  station_name = NULL,
                  plot_name = NULL,
                  plot_code = NULL,
+                 plot_census_no = NULL,
                  team = NULL,
                  render_html = TRUE,
                  render_pdf = TRUE,
@@ -29,8 +30,8 @@ ForestPlots format.}
 \item{language}{Character. One of en (english), pt (portuguese), es
 (spanish), fr (french), ma (mandarin), pa (panara) (default = en)}
 
-\item{input_type}{Character. One of `"field_sheet"`, `"fp_query_sheet"` or
-`"monitora"`. Specifies the type/layout of the input file.}
+\item{input_type}{Character. One of `"field_sheet"`, `"field_sheet_ti"`,
+`"fp_query_sheet"` or `"monitora"`. Specifies the type/layout of the input file.}
 
 \item{plot_size}{Total plot size in hectares. Used for `"field_sheet"` and
 `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.}
@@ -55,6 +56,9 @@ extracted from the input file metadata.}
 
 \item{plot_code}{Optional plot code. If provided, overrides the plot code
 extracted from the input file metadata.}
+
+\item{plot_census_no}{Optional plot census no. Default is 1, overrides the plot
+census number extract from a fp_query_sheet input sheet.}
 
 \item{team}{Optional team or PI name. If provided, overrides the team
 extracted from the input file metadata.}
