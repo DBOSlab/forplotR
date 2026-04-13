@@ -2,69 +2,79 @@
 #'
 #' @author Giulia Ottino & Domingos Cardoso
 #'
-#' @description Processes field data collected using the
-#' \href{https://forestplots.net/}{ForestPlots.net} format (field sheets or
-#' Query Library output) or
-#' \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{Monitora program}
-#' layouts, and generates a specimen map with collection status and spatial
-#' Distribution of individuals across subplots. It creates a PDF report with
-#' plot-level and subplot-level maps and an Excel spreadsheet summarizing the
-#' percentage of collected specimens per subplot. The function performs the
-#' following steps: (i) validates all input arguments and checks/creates output
-#' folders; (ii) reads the input sheet, extracts metadata (team, plot name, plot
-#' code), and cleans the data; (iii) normalizes and cleans coordinate and
-#' diameter values, computing global plot coordinates; (iv) builds a PDF report
-#' including plot metadata, the main map, collected and uncollected specimen
-#' maps, an optional palm map and navigable subplot maps; (v) optionally
-#' generates a spreadsheet with the collection percentage per subplot (including
-#' totals), separating palms from non-palms.
+#' @description
+#' Generate specimen collection-balance maps and reports from
+#' \href{https://forestplots.net/}{ForestPlots.net} or
+#' \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{MONITORA program}
+#' field data. The function reads plot data, standardizes coordinates and
+#' specimen metadata, builds plot and subplot maps, and optionally exports
+#' HTML/PDF reports and an Excel summary workbook.
 #'
-#' @usage
-#' plot_for_balance(fp_file_path = NULL,
-#'                  language = c("en", "pt", "es", "fr", "ma", "pa"),
-#'                  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
-#'                  plot_size = 1,
-#'                  subplot_size = 10,
-#'                  plot_width_m = 100,
-#'                  plot_length_m = NULL,
-#'                  highlight_palms = TRUE,
-#'                  station_name = NULL,
-#'                  plot_name = NULL,
-#'                  plot_code = NULL,
-#'                  plot_census_no = NULL,
-#'                  team = NULL,
-#'                  render_html = TRUE,
-#'                  render_pdf = TRUE,
-#'                  write_xlsx = TRUE,
-#'                  dir = "Results_map_plot",
-#'                  filename = "plot_specimen")
+#' @details
+#' Supported inputs include ForestPlots.net field sheets, Indigenous Land field
+#' sheets, Query Library exports, and MONITORA layouts. Depending on the selected
+#' \code{input_type}, the function:
+#' \enumerate{
+#'   \item validates arguments and output directories;
+#'   \item reads and harmonizes the input table into a canonical internal schema;
+#'   \item extracts or overrides plot metadata;
+#'   \item cleans coordinates and diameter values and computes plot geometry;
+#'   \item generates whole-plot and subplot-level maps, with optional palm highlighting;
+#'   \item renders HTML and/or PDF reports;
+#'   \item optionally writes an Excel workbook summarizing collection balance per subplot.
+#' }
 #'
-#' @param fp_file_path Path to the Excel file (field or query sheet) in
-#' ForestPlots format.
+#' Collection status is inferred from the canonical \code{Collected} column
+#' after input harmonization. For some input types, this field is derived from
+#' source-specific voucher or collection-status columns.
 #'
-#' @param language Character. One of en (english), pt (portuguese), es
-#' (spanish), fr (french), ma (mandarin), pa (panara) (default = en)
+#' The function is primarily called for its side effects of writing reports and
+#' summary files to disk.
 #'
-#' @param input_type Character. One of `"field_sheet"`, `"field_sheet_ti"`,
-#' `"fp_query_sheet"` or `"monitora"`. Specifies the type/layout of the input file.
+#' @section Input types:
+#' \describe{
+#'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
+#'   \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
+#' }
 #'
-#' @param plot_size Total plot size in hectares. Used for `"field_sheet"` and
-#' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
+#' @section Side effects:
+#' The function creates output files on disk, including map images, an optional
+#' HTML report, an optional PDF report, and an optional Excel workbook. Temporary
+#' intermediate files used during report rendering are removed before exit.
 #'
-#' @param subplot_size Side length of each subplot in meters (default = 10).
+#' @param fp_file_path Path to the input Excel file in ForestPlots.net
+#' field-sheet, Query Library, or MONITORA format.
 #'
-#' @param plot_width_m Plot width in meters. Used for `"field_sheet"` and
-#' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
+#' @param language Output language. One of \code{"en"} (English),
+#' \code{"pt"} (Portuguese), \code{"es"} (Spanish), \code{"fr"} (French),
+#' \code{"ma"} (Mandarin), or \code{"pa"} (Panará).
 #'
-#' @param plot_length_m Plot length in meters. Used for `"field_sheet"` and
-#' `"fp_query_sheet"` inputs. Ignored when `input_type = "monitora"`.
+#' @param input_type Input layout. One of \code{"field_sheet"},
+#' \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.
 #'
-#' @param highlight_palms Logical. If `TRUE`, highlights Arecaceae individuals
-#' in the plots.
+#' @param plot_size Total plot size in hectares. Used for \code{"field_sheet"}
+#' and \code{"fp_query_sheet"} inputs. Ignored when
+#' \code{input_type = "monitora"}.
 #'
-#' @param station_name Optional station identifier used when `input_type = "monitora"`.
-#' If a vector of length > 1, the function will recursively generate a report
-#' and summary spreadsheet for each station.
+#' @param subplot_size Side length of each subplot in meters.
+#'
+#' @param plot_width_m Plot width in meters. Used for \code{"field_sheet"} and
+#' \code{"fp_query_sheet"} inputs. Ignored when
+#' \code{input_type = "monitora"}.
+#'
+#' @param plot_length_m Plot length in meters. Used for \code{"field_sheet"} and
+#' \code{"fp_query_sheet"} inputs. Ignored when
+#' \code{input_type = "monitora"}.
+#'
+#' @param highlight_palms Logical. If \code{TRUE}, Arecaceae individuals are
+#' highlighted in maps and treated as a separate visual status category.
+#'
+#' @param station_name Optional station identifier used when
+#' \code{input_type = "monitora"}. If a character vector of length greater than
+#' 1 is supplied, the function recursively generates one report per station,
+#' appending the station identifier to \code{filename}.
 #'
 #' @param plot_name Optional plot name. If provided, overrides the plot name
 #' extracted from the input file metadata.
@@ -72,27 +82,34 @@
 #' @param plot_code Optional plot code. If provided, overrides the plot code
 #' extracted from the input file metadata.
 #'
-#' @param plot_census_no Optional plot census no. Default is 1, overrides the plot
-#' census number extract from a fp_query_sheet input sheet.
+#' @param plot_census_no Optional census number. If provided, overrides the
+#' census number extracted from a \code{"fp_query_sheet"} input. For field-sheet
+#' inputs, the function falls back to \code{"1"} when no value is available.
 #'
 #' @param team Optional team or PI name. If provided, overrides the team
 #' extracted from the input file metadata.
 #'
-#' @param render_html Logical. If `TRUE`, renders the HTML report.
+#' @param render_html Logical. If \code{TRUE}, renders the HTML report.
 #'
-#' @param render_pdf Logical. If `TRUE`, renders the PDF report.
+#' @param render_pdf Logical. If \code{TRUE}, renders the PDF report.
 #'
-#' @param write_xlsx Logical. If `TRUE`, writes the Excel summary workbook.
+#' @param write_xlsx Logical. If \code{TRUE}, writes the Excel summary workbook.
 #'
-#' @param dir Directory path where output will be saved
-#' (default is `"Results_map_plot"`). A date-stamped subfolder will be created
-#' inside this directory.
+#' @param dir Output directory. A date-stamped subfolder in the format
+#' \code{ddMonYYYY} is created inside this directory.
 #'
-#' @param filename Basename for output files (without extension).
+#' @param filename Basename for generated output files, without extension.
 #'
-#' @return Invisibly returns \code{NULL}. Called for its side effects of
-#' generating a PDF report and an Excel file summarizing specimen collection
-#' statistics per subplot.
+#' @return Invisibly returns a list with paths to generated outputs:
+#' \describe{
+#'   \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
+#'   \item{pdf_report}{Path to the rendered PDF report, or \code{NULL} if not generated.}
+#'   \item{xlsx_report}{Path to the Excel summary workbook, or \code{NULL} if not generated.}
+#'   \item{output_dir}{Directory where outputs were written.}
+#' }
+#' When \code{input_type = "monitora"} and \code{station_name} has length greater
+#' than 1, the function recursively processes each station and invisibly returns
+#' \code{TRUE}.
 #'
 #' @import ggplot2
 #' @importFrom readxl read_excel
@@ -116,18 +133,36 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Basic usage with field sheet
+#' # ForestPlots.net field sheet
 #' plot_for_balance(
 #'   fp_file_path = "data/forestplot.xlsx",
-#'   language = "en",
-#'   input_type = "field_sheet"
+#'   input_type = "field_sheet",
+#'   language = "en"
 #' )
 #'
-#' # With Monitora data
+#' # Query export with explicit plot geometry
 #' plot_for_balance(
-#'   fp_file_path = "data/monitora_data.xlsx",
+#'   fp_file_path = "data/query_export.xlsx",
+#'   input_type = "fp_query_sheet",
+#'   plot_size = 1,
+#'   plot_width_m = 100,
+#'   subplot_size = 10,
+#'   render_html = TRUE,
+#'   render_pdf = FALSE
+#' )
+#'
+#' # MONITORA data for one station
+#' plot_for_balance(
+#'   fp_file_path = "data/monitora.xlsx",
 #'   input_type = "monitora",
 #'   station_name = "Station1"
+#' )
+#'
+#' # MONITORA data for multiple stations
+#' plot_for_balance(
+#'   fp_file_path = "data/monitora.xlsx",
+#'   input_type = "monitora",
+#'   station_name = c("Station1", "Station2")
 #' )
 #' }
 #'
