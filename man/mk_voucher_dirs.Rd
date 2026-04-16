@@ -4,39 +4,107 @@
 \alias{mk_voucher_dirs}
 \title{Organize voucher image directories by updated identification}
 \usage{
-mk_voucher_dirs(fp_file_path = NULL, output_dir = "voucher_imgs")
+mk_voucher_dirs(
+  fp_file_path = NULL,
+  output_dir = "voucher_imgs",
+  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+  station_name = NULL
+)
 }
 \arguments{
-\item{fp_file_path}{Character. Path to the Excel file containing voucher data.}
+\item{fp_file_path}{Character. Path to the input Excel file containing data
+in one of the supported plot-data layouts.}
 
-\item{output_dir}{Character. Directory to organize the voucher image folders.
-Default is "voucher_imgs".}
+\item{output_dir}{Character. Root directory in which voucher image folders
+will be organized. Default is `"voucher_imgs"`.}
+
+\item{input_type}{Character. Input layout. Must be one of `"field_sheet"`,
+`"field_sheet_ti"`, `"fp_query_sheet"`, or `"monitora"`.}
+
+\item{station_name}{Optional character or numeric. Station name or station
+identifier used to filter MONITORA spreadsheets when applicable. Ignored
+for the other input types.}
+}
+\value{
+Invisibly returns the harmonized field-sheet data frame used
+  internally to organize the voucher directories.
 }
 \description{
 Organizes image folders of voucher specimens based on their
-updated taxonomic identification provided in \href{https://forestplots.net/}{Forestplots format}
-template. It is designed to be safely rerun multiple times,
-adapting its behavior depending on the existing directory structure.On the
-**first execution**, the function will read the voucher information from
-the Forestplots standardized file, (i) create a main folder (default:
-`"voucher_imgs"`), if it does not already exist.(ii) For each voucher marked
-as "Collected", it will create a directory structure following the format
-`Family/Genus/Voucher` to receive the corresponding images. On **subsequent
-executions**, the function performs a reorganization: identifies and compares
-existing folders that may have outdated or incorrect genus assignments. If it
-finds that a voucher is in the wrong genus folder (e.g., due to taxonomic
-reidentification),it moves the images to the correct folder. In case the
-correct folder already contains images, the function avoids overwriting and
-keeps the content intact.Once images are moved (or verified), the function
-deletes any empty,outdated voucher directories.This ensures that the
-directory structure always reflects the most up-to-date taxonomic information,
-making image organization robust, repeatable, and easy to maintain.
+updated taxonomic identification provided in spreadsheet files compatible
+with the input layouts already supported in the package workflow. The
+function is designed to be safely rerun multiple times, adapting its
+behavior according to the existing directory structure and to the selected
+input type.
+
+Internally, the input is harmonized into the same canonical field-sheet
+schema used elsewhere in the package. For `input_type = "fp_query_sheet"`
+and `input_type = "monitora"`, the function relies on the existing internal
+converters. For `input_type = "field_sheet_ti"`, it applies the same direct
+positional remapping used in the package workflow for Indigenous Land /
+Panará-style field sheets.
+
+On the **first execution**, the function reads voucher information from the
+input file, (i) creates a main folder (default: `"voucher_imgs"`) if it does
+not already exist, and (ii) for each voucher treated as collected, creates a
+nested directory structure following the format `Family/Genus/Voucher`, where
+voucher images can be stored.
+
+On **subsequent executions**, the function performs a reorganization step.
+It scans the existing voucher directories inside `output_dir`, compares them
+with the currently accepted taxonomic placement inferred from the harmonized
+data, and identifies folders that may reflect outdated or incorrect genus
+assignments. If a voucher is found inside a taxonomically outdated path, the
+function attempts to move the files to the correct `Family/Genus/Voucher`
+directory. If the destination folder already contains files, the function
+avoids overwriting existing content and only moves files that are not already
+present.
+
+Once files are moved (or verified), the function removes empty outdated
+voucher directories and, when possible, also removes empty parent taxonomic
+folders left behind by the reorganization. This ensures that the directory
+tree remains synchronized with the most up-to-date taxonomic identification,
+making voucher image organization robust, repeatable, and easy to maintain
+over time.
+
+A voucher is treated as collected when the canonical `Collected` field
+indicates a positive collection status (for example `"Sim"`, `"Yes"`,
+`"Collected"`, `"Coletado"`, `"1"`, `"x"`, or similar values). As an
+additional fallback, the function also treats a record as collected when a
+non-empty voucher code is present after input harmonization.
 }
 \examples{
 \dontrun{
-mk_voucher_dirs(fp_file_path = "data/RUS_plot.xlsx",
-                         output_dir = "voucher_imgs")
-                         }
+# Standard field sheet
+mk_voucher_dirs(
+  fp_file_path = "data/RUS_plot.xlsx",
+  input_type = "field_sheet",
+  output_dir = "voucher_imgs"
+)
+
+# Panará / TI field sheet
+mk_voucher_dirs(
+  fp_file_path = "data/SKR_01.xlsx",
+  input_type = "field_sheet_ti",
+  output_dir = "voucher_imgs_skr"
+)
+
+# ForestPlots Query export
+mk_voucher_dirs(
+  fp_file_path = "data/query_export.xlsx",
+  input_type = "fp_query_sheet",
+  output_dir = "voucher_imgs_query"
+)
+
+# MONITORA spreadsheet
+mk_voucher_dirs(
+  fp_file_path = "data/Monitora_Plantas_PND_2024_validado_subir_no_processo.xlsx",
+  input_type = "monitora",
+  output_dir = "voucher_imgs_descobrimento",
+  station_name = 1
+)
+}
+
 }
 \author{
 Giulia Ottino & Domingos Cardoso

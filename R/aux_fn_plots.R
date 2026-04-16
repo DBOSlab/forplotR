@@ -834,13 +834,11 @@
     cn_norm <- .norm(cn_raw)
     ali_norm <- .norm(aliases)
 
-    # 1) exact match first
     hit_idx <- match(ali_norm, cn_norm, nomatch = 0L)
     if (any(hit_idx > 0L)) {
       return(cn_raw[hit_idx[which(hit_idx > 0L)[1]]])
     }
 
-    # 2) partial fallback only for safer aliases
     for (a in ali_norm) {
       if (!nzchar(a) || nchar(a) < 2L) next
       hit <- which(grepl(a, cn_norm, fixed = TRUE))
@@ -967,24 +965,23 @@
   names(df) <- clean_spaces(names(df))
   nm <- names(df)
 
-  # exact-first, then normalized matcher
   col_subunidade <- if ("subunidade" %in% nm) "subunidade" else
     if ("Subunidades" %in% nm) "Subunidades" else
       .find_best_col(df, c(
         "subunidade", "subunidades", "sub_unidade", "sub_unidades",
-        "orientacao", "orienta\u00e7\u00e3o", "unidade", "ul"
+        "orientacao", "orientação", "unidade", "ul"
       ))
 
   col_nparcela <- if ("N_parcela" %in% nm) "N_parcela" else
     .find_best_col(df, c(
-      "n_parcela", "nparcela", "numero_parcela", "n\u00famero_parcela",
+      "n_parcela", "nparcela", "numero_parcela", "número_parcela",
       "parcela", "subplot", "subparcela", "t2"
     ))
 
   col_tag <- if ("N_arvore" %in% nm) "N_arvore" else
     .find_best_col(df, c(
-      "n_arvore", "n \u00e1rvore", "numero_arvore", "n\u00famero_arvore",
-      "narvore", "arvore", "\u00e1rvore", "tag", "newtag", "numarvore"
+      "n_arvore", "n árvore", "numero_arvore", "número_arvore",
+      "narvore", "arvore", "árvore", "tag", "newtag", "numarvore"
     ))
 
   col_coletores <- if ("nome_coletores" %in% nm) "nome_coletores" else
@@ -995,45 +992,55 @@
       .find_best_col(df, c("nomeuc", "nome_uc", "uc", "unidadeconservacao", "unidade_conservacao", "cduc"))
 
   col_estacao <- if ("Nome_estacao" %in% nm) "Nome_estacao" else
-    .find_best_col(df, c("nome_estacao", "nome esta\u00e7\u00e3o", "nome_esta\u00e7\u00e3o", "estacao", "esta\u00e7\u00e3o", "nomeestacao"))
+    .find_best_col(df, c("nome_estacao", "nome estação", "nome_estação", "estacao", "estação", "nomeestacao"))
 
   col_estacao_n <- if ("N_estacao" %in% nm) "N_estacao" else
-    .find_best_col(df, c("n_estacao", "nestacao", "num_estacao", "numero_estacao", "n\u00famero_estacao", "n\u00baestacao", "n\u00b0estacao"))
+    .find_best_col(df, c("n_estacao", "nestacao", "num_estacao", "numero_estacao", "número_estacao", "nºestacao", "n°estacao"))
 
-  col_familia <- if ("Fam\u00edlia" %in% nm) "Fam\u00edlia" else
+  col_familia <- if ("Família" %in% nm) "Família" else
     if ("Familia" %in% nm) "Familia" else
-      .find_best_col(df, c("familia", "fam\u00edlia", "family"))
+      .find_best_col(df, c("familia", "família", "family"))
 
-  col_genero <- if ("G\u00eanero" %in% nm) "G\u00eanero" else
+  col_genero <- if ("Gênero" %in% nm) "Gênero" else
     if ("Genero" %in% nm) "Genero" else
-      .find_best_col(df, c("genero", "g\u00eanero", "genus"))
+      .find_best_col(df, c("genero", "gênero", "genus"))
 
-  col_especie <- if ("Esp\u00e9cie" %in% nm) "Esp\u00e9cie" else
+  col_especie <- if ("Espécie" %in% nm) "Espécie" else
     if ("Especie" %in% nm) "Especie" else
-      .find_best_col(df, c("especie", "esp\u00e9cie", "species", "sp"))
+      .find_best_col(df, c("especie", "espécie", "species", "sp"))
 
   col_nomecomum <- if ("Nome comum" %in% nm) "Nome comum" else
     .find_best_col(df, c("nome comum", "nome_comum", "nomecomum", "popular", "morphospecies"))
 
   col_coletado <- if ("individuo coletado" %in% nm) "individuo coletado" else
     if ("individuo coletado ?" %in% nm) "individuo coletado ?" else
-      if ("indiv\u00edduo coletado" %in% nm) "indiv\u00edduo coletado" else
-        if ("indiv\u00edduo coletado ?" %in% nm) "indiv\u00edduo coletado ?" else
+      if ("indivíduo coletado" %in% nm) "indivíduo coletado" else
+        if ("indivíduo coletado ?" %in% nm) "indivíduo coletado ?" else
           .find_best_col(df, c(
             "individuo coletado", "individuo coletado ?",
-            "indiv\u00edduo coletado", "indiv\u00edduo coletado ?",
-            "individuo_coletado", "indiv\u00edduo_coletado",
+            "indivíduo coletado", "indivíduo coletado ?",
+            "individuo_coletado", "indivíduo_coletado",
             "coletado", "collected"
           ))
 
-  col_voucher_c <- .find_best_col(df, c(
-    "voucher/coletor", "voucher_coletor", "vouchercoletor",
-    "coletor", "collector"
-  ))
+  # prioridade total para a coluna específica de voucher/coletor
+  col_voucher_c <- if ("voucher/coletor" %in% .norm(nm)) {
+    nm[match("vouchercoletor", .norm(nm))]
+  } else {
+    .find_best_col(df, c(
+      "voucher/coletor", "voucher / coletor", "voucher_coletor",
+      "vouchercoletor", "voucher-coletor", "collector voucher", "coletor voucher",
+      "coletor do voucher", "voucher collector"
+    ))
+  }
 
-  col_voucher_n <- if ("voucher/n\u00famero" %in% nm) "voucher/n\u00famero" else
+  col_voucher_n <- if ("voucher/número" %in% nm) "voucher/número" else
     if ("voucher/numero" %in% nm) "voucher/numero" else
-      .find_best_col(df, c("voucher/n\u00famero", "voucher/numero", "voucher_numero", "voucher_n\u00famero", "vouchernumero", "voucher_n", "voucher"))
+      .find_best_col(df, c(
+        "voucher/número", "voucher/numero", "voucher_numero", "voucher_número",
+        "vouchernumero", "voucher_n", "numero voucher", "número voucher",
+        "voucher number"
+      ))
 
   col_x <- if ("X" %in% nm) "X" else
     if ("X(m)" %in% nm) "X(m)" else
@@ -1055,23 +1062,23 @@
 
   col_cap <- if ("cap_tot" %in% nm) "cap_tot" else
     if ("circ total" %in% nm) "circ total" else
-      .find_best_col(df, c("cap_tot", "captot", "cap total", "cap_total", "cap", "circ total", "circunferencia", "circunfer\u00eancia"))
+      .find_best_col(df, c("cap_tot", "captot", "cap total", "cap_total", "cap", "circ total", "circunferencia", "circunferência"))
 
   col_ano <- if ("Ano" %in% nm) "Ano" else
     if ("Data" %in% nm) "Data" else
       .find_best_col(df, c("ano", "censo", "year", "data", "date"))
 
   col_dead <- if ("arvore_morta" %in% nm) "arvore_morta" else
-    if ("\u00e1rvore_morta" %in% nm) "\u00e1rvore_morta" else
-      .find_best_col(df, c("arvore_morta", "\u00e1rvore_morta", "arvore morta", "morta", "dead"))
+    if ("árvore_morta" %in% nm) "árvore_morta" else
+      .find_best_col(df, c("arvore_morta", "árvore_morta", "arvore morta", "morta", "dead"))
 
-  col_obs <- if ("observa\u00e7\u00e3o" %in% nm) "observa\u00e7\u00e3o" else
+  col_obs <- if ("observação" %in% nm) "observação" else
     if ("observacao" %in% nm) "observacao" else
-      .find_best_col(df, c("observa\u00e7\u00e3o", "observacao", "obs", "census notes", "comentarios", "coment\u00e1rios"))
+      .find_best_col(df, c("observação", "observacao", "obs", "census notes", "comentarios", "comentários"))
 
   col_basal_area <- if ("AB" %in% nm) "AB" else
     if ("ABcap" %in% nm) "ABcap" else
-      .find_best_col(df, c("ab", "abcap", "basal area", "area basal", "\u00e1rea basal"))
+      .find_best_col(df, c("ab", "abcap", "basal area", "area basal", "área basal"))
 
   col_pom <- if ("POM(m)" %in% nm) "POM(m)" else
     if ("POM" %in% nm) "POM" else
@@ -1175,9 +1182,26 @@
     }
   }
 
-  vc <- if (!is.na(col_voucher_c) && col_voucher_c %in% names(df_use)) clean_spaces(df_use[[col_voucher_c]]) else rep("", nrow(df_use))
-  vnr <- if (!is.na(col_voucher_n) && col_voucher_n %in% names(df_use)) clean_spaces(df_use[[col_voucher_n]]) else rep("", nrow(df_use))
-  voucher_vec <- ifelse((!nzchar(vc)) & (!nzchar(vnr)), NA_character_, trimws(paste(vc, vnr)))
+  voucher_collector_raw <- if (!is.na(col_voucher_c) && col_voucher_c %in% names(df_use)) {
+    clean_spaces(df_use[[col_voucher_c]])
+  } else {
+    rep("", nrow(df_use))
+  }
+
+  voucher_number_raw <- if (!is.na(col_voucher_n) && col_voucher_n %in% names(df_use)) {
+    clean_spaces(df_use[[col_voucher_n]])
+  } else {
+    rep("", nrow(df_use))
+  }
+
+  voucher_vec <- ifelse(
+    (!nzchar(voucher_collector_raw)) & (!nzchar(voucher_number_raw)),
+    NA_character_,
+    trimws(paste(voucher_collector_raw, voucher_number_raw))
+  )
+
+  voucher_vec[!nzchar(voucher_vec)] <- NA_character_
+  voucher_collector_raw[!nzchar(voucher_collector_raw)] <- NA_character_
 
   gen <- if (!is.na(col_genero) && col_genero %in% names(df_use)) {
     clean_spaces(df_use[[col_genero]])
@@ -1254,17 +1278,11 @@
     rep("", nrow(df_use))
   }
 
-  voucher_collector_raw <- if (!is.na(col_voucher_c) && col_voucher_c %in% names(df_use)) {
-    clean_spaces(df_use[[col_voucher_c]])
-  } else {
-    rep("", nrow(df_use))
-  }
-
   collected_norm <- tolower(collected_raw)
 
   is_collected <- collected_norm %in% c(
     "sim", "s", "yes", "y", "true", "1", "coletado", "coletada"
-  ) | nzchar(voucher_collector_raw)
+  ) | nzchar(as.character(voucher_vec))
 
   collected_vec <- ifelse(is_collected, "Sim", NA_character_)
 
