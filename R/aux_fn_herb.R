@@ -10,7 +10,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .herbaria_cache_paths <- function() {
   cache_dir <- getOption("forplotR.herbaria_cache_dir")
 
@@ -389,7 +388,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .resource_guess_herbarium <- function(resource_id) {
   rid <- tolower(trimws(as.character(resource_id)))
   rid <- sub("^.*[?&]r=", "", rid)
@@ -1179,10 +1177,10 @@
                                    herbaria,
                                    force_refresh = FALSE,
                                    keep_downloads = FALSE,
-                                   verbose = FALSE,
                                    collector_fallback = NULL,
                                    collector_codes = NULL,
-                                   resource_map = NULL) {
+                                   resource_map = NULL,
+                                   verbose = FALSE) {
   .arg_check_herbarium(herbaria)
   herbaria <- unique(toupper(trimws(as.character(herbaria))))
 

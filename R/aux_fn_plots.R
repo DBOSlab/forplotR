@@ -675,7 +675,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .consolidate_multistem_trees <- function(df, min_diameter = 5) {
 
   # Check if required columns exist
@@ -1474,7 +1473,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .compute_monitora_geometry <- function(fp_df, keep_only_cell = TRUE) {
 
   if (is.null(fp_df) || !nrow(fp_df)) {
@@ -1568,7 +1566,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .calculate_phytosociological_metrics <- function(fp_sheet,
                                                  plot_size_ha = 1,
                                                  subplot_size_m = 10) {
@@ -1671,7 +1668,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .prepare_report_dashboard <- function(fp_sheet,
                                       plot_size_ha = 1,
                                       subplot_size_m = 10,
@@ -2217,7 +2213,6 @@
 
 #' @keywords internal
 #' @noRd
-#'
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }
@@ -2238,7 +2233,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .create_rmd_content <- function(subplot_plots,
                                 tf_col,
                                 tf_uncol,
@@ -3172,7 +3166,6 @@
     .pagebreak_block()
   )
 
-
   index_section <- c(
     "",
     "## Subplot Index {#subplot-index}",
@@ -3448,3 +3441,237 @@
   rmd_content
 }
 
+
+#' Harmonize plot input data into a canonical field-sheet structure
+#'
+#' @description
+#' Reads plot data from one of the supported input layouts and converts it into
+#' a standardized field-sheet-like data frame used internally by plotting and
+#' voucher-management workflows. The function also extracts basic plot metadata
+#' when available, returning a list containing the harmonized data frame and the
+#' associated plot descriptors.
+#'
+#' Supported input types are:
+#' \itemize{
+#'   \item \code{"field_sheet"}: standard ForestPlots field sheet with metadata
+#'   row, header row, and data rows.
+#'   \item \code{"field_sheet_ti"}: Indigenous Land / Panará-style field sheet
+#'   using fixed positional remapping into the canonical schema.
+#'   \item \code{"fp_query_sheet"}: ForestPlots Query Library export converted
+#'   internally to the canonical field-sheet structure.
+#'   \item \code{"monitora"}: MONITORA spreadsheet converted internally to the
+#'   canonical field-sheet structure.
+#' }
+#'
+#' The returned object is a list with four elements:
+#' \itemize{
+#'   \item \code{fp_sheet}: harmonized field-sheet-like data frame.
+#'   \item \code{team}: extracted team name, when available.
+#'   \item \code{plot_name}: extracted plot name, when available.
+#'   \item \code{plot_code}: extracted plot code, when available.
+#' }
+#'
+#' @param fp_file_path Character. Path to the input Excel file.
+#' @param input_type Character. One of \code{"field_sheet"},
+#'   \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.
+#' @param station_name Optional character or numeric. Station name or station
+#'   identifier used to filter MONITORA spreadsheets when applicable. Ignored
+#'   for the other input types.
+#'
+#' @return A named list containing:
+#'   \describe{
+#'     \item{\code{fp_sheet}}{A harmonized field-sheet-like data frame.}
+#'     \item{\code{team}}{Character string with team metadata, or \code{""}.}
+#'     \item{\code{plot_name}}{Character string with plot name metadata, or \code{""}.}
+#'     \item{\code{plot_code}}{Character string with plot code metadata, or \code{""}.}
+#'   }
+#'
+#' @keywords internal
+#' @noRd
+.harmonize_plot_input <- function(fp_file_path, input_type, station_name = NULL) {
+  input_type <- tolower(trimws(as.character(input_type)))
+  input_type <- match.arg(
+    input_type,
+    c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora")
+  )
+
+  if (!is.character(fp_file_path) || length(fp_file_path) != 1L || !file.exists(fp_file_path)) {
+    stop("The provided 'fp_file_path' does not exist.", call. = FALSE)
+  }
+
+  out <- switch(
+    input_type,
+
+    "monitora" = {
+      raw <- .monitora_to_field_sheet_df(
+        path = fp_file_path,
+        station_name = station_name
+      )
+
+      meta <- attr(raw, "plot_meta")
+
+      list(
+        fp_sheet = as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE),
+        team = if (!is.null(meta$team)) meta$team else "",
+        plot_name = if (!is.null(meta$plot_name)) meta$plot_name else "",
+        plot_code = if (!is.null(meta$plot_code)) meta$plot_code else ""
+      )
+    },
+
+    "fp_query_sheet" = {
+      raw <- .fp_query_to_field_sheet_df(path = fp_file_path)
+
+      meta <- attr(raw, "plot_meta")
+
+      list(
+        fp_sheet = as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE),
+        team = if (!is.null(meta$team)) meta$team else "",
+        plot_name = if (!is.null(meta$plot_name)) meta$plot_name else "",
+        plot_code = if (!is.null(meta$plot_code)) meta$plot_code else ""
+      )
+    },
+
+    "field_sheet" = {
+      raw <- suppressMessages(
+        readxl::read_excel(
+          fp_file_path,
+          sheet = 1,
+          col_names = FALSE,
+          .name_repair = "minimal"
+        )
+      )
+
+      raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
+
+      if (nrow(raw) < 3L) {
+        stop(
+          "The field_sheet input must contain a metadata row, a header row, and at least one data row.",
+          call. = FALSE
+        )
+      }
+
+      header_row <- as.character(unlist(raw[2, , drop = TRUE]))
+      bad_hdr <- is.na(header_row) | !nzchar(trimws(header_row))
+      header_row[bad_hdr] <- paste0("NA_col_", seq_along(header_row))[bad_hdr]
+
+      colnames(raw) <- make.unique(trimws(header_row))
+      fp_sheet <- raw[-(1:2), , drop = FALSE]
+
+      meta_row_chr <- as.character(raw[1, , drop = TRUE])
+      meta_row_chr[is.na(meta_row_chr)] <- ""
+
+      list(
+        fp_sheet = as.data.frame(fp_sheet, stringsAsFactors = FALSE, check.names = FALSE),
+        team = .grab_meta_from_row(meta_row_chr, "Team"),
+        plot_name = .grab_meta_from_row(meta_row_chr, "Plot Name"),
+        plot_code = .grab_meta_from_row(meta_row_chr, "Plotcode")
+      )
+    },
+
+    "field_sheet_ti" = {
+      raw <- suppressMessages(
+        readxl::read_excel(
+          fp_file_path,
+          sheet = 1,
+          col_names = FALSE,
+          .name_repair = "minimal"
+        )
+      )
+
+      raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
+
+      if (nrow(raw) < 3L) {
+        stop(
+          "The field_sheet_ti input must contain metadata, header, and data rows.",
+          call. = FALSE
+        )
+      }
+
+      raw_data <- raw[-c(1, 2), , drop = FALSE]
+
+      dest_cols <- .field_sheet_cols()
+
+      temp <- as.data.frame(
+        matrix(NA, nrow = nrow(raw_data), ncol = length(dest_cols)),
+        stringsAsFactors = FALSE
+      )
+      names(temp) <- dest_cols
+
+      temp$`New Tag No` <- as.character(raw_data[[1]])
+      temp$`New Stem Grouping` <- as.character(raw_data[[2]])
+      temp$T1 <- suppressWarnings(as.numeric(raw_data[[3]]))
+      temp$T2 <- suppressWarnings(as.numeric(raw_data[[4]]))
+      temp$X <- suppressWarnings(as.numeric(raw_data[[5]]))
+      temp$Y <- suppressWarnings(as.numeric(raw_data[[6]]))
+      temp$Family <- as.character(raw_data[[7]])
+
+      temp$`Original determination` <- paste0(as.character(raw_data[[9]]),
+                                              " | ",
+                                              as.character(raw_data[[8]]))
+
+      temp$Morphospecies <- as.character(raw_data[[10]])
+      temp$D <- suppressWarnings(as.numeric(raw_data[[11]]))
+      temp$POM <- suppressWarnings(as.numeric(raw_data[[12]]))
+      temp$ExtraD <- NA_character_
+      temp$ExtraPOM <- NA_character_
+      temp$Flag1 <- as.character(raw_data[[13]])
+      temp$Flag2 <- NA_character_
+      temp$Flag3 <- NA_character_
+      temp$LI <- NA_character_
+      temp$CI <- NA_character_
+      temp$CF <- NA_character_
+      temp$CD1 <- NA_character_
+      temp$nrdups <- as.character(raw_data[[14]])
+      temp$Height <- suppressWarnings(as.numeric(raw_data[[15]]))
+      temp$Voucher <- as.character(raw_data[[16]])
+      temp$Silica <- as.character(raw_data[[17]])
+      temp$Collected <- as.character(raw_data[[18]])
+      temp$`Census Notes` <- as.character(raw_data[[19]])
+      temp$CAP <- suppressWarnings(as.numeric(raw_data[[21]]))
+      temp$`Basal Area` <- suppressWarnings(as.numeric(raw_data[[22]]))
+
+      list(
+        fp_sheet = temp,
+        team = "",
+        plot_name = "",
+        plot_code = ""
+      )
+    }
+  )
+
+  needed_cols <- c(
+    "New Tag No", "T1", "X", "Y", "D",
+    "Family", "Original determination", "Voucher", "Collected"
+  )
+
+  missing_cols <- setdiff(needed_cols, names(out$fp_sheet))
+  if (length(missing_cols)) {
+    stop(
+      "The harmonized input is missing required columns: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  out$fp_sheet <- as.data.frame(out$fp_sheet, stringsAsFactors = FALSE, check.names = FALSE)
+
+  out$fp_sheet <- within(out$fp_sheet, {
+    Family <- as.character(Family)
+    Voucher <- as.character(Voucher)
+    Collected <- as.character(Collected)
+    `Original determination` <- as.character(`Original determination`)
+  })
+
+  out
+}
+
+.grab_meta_from_row <- function(meta_row_chr, key) {
+  hit <- meta_row_chr[
+    grepl(paste0("^", key, "[:]\\s*"), meta_row_chr, ignore.case = TRUE)
+  ]
+  if (length(hit)) {
+    sub(paste0("^", key, "[:]\\s*"), "", hit[1], ignore.case = TRUE)
+  } else {
+    ""
+  }
+}

@@ -1,111 +1,112 @@
-#' Plot and save vouchered forest plot map as HTML
+#' Plot and save a vouchered forest plot map as HTML
 #'
 #' @author Giulia Ottino & Domingos Cardoso
 #'
 #' @description
-#' Generates an interactive and self-contained HTML map for forest plots
-#' following either the \href{https://forestplots.net/}{ForestPlots plot protocol}
-#' or the \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{Monitora program},
-#' using Leaflet and based on vouchered tree data and plot coordinates.
-#' The function handles both standard ForestPlots layouts
-#' (1 ha or 0.5 ha plots defined by four corner vertices) and MONITORA
-#' layouts (Maltese cross design defined by a single central coordinate).
-#' It: (i) converts local subplot coordinates (X, Y) to geographic coordinates
-#' using geospatial interpolation from plot vertices or a central point;
-#' (ii) extracts metadata such as team name, plot name, and plot code from the
-#' input file; (iii) draws the plot boundary polygon or Maltese cross arms over
-#' selectable basemaps; (iv) colors tree points by collection status and palms
-#' (palms = yellow, collected = gray, missing = red); (v) embeds image carousels in
-#' specimen popups when matching voucher images are found in the specified
-#' folder; (vi) optionally performs a local herbarium lookup (JABOT + REFLORA
-#' DwC-A downloads, via internal helper functions) to attach direct "Herbarium
-#' image" links to each voucher when available; (vii) adds an interactive filter
-#' sidebar with checkboxes, multi-select inputs, and a search box for filtering
-#' by family, species, collection status, subplot, and presence of photos;
-#' (viii) displays informative popups for each tree, showing tag number, subplot,
-#' family, species, DBH, voucher code, herbarium image link (if found), and photos;
-#' and (x) saves the resulting map as a date-stamped standalone HTML file with
-#' multiple interactive Leaflet map options for easy sharing, archiving, or
-#' field consultation.
+#' Generate an interactive HTML map of vouchered individuals in a forest plot
+#' using Leaflet. The function supports standard ForestPlots.net layouts defined
+#' by plot vertices and MONITORA layouts defined by a single central coordinate.
+#' It harmonizes specimen records, converts local plot coordinates to geographic
+#' coordinates, draws plot geometry and subplot boundaries, and writes a
+#' shareable HTML map to disk.
 #'
-#' @usage plot_html_map(fp_file_path = NULL,
-#'                      input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-#'                      vertex_coords = NULL,
-#'                      plot_size = 1,
-#'                      subplot_size = 10,
-#'                      voucher_imgs = NULL,
-#'                      filename = "plot_map",
-#'                      station_name = NULL,
-#'                      collector = NULL,
-#'                      collector_map = NULL,
-#'                      herbaria_lookup = FALSE,
-#'                      herbaria = NULL,
-#'                      herbaria_force_refresh = FALSE,
-#'                      keep_herbaria_downloads = FALSE,
-#'                      herbaria_verbose = FALSE)
+#' @details
+#' Supported inputs include standard ForestPlots.net field sheets, Indigenous
+#' Land field sheets, Query Library exports, and MONITORA layouts. Depending on
+#' \code{input_type}, the function:
+#' \enumerate{
+#'   \item validates required arguments and reads the input table;
+#'   \item harmonizes the data into a canonical internal schema;
+#'   \item extracts plot metadata such as team, plot name, and plot code;
+#'   \item converts local subplot coordinates to geographic coordinates using
+#'   either plot vertices or a MONITORA center point;
+#'   \item builds plot and subplot overlays;
+#'   \item colors specimen markers by collection status, with palms shown as a
+#'   separate visual category;
+#'   \item optionally embeds voucher image carousels in specimen popups;
+#'   \item optionally performs a local herbarium lookup using internal helper
+#'   functions and adds herbarium image links when available; and
+#'   \item saves the final map as an HTML file.
+#' }
 #'
-#' @param fp_file_path Character. Path to the Excel file containing tree data.
+#' Collection status is inferred from the canonical \code{Collected} column
+#' after input harmonization. For some input types, this field is derived from
+#' source-specific voucher or collection-status columns.
 #'
-#' @param input_type One of \code{"field_sheet"}, \code{"fp_query_sheet"} or
-#' \code{"monitora"}. For \code{"fp_query_sheet"}, the function expects a
-#' ForestPlots Query Library export and converts it internally into a
-#' field-sheet-like table. For \code{"monitora"}, it expects a Maltese-cross
-#' layout.
+#' @section Input types:
+#' \describe{
+#'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field-sheet layout.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export converted internally to a field-sheet-like schema.}
+#'   \item{\code{"monitora"}}{MONITORA layout converted internally and plotted using MONITORA geometry.}
+#' }
 #'
-#' @param vertex_coords Data frame, path to an Excel file, or numeric vector.
-#' For \code{"field_sheet"} and \code{"fp_query_sheet"}, provide the four plot
-#' corners in latitude and longitude. For \code{"monitora"}, provide a single
-#' central Latitude/Longitude used as the cross center. A numeric vector of
-#' length two is interpreted either as \code{c(lat, lon)} or as a named vector
-#' with elements \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.
+#' @section Side effects:
+#' The function writes an HTML file to disk. When \code{herbaria_lookup = TRUE},
+#' it may also build or refresh a local herbarium index from DwC-A downloads and
+#' may remove downloaded archives at the end of the run depending on
+#' \code{keep_herbaria_downloads}.
 #'
-#' @param plot_size Numeric. Total plot size in hectares (default is 1).
+#' @param fp_file_path Character scalar. Path to the Excel file containing plot
+#' data in ForestPlots.net field-sheet, Query Library, or MONITORA format.
 #'
-#' @param subplot_size Numeric. Subplot size in meters (default is 10).
+#' @param input_type Input layout. One of \code{"field_sheet"},
+#' \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.
 #'
-#' @param filename Character. Base name of the output HTML file (without
-#' extension). The function will prepend a date-stamped prefix and append
-#' \code{".html"} (default is \code{"plot_map"}).
+#' @param vertex_coords Plot reference coordinates. Accepted inputs are a data
+#' frame, a path to an Excel file, or a numeric vector of length 2.
+#' For \code{"field_sheet"}, \code{"field_sheet_ti"}, and
+#' \code{"fp_query_sheet"}, provide the four plot corners as latitude and
+#' longitude. For \code{"monitora"}, provide a single central latitude/longitude.
+#' A numeric vector of length 2 is interpreted as \code{c(lat, lon)} unless
+#' named with \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.
 #'
-#' @param voucher_imgs Character. Directory path where voucher images are stored.
-#' Subdirectories are assumed to be named after voucher IDs, each containing
-#' one or more image files.
+#' @param plot_size Numeric scalar. Total plot size in hectares. Used for
+#' non-MONITORA inputs.
 #'
-#' @param station_name Character or \code{NULL}. For \code{"monitora"} inputs,
-#' optionally filter or loop over one or more station names. When a vector of
-#' station names is given, the function calls itself once per station.
+#' @param subplot_size Numeric scalar. Side length of each subplot in meters.
 #'
-#' @param collector Character. Optional fallback collector name used when
-#' compact voucher codes are provided (e.g. \code{"GCO1095"} without an explicit
-#' collector string).
+#' @param voucher_imgs Character scalar or \code{NULL}. Directory containing
+#' voucher image subfolders. Subdirectories are assumed to be named after
+#' voucher IDs, each containing one or more image files to display in specimen
+#' popups.
+#'
+#' @param filename Character scalar. Basename for the output HTML file, without
+#' extension. The function prepends a date-stamped prefix before writing the file.
+#'
+#' @param station_name Character vector or \code{NULL}. For
+#' \code{input_type = "monitora"}, optionally filter or iterate over one or more
+#' station names. When a vector of length greater than 1 is supplied, the
+#' function may process stations one by one via internal recursion.
+#'
+#' @param collector Character scalar or \code{NULL}. Optional fallback collector
+#' name used when compact voucher codes are provided without an explicit
+#' collector string.
 #'
 #' @param collector_map Named character vector or \code{NULL}. Optional mapping
 #' used to expand voucher prefixes into full collector names before herbarium
-#' matching, for example \code{c("DC" = "D. Cardoso", "PWM" = "P. W. Moonlight")}.
+#' matching, for example
+#' \code{c("DC" = "D. Cardoso", "PWM" = "P. W. Moonlight")}.
 #'
 #' @param herbaria_lookup Logical. If \code{TRUE}, the function performs a local
-#' herbarium lookup and adds a \code{herbaria_link} column to the specimen data,
-#' building a minimal index from DwC-A downloads from the JBRJ IPTs (JABOT +
-#' REFLORA) using internal helper functions.
+#' herbarium lookup and adds herbarium image links to specimen popups when
+#' available.
 #'
-#' @param herbaria Character vector or \code{NULL}. Herbarium codes to be used
-#' in the herbaria lookup, e.g. \code{c("RB","UPCB")}. When
-#' \code{herbaria_lookup = TRUE} this argument must be a non-empty vector;
-#' by default it is \code{NULL} and no herbaria search is performed unless the
-#' user explicitly supplies the herbarium codes.
+#' @param herbaria Character vector or \code{NULL}. Herbarium codes to use in
+#' the herbarium lookup, for example \code{c("RB", "UPCB")}. When
+#' \code{herbaria_lookup = TRUE}, this should be a non-empty vector.
 #'
 #' @param herbaria_force_refresh Logical. If \code{TRUE}, forces rebuilding the
-#' combined JABOT+REFLORA index from local DwC-A archives, ignoring any existing
-#' cached index.
+#' local herbarium index and ignores any existing cached index.
 #'
-#' @param keep_herbaria_downloads Logical. Controls disk usage during
-#' \code{herbaria_lookup}. If \code{FALSE} (default), DwC-A archives downloaded
-#' to \code{jabot_download/} and \code{reflora_download/} are deleted at the end of
-#' the run (the small cached index remains). Set \code{TRUE} to keep the downloaded
-#' archives to speed up sequential runs.
+#' @param keep_herbaria_downloads Logical. If \code{FALSE} (default), downloaded
+#' DwC-A archives used during herbarium lookup are removed at the end of the run.
+#' Set to \code{TRUE} to retain them on disk.
 #'
-#' @param herbaria_verbose Logical. If \code{TRUE}, prints detailed messages
-#' during herbarium lookup for debugging. Default is \code{FALSE}.
+#' @param verbose Logical. If \code{TRUE}, prints detailed messages during
+#' herbarium lookup and related processing.
+#'
+#' @return Invisibly returns the path to the generated HTML file.
 #'
 #' @examples
 #' \dontrun{
@@ -132,10 +133,19 @@
 #'   herbaria = "RB",
 #'   filename = "rus_plot_map"
 #' )
+#'
+#' plot_html_map(
+#'   fp_file_path = "data/monitora.xlsx",
+#'   input_type = "monitora",
+#'   vertex_coords = c(lat = -3.10, lon = -60.02),
+#'   station_name = "Station1",
+#'   filename = "monitora_map"
+#' )
 #' }
 #'
-#' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers setView addControl
-#' @importFrom htmltools HTML tags htmlEscape save_html
+#' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers
+#' @importFrom leaflet addPolylines addLabelOnlyMarkers setView addControl
+#' @importFrom htmltools HTML tags htmlEscape
 #' @importFrom htmlwidgets onRender prependContent saveWidget
 #' @importFrom geosphere destPoint bearing
 #' @importFrom readxl read_excel
@@ -150,8 +160,9 @@
 #' @importFrom duckdb duckdb
 #'
 #' @export
+
 plot_html_map <- function(fp_file_path = NULL,
-                          input_type = c("field_sheet", "fp_query_sheet", "monitora"),
+                          input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
                           vertex_coords = NULL,
                           plot_size = 1,
                           subplot_size = 10,
@@ -164,10 +175,10 @@ plot_html_map <- function(fp_file_path = NULL,
                           herbaria = NULL,
                           herbaria_force_refresh = FALSE,
                           keep_herbaria_downloads = FALSE,
-                          herbaria_verbose = FALSE) {
+                          verbose = TRUE) {
 
   input_type <- tolower(trimws(as.character(input_type)))
-  input_type <- match.arg(input_type, c("field_sheet", "fp_query_sheet", "monitora"))
+  input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
 
   .validate_plot_size(plot_size)
   .validate_subplot_size(subplot_size)
@@ -176,115 +187,31 @@ plot_html_map <- function(fp_file_path = NULL,
     stop("The provided 'fp_file_path' does not exist.", call. = FALSE)
   }
 
-  if (input_type == "monitora") {
-    if (!exists(".monitora_to_field_sheet_df", mode = "function")) {
-      stop("Missing helper `.monitora_to_field_sheet_df()` for MONITORA input.", call. = FALSE)
-    }
-    raw <- .monitora_to_field_sheet_df(fp_file_path, station_name = station_name)
-    fp_sheet <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
+  # Harmonize the plot input data type
+  fp_loaded <- .harmonize_plot_input(
+    fp_file_path = fp_file_path,
+    input_type = input_type,
+    station_name = station_name
+  )
 
-    meta <- attr(raw, "plot_meta")
-    team <- if (!is.null(meta$team)) meta$team else ""
-    plot_name <- if (!is.null(meta$plot_name)) meta$plot_name else ""
-    plot_code <- if (!is.null(meta$plot_code)) meta$plot_code else ""
-
-  } else if (input_type == "fp_query_sheet") {
-    if (!exists(".fp_query_to_field_sheet_df", mode = "function")) {
-      stop("Missing helper `.fp_query_to_field_sheet_df()` for FP Query input.", call. = FALSE)
-    }
-    raw <- .fp_query_to_field_sheet_df(fp_file_path)
-    fp_sheet <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
-
-    meta <- attr(raw, "plot_meta")
-    team <- if (!is.null(meta$team)) meta$team else ""
-    plot_name <- if (!is.null(meta$plot_name)) meta$plot_name else ""
-    plot_code <- if (!is.null(meta$plot_code)) meta$plot_code else ""
-
-  } else {
-    raw <- suppressMessages(openxlsx::read.xlsx(fp_file_path, sheet = 1, colNames = FALSE))
-    raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
-
-    if (nrow(raw) < 3L) {
-      stop(
-        "The converted input must contain a metadata row, a header row, and at least one data row.",
-        call. = FALSE
-      )
-    }
-
-    header_row <- as.character(unlist(raw[2, , drop = TRUE]))
-    bad_hdr <- is.na(header_row) | !nzchar(trimws(header_row))
-    header_row[bad_hdr] <- paste0("NA_col_", seq_along(header_row))[bad_hdr]
-
-    colnames(raw) <- make.unique(trimws(header_row))
-    fp_sheet <- raw[-(1:2), , drop = FALSE]
-
-    meta_row_chr <- as.character(raw[1, ])
-    meta_row_chr[is.na(meta_row_chr)] <- ""
-
-    grab_meta <- function(key) {
-      hit <- meta_row_chr[grepl(paste0("^", key, "[:]\\s*"), meta_row_chr, ignore.case = TRUE)]
-      if (length(hit)) {
-        sub(paste0("^", key, "[:]\\s*"), "", hit[1], ignore.case = TRUE)
-      } else {
-        ""
-      }
-    }
-
-    team <- grab_meta("Team")
-    plot_name <- grab_meta("Plot Name")
-    plot_code <- grab_meta("Plotcode")
-  }
-
-  numify <- function(z) {
-    if (is.numeric(z)) return(as.numeric(z))
-
-    zc <- as.character(z)
-    zc[is.na(zc)] <- ""
-    zc <- trimws(zc)
-    zc <- gsub("\\s+", "", zc)
-    zc <- gsub("\\.(?=\\d{3}(\\D|$))", "", zc, perl = TRUE)
-    zc <- gsub(",", ".", zc, fixed = TRUE)
-    suppressWarnings(as.numeric(zc))
-  }
-
-  coerce_xy <- function(z) {
-    if (is.numeric(z)) return(as.numeric(z))
-
-    zc <- as.character(z)
-    zc[is.na(zc)] <- ""
-    zc <- trimws(zc)
-    zc <- gsub("\\s+", "", zc)
-    zc <- sub("^([^;/|]+)[;/|].*$", "\\1", zc, perl = TRUE)
-    zc <- gsub("\\.(?=\\d{3}(\\D|$))", "", zc, perl = TRUE)
-    zc <- gsub(",", ".", zc, fixed = TRUE)
-
-    pat <- "[-+]?(?:\\d+\\.?\\d*|\\d*\\.?\\d+)"
-    has_num <- grepl(pat, zc, perl = TRUE)
-
-    out <- rep(NA_real_, length(zc))
-    out[has_num] <- suppressWarnings(as.numeric(
-      regmatches(zc[has_num], regexpr(pat, zc[has_num], perl = TRUE))
-    ))
-    out
-  }
+  fp_sheet  <- fp_loaded$fp_sheet
+  team <- fp_loaded$team
+  plot_name <- fp_loaded$plot_name
+  plot_code <- fp_loaded$plot_code
 
   if (input_type == "monitora") {
     fp_clean <- fp_sheet %>%
       dplyr::mutate(
         T1 = as.character(T1),
         T2 = as.character(T2),
-        X = coerce_xy(X),
-        Y = coerce_xy(Y),
-        D = numify(D)
+        X = .coerce_xy(X),
+        Y = .coerce_xy(Y),
+        D = .numify(D)
       ) %>%
       dplyr::filter(is.finite(X), is.finite(Y))
 
     if (!nrow(fp_clean)) {
       stop("No valid points to plot after cleaning MONITORA X/Y values.", call. = FALSE)
-    }
-
-    if (!exists(".compute_monitora_geometry", mode = "function")) {
-      stop("Missing helper `.compute_monitora_geometry()` for MONITORA layout.", call. = FALSE)
     }
 
     fp_coords <- .compute_monitora_geometry(
@@ -299,10 +226,10 @@ plot_html_map <- function(fp_file_path = NULL,
   } else {
     fp_clean <- fp_sheet %>%
       dplyr::mutate(
-        T1 = numify(T1),
-        X = coerce_xy(X),
-        Y = coerce_xy(Y),
-        D = numify(D)
+        T1 = .numify(T1),
+        X = .coerce_xy(X),
+        Y = .coerce_xy(Y),
+        D = .numify(D)
       ) %>%
       dplyr::filter(is.finite(T1), is.finite(X), is.finite(Y))
 
@@ -375,42 +302,11 @@ plot_html_map <- function(fp_file_path = NULL,
     fp_coords$Latitude <- coords_geo["lat", ]
     fp_coords$Longitude <- coords_geo["lon", ]
 
-    mk_cells <- function(arm) {
-      base <- expand.grid(c = 0:4, r = 0:1)
-      cs <- 10
-
-      if (arm == "N") {
-        dplyr::mutate(
-          base,
-          xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
-          ymin = 50 + c * cs, ymax = 50 + c * cs + cs
-        )
-      } else if (arm == "S") {
-        dplyr::mutate(
-          base,
-          xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
-          ymin = -100 + c * cs, ymax = -100 + c * cs + cs
-        )
-      } else if (arm == "L") {
-        dplyr::mutate(
-          base,
-          xmin = 50 + c * cs, xmax = 50 + c * cs + cs,
-          ymin = -cs + r * cs, ymax = -cs + r * cs + cs
-        )
-      } else {
-        dplyr::mutate(
-          base,
-          xmin = -100 + c * cs, xmax = -100 + c * cs + cs,
-          ymin = -cs + r * cs, ymax = -cs + r * cs + cs
-        )
-      }
-    }
-
     cells <- dplyr::bind_rows(
-      mk_cells("N") %>% dplyr::mutate(arm = "N"),
-      mk_cells("S") %>% dplyr::mutate(arm = "S"),
-      mk_cells("L") %>% dplyr::mutate(arm = "L"),
-      mk_cells("O") %>% dplyr::mutate(arm = "O")
+      .mk_cells("N") %>% dplyr::mutate(arm = "N"),
+      .mk_cells("S") %>% dplyr::mutate(arm = "S"),
+      .mk_cells("L") %>% dplyr::mutate(arm = "L"),
+      .mk_cells("O") %>% dplyr::mutate(arm = "O")
     )
 
     centers <- cells %>%
@@ -494,28 +390,12 @@ plot_html_map <- function(fp_file_path = NULL,
     n_cols <- max(1L, as.integer(round(100 / subplot_size)))
     n_rows <- ceiling(n_subplots / n_cols)
 
-    get_subplot_polygon <- function(col, row, size) {
-      x0 <- col * size
-      y0 <- row * size
-      matrix(
-        c(
-          x0, y0,
-          x0 + size, y0,
-          x0 + size, y0 + size,
-          x0, y0 + size,
-          x0, y0
-        ),
-        ncol = 2,
-        byrow = TRUE
-      )
-    }
-
     subplot_index <- 1L
     for (row in 0:(n_rows - 1L)) {
       for (col in 0:(n_cols - 1L)) {
         if (subplot_index > n_subplots) next
 
-        local_poly <- get_subplot_polygon(col, row, subplot_size)
+        local_poly <- .get_subplot_polygon(col, row, subplot_size)
         center_x <- mean(local_poly[, 1])
         center_y <- mean(local_poly[, 2])
 
@@ -570,12 +450,12 @@ plot_html_map <- function(fp_file_path = NULL,
       herbaria_links <- tryCatch(
         .herbaria_lookup_links(
           fp_df = fp_coords,
-          herbariums = herbaria,
+          herbaria = herbaria,
           force_refresh = herbaria_force_refresh,
           keep_downloads = keep_herbaria_downloads,
-          verbose = isTRUE(herbaria_verbose),
           collector_fallback = collector,
-          collector_codes = collector_map
+          collector_codes = collector_map,
+          verbose = verbose
         ),
         error = function(e) {
           warning(
@@ -602,11 +482,11 @@ plot_html_map <- function(fp_file_path = NULL,
     "<b>Subplot:</b> ", fp_coords$T1, "<br/>",
     "<b>Family:</b> ", fp_coords$Family, "<br/>",
     "<b>Species:</b> <i class='taxon'>", fp_coords[["Original determination"]], "</i><br/>",
-    "<b>DBH (mm):</b> ", round(fp_coords$D, 2), "<br/>",
+    "<b>DBH (cm):</b> ", round(fp_coords$D/10, 2), "<br/>",
     "<b>Voucher:</b> ",
     ifelse(
       is.na(fp_coords$Voucher) | !nzchar(fp_coords$Voucher),
-      "NA",
+      "Unvouchered",
       fp_coords$Voucher
     ),
     ifelse(
@@ -1202,3 +1082,84 @@ function addFilterControl(el,x){
   p2 <- geosphere::destPoint(c(p1[1, "lon"], p1[1, "lat"]), ifelse(y >= 0, 0, 180), abs(y))
   c(lat = p2[1, "lat"], lon = p2[1, "lon"])
 }
+
+.numify <- function(z) {
+  if (is.numeric(z)) return(as.numeric(z))
+
+  zc <- as.character(z)
+  zc[is.na(zc)] <- ""
+  zc <- trimws(zc)
+  zc <- gsub("\\s+", "", zc)
+  zc <- gsub("\\.(?=\\d{3}(\\D|$))", "", zc, perl = TRUE)
+  zc <- gsub(",", ".", zc, fixed = TRUE)
+  suppressWarnings(as.numeric(zc))
+}
+
+.coerce_xy <- function(z) {
+  if (is.numeric(z)) return(as.numeric(z))
+
+  zc <- as.character(z)
+  zc[is.na(zc)] <- ""
+  zc <- trimws(zc)
+  zc <- gsub("\\s+", "", zc)
+  zc <- sub("^([^;/|]+)[;/|].*$", "\\1", zc, perl = TRUE)
+  zc <- gsub("\\.(?=\\d{3}(\\D|$))", "", zc, perl = TRUE)
+  zc <- gsub(",", ".", zc, fixed = TRUE)
+
+  pat <- "[-+]?(?:\\d+\\.?\\d*|\\d*\\.?\\d+)"
+  has_num <- grepl(pat, zc, perl = TRUE)
+
+  out <- rep(NA_real_, length(zc))
+  out[has_num] <- suppressWarnings(as.numeric(
+    regmatches(zc[has_num], regexpr(pat, zc[has_num], perl = TRUE))
+  ))
+  out
+}
+
+.mk_cells <- function(arm) {
+  base <- expand.grid(c = 0:4, r = 0:1)
+  cs <- 10
+
+  if (arm == "N") {
+    dplyr::mutate(
+      base,
+      xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
+      ymin = 50 + c * cs, ymax = 50 + c * cs + cs
+    )
+  } else if (arm == "S") {
+    dplyr::mutate(
+      base,
+      xmin = -cs + r * cs, xmax = -cs + r * cs + cs,
+      ymin = -100 + c * cs, ymax = -100 + c * cs + cs
+    )
+  } else if (arm == "L") {
+    dplyr::mutate(
+      base,
+      xmin = 50 + c * cs, xmax = 50 + c * cs + cs,
+      ymin = -cs + r * cs, ymax = -cs + r * cs + cs
+    )
+  } else {
+    dplyr::mutate(
+      base,
+      xmin = -100 + c * cs, xmax = -100 + c * cs + cs,
+      ymin = -cs + r * cs, ymax = -cs + r * cs + cs
+    )
+  }
+}
+
+.get_subplot_polygon <- function(col, row, size) {
+  x0 <- col * size
+  y0 <- row * size
+  matrix(
+    c(
+      x0, y0,
+      x0 + size, y0,
+      x0 + size, y0 + size,
+      x0, y0 + size,
+      x0, y0
+    ),
+    ncol = 2,
+    byrow = TRUE
+  )
+}
+

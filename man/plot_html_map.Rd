@@ -2,114 +2,138 @@
 % Please edit documentation in R/plot_html_map.R
 \name{plot_html_map}
 \alias{plot_html_map}
-\title{Plot and save vouchered forest plot map as HTML}
+\title{Plot and save a vouchered forest plot map as HTML}
 \usage{
-plot_html_map(fp_file_path = NULL,
-                     input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-                     vertex_coords = NULL,
-                     plot_size = 1,
-                     subplot_size = 10,
-                     voucher_imgs = NULL,
-                     filename = "plot_map",
-                     station_name = NULL,
-                     collector = NULL,
-                     collector_map = NULL,
-                     herbaria_lookup = FALSE,
-                     herbaria = NULL,
-                     herbaria_force_refresh = FALSE,
-                     keep_herbaria_downloads = FALSE,
-                     herbaria_verbose = FALSE)
+plot_html_map(
+  fp_file_path = NULL,
+  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+  vertex_coords = NULL,
+  plot_size = 1,
+  subplot_size = 10,
+  voucher_imgs = NULL,
+  filename = "plot_map",
+  station_name = NULL,
+  collector = NULL,
+  collector_map = NULL,
+  herbaria_lookup = FALSE,
+  herbaria = NULL,
+  herbaria_force_refresh = FALSE,
+  keep_herbaria_downloads = FALSE,
+  verbose = TRUE
+)
 }
 \arguments{
-\item{fp_file_path}{Character. Path to the Excel file containing tree data.}
+\item{fp_file_path}{Character scalar. Path to the Excel file containing plot
+data in ForestPlots.net field-sheet, Query Library, or MONITORA format.}
 
-\item{input_type}{One of \code{"field_sheet"}, \code{"fp_query_sheet"} or
-\code{"monitora"}. For \code{"fp_query_sheet"}, the function expects a
-ForestPlots Query Library export and converts it internally into a
-field-sheet-like table. For \code{"monitora"}, it expects a Maltese-cross
-layout.}
+\item{input_type}{Input layout. One of \code{"field_sheet"},
+\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
 
-\item{vertex_coords}{Data frame, path to an Excel file, or numeric vector.
-For \code{"field_sheet"} and \code{"fp_query_sheet"}, provide the four plot
-corners in latitude and longitude. For \code{"monitora"}, provide a single
-central Latitude/Longitude used as the cross center. A numeric vector of
-length two is interpreted either as \code{c(lat, lon)} or as a named vector
-with elements \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.}
+\item{vertex_coords}{Plot reference coordinates. Accepted inputs are a data
+frame, a path to an Excel file, or a numeric vector of length 2.
+For \code{"field_sheet"}, \code{"field_sheet_ti"}, and
+\code{"fp_query_sheet"}, provide the four plot corners as latitude and
+longitude. For \code{"monitora"}, provide a single central latitude/longitude.
+A numeric vector of length 2 is interpreted as \code{c(lat, lon)} unless
+named with \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.}
 
-\item{plot_size}{Numeric. Total plot size in hectares (default is 1).}
+\item{plot_size}{Numeric scalar. Total plot size in hectares. Used for
+non-MONITORA inputs.}
 
-\item{subplot_size}{Numeric. Subplot size in meters (default is 10).}
+\item{subplot_size}{Numeric scalar. Side length of each subplot in meters.}
 
-\item{voucher_imgs}{Character. Directory path where voucher images are stored.
-Subdirectories are assumed to be named after voucher IDs, each containing
-one or more image files.}
+\item{voucher_imgs}{Character scalar or \code{NULL}. Directory containing
+voucher image subfolders. Subdirectories are assumed to be named after
+voucher IDs, each containing one or more image files to display in specimen
+popups.}
 
-\item{filename}{Character. Base name of the output HTML file (without
-extension). The function will prepend a date-stamped prefix and append
-\code{".html"} (default is \code{"plot_map"}).}
+\item{filename}{Character scalar. Basename for the output HTML file, without
+extension. The function prepends a date-stamped prefix before writing the file.}
 
-\item{station_name}{Character or \code{NULL}. For \code{"monitora"} inputs,
-optionally filter or loop over one or more station names. When a vector of
-station names is given, the function calls itself once per station.}
+\item{station_name}{Character vector or \code{NULL}. For
+\code{input_type = "monitora"}, optionally filter or iterate over one or more
+station names. When a vector of length greater than 1 is supplied, the
+function may process stations one by one via internal recursion.}
 
-\item{collector}{Character. Optional fallback collector name used when
-compact voucher codes are provided (e.g. \code{"GCO1095"} without an explicit
-collector string).}
+\item{collector}{Character scalar or \code{NULL}. Optional fallback collector
+name used when compact voucher codes are provided without an explicit
+collector string.}
 
 \item{collector_map}{Named character vector or \code{NULL}. Optional mapping
 used to expand voucher prefixes into full collector names before herbarium
-matching, for example \code{c("DC" = "D. Cardoso", "PWM" = "P. W. Moonlight")}.}
+matching, for example
+\code{c("DC" = "D. Cardoso", "PWM" = "P. W. Moonlight")}.}
 
 \item{herbaria_lookup}{Logical. If \code{TRUE}, the function performs a local
-herbarium lookup and adds a \code{herbaria_link} column to the specimen data,
-building a minimal index from DwC-A downloads from the JBRJ IPTs (JABOT +
-REFLORA) using internal helper functions.}
+herbarium lookup and adds herbarium image links to specimen popups when
+available.}
 
-\item{herbaria}{Character vector or \code{NULL}. Herbarium codes to be used
-in the herbaria lookup, e.g. \code{c("RB","UPCB")}. When
-\code{herbaria_lookup = TRUE} this argument must be a non-empty vector;
-by default it is \code{NULL} and no herbaria search is performed unless the
-user explicitly supplies the herbarium codes.}
+\item{herbaria}{Character vector or \code{NULL}. Herbarium codes to use in
+the herbarium lookup, for example \code{c("RB", "UPCB")}. When
+\code{herbaria_lookup = TRUE}, this should be a non-empty vector.}
 
 \item{herbaria_force_refresh}{Logical. If \code{TRUE}, forces rebuilding the
-combined JABOT+REFLORA index from local DwC-A archives, ignoring any existing
-cached index.}
+local herbarium index and ignores any existing cached index.}
 
-\item{keep_herbaria_downloads}{Logical. Controls disk usage during
-\code{herbaria_lookup}. If \code{FALSE} (default), DwC-A archives downloaded
-to \code{jabot_download/} and \code{reflora_download/} are deleted at the end of
-the run (the small cached index remains). Set \code{TRUE} to keep the downloaded
-archives to speed up sequential runs.}
+\item{keep_herbaria_downloads}{Logical. If \code{FALSE} (default), downloaded
+DwC-A archives used during herbarium lookup are removed at the end of the run.
+Set to \code{TRUE} to retain them on disk.}
 
-\item{herbaria_verbose}{Logical. If \code{TRUE}, prints detailed messages
-during herbarium lookup for debugging. Default is \code{FALSE}.}
+\item{verbose}{Logical. If \code{TRUE}, prints detailed messages during
+herbarium lookup and related processing.}
+}
+\value{
+Invisibly returns the path to the generated HTML file.
 }
 \description{
-Generates an interactive and self-contained HTML map for forest plots
-following either the \href{https://forestplots.net/}{ForestPlots plot protocol}
-or the \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{Monitora program},
-using Leaflet and based on vouchered tree data and plot coordinates.
-The function handles both standard ForestPlots layouts
-(1 ha or 0.5 ha plots defined by four corner vertices) and MONITORA
-layouts (Maltese cross design defined by a single central coordinate).
-It: (i) converts local subplot coordinates (X, Y) to geographic coordinates
-using geospatial interpolation from plot vertices or a central point;
-(ii) extracts metadata such as team name, plot name, and plot code from the
-input file; (iii) draws the plot boundary polygon or Maltese cross arms over
-selectable basemaps; (iv) colors tree points by collection status and palms
-(palms = yellow, collected = gray, missing = red); (v) embeds image carousels in
-specimen popups when matching voucher images are found in the specified
-folder; (vi) optionally performs a local herbarium lookup (JABOT + REFLORA
-DwC-A downloads, via internal helper functions) to attach direct "Herbarium
-image" links to each voucher when available; (vii) adds an interactive filter
-sidebar with checkboxes, multi-select inputs, and a search box for filtering
-by family, species, collection status, subplot, and presence of photos;
-(viii) displays informative popups for each tree, showing tag number, subplot,
-family, species, DBH, voucher code, herbarium image link (if found), and photos;
-and (x) saves the resulting map as a date-stamped standalone HTML file with
-multiple interactive Leaflet map options for easy sharing, archiving, or
-field consultation.
+Generate an interactive HTML map of vouchered individuals in a forest plot
+using Leaflet. The function supports standard ForestPlots.net layouts defined
+by plot vertices and MONITORA layouts defined by a single central coordinate.
+It harmonizes specimen records, converts local plot coordinates to geographic
+coordinates, draws plot geometry and subplot boundaries, and writes a
+shareable HTML map to disk.
 }
+\details{
+Supported inputs include standard ForestPlots.net field sheets, Indigenous
+Land field sheets, Query Library exports, and MONITORA layouts. Depending on
+\code{input_type}, the function:
+\enumerate{
+\item validates required arguments and reads the input table;
+\item harmonizes the data into a canonical internal schema;
+\item extracts plot metadata such as team, plot name, and plot code;
+\item converts local subplot coordinates to geographic coordinates using
+either plot vertices or a MONITORA center point;
+\item builds plot and subplot overlays;
+\item colors specimen markers by collection status, with palms shown as a
+separate visual category;
+\item optionally embeds voucher image carousels in specimen popups;
+\item optionally performs a local herbarium lookup using internal helper
+functions and adds herbarium image links when available; and
+\item saves the final map as an HTML file.
+}
+
+Collection status is inferred from the canonical \code{Collected} column
+after input harmonization. For some input types, this field is derived from
+source-specific voucher or collection-status columns.
+}
+\section{Input types}{
+
+\describe{
+\item{\code{"field_sheet"}}{Standard ForestPlots.net field-sheet layout.}
+\item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+\item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export converted internally to a field-sheet-like schema.}
+\item{\code{"monitora"}}{MONITORA layout converted internally and plotted using MONITORA geometry.}
+}
+}
+
+\section{Side effects}{
+
+The function writes an HTML file to disk. When \code{herbaria_lookup = TRUE},
+it may also build or refresh a local herbarium index from DwC-A downloads and
+may remove downloaded archives at the end of the run depending on
+\code{keep_herbaria_downloads}.
+}
+
 \examples{
 \dontrun{
 vertex_df <- data.frame(
@@ -134,6 +158,14 @@ plot_html_map(
   herbaria_lookup = TRUE,
   herbaria = "RB",
   filename = "rus_plot_map"
+)
+
+plot_html_map(
+  fp_file_path = "data/monitora.xlsx",
+  input_type = "monitora",
+  vertex_coords = c(lat = -3.10, lon = -60.02),
+  station_name = "Station1",
+  filename = "monitora_map"
 )
 }
 

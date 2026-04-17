@@ -94,10 +94,7 @@
 
 mk_voucher_dirs <- function(fp_file_path = NULL,
                             output_dir = "voucher_imgs",
-                            input_type = c("field_sheet",
-                                           "field_sheet_ti",
-                                           "fp_query_sheet",
-                                           "monitora"),
+                            input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
                             station_name = NULL) {
 
   input_type <- match.arg(input_type)
@@ -108,138 +105,14 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
 
   output_dir <- .arg_check_dir(output_dir)
 
-  fp_sheet <- switch(
-    input_type,
-    "monitora" = .monitora_to_field_sheet_df(
-      path = fp_file_path,
-      station_name = station_name
-    ),
-
-    "fp_query_sheet" = .fp_query_to_field_sheet_df(
-      path = fp_file_path
-    ),
-
-    "field_sheet" = {
-      raw <- suppressMessages(
-        readxl::read_excel(
-          fp_file_path,
-          sheet = 1,
-          col_names = FALSE,
-          .name_repair = "minimal"
-        )
-      )
-
-      raw <- as.data.frame(raw, stringsAsFactors = FALSE)
-
-      if (nrow(raw) < 2) {
-        stop("The field sheet must contain at least two rows.", call. = FALSE)
-      }
-
-      header <- as.character(unlist(raw[2, ]))
-      header <- trimws(header)
-      header[is.na(header) | header == ""] <- paste0(
-        "unnamed_",
-        seq_along(header)
-      )[is.na(header) | header == ""]
-
-      names(raw) <- make.unique(header)
-
-      out <- raw[-c(1, 2), , drop = FALSE]
-      out <- as.data.frame(out, stringsAsFactors = FALSE)
-      names(out) <- trimws(names(out))
-
-      out
-    },
-
-    "field_sheet_ti" = {
-      raw <- suppressMessages(
-        readxl::read_excel(
-          fp_file_path,
-          sheet = 1,
-          col_names = FALSE,
-          .name_repair = "minimal"
-        )
-      )
-
-      raw <- as.data.frame(raw, stringsAsFactors = FALSE)
-
-      if (nrow(raw) < 3) {
-        stop("The field_sheet_ti input must contain metadata, header, and data rows.",
-             call. = FALSE)
-      }
-
-      raw_data <- raw[-c(1, 2), , drop = FALSE]
-
-      dest_cols <- .field_sheet_cols()
-
-      temp <- as.data.frame(
-        matrix(NA, nrow = nrow(raw_data), ncol = length(dest_cols)),
-        stringsAsFactors = FALSE
-      )
-      names(temp) <- dest_cols
-
-      temp$`New Tag No` <- as.character(raw_data[[1]])
-      temp$`New Stem Grouping` <- as.character(raw_data[[2]])
-      temp$T1 <- suppressWarnings(as.numeric(raw_data[[3]]))
-      temp$T2 <- suppressWarnings(as.numeric(raw_data[[4]]))
-      temp$X <- suppressWarnings(as.numeric(raw_data[[5]]))
-      temp$Y <- suppressWarnings(as.numeric(raw_data[[6]]))
-      temp$Family <- as.character(raw_data[[7]])
-
-      genus_part <- as.character(raw_data[[8]])
-      species_part <- as.character(raw_data[[9]])
-      genus_part[is.na(genus_part)] <- ""
-      species_part[is.na(species_part)] <- ""
-
-      temp$`Original determination` <- trimws(
-        ifelse(
-          nzchar(species_part),
-          paste(genus_part, species_part),
-          genus_part
-        )
-      )
-
-      temp$Morphospecies <- as.character(raw_data[[10]])
-      temp$D <- suppressWarnings(as.numeric(raw_data[[11]]))
-      temp$POM <- suppressWarnings(as.numeric(raw_data[[12]]))
-      temp$ExtraD <- NA_character_
-      temp$ExtraPOM <- NA_character_
-      temp$Flag1 <- as.character(raw_data[[13]])
-      temp$Flag2 <- NA_character_
-      temp$Flag3 <- NA_character_
-      temp$LI <- NA_character_
-      temp$CI <- NA_character_
-      temp$CF <- NA_character_
-      temp$CD1 <- NA_character_
-      temp$nrdups <- as.character(raw_data[[14]])
-      temp$Height <- suppressWarnings(as.numeric(raw_data[[15]]))
-      temp$Voucher <- as.character(raw_data[[16]])
-      temp$Silica <- as.character(raw_data[[17]])
-      temp$Collected <- as.character(raw_data[[18]])
-      temp$`Census Notes` <- as.character(raw_data[[19]])
-      temp$CAP <- suppressWarnings(as.numeric(raw_data[[21]]))
-      temp$`Basal Area` <- suppressWarnings(as.numeric(raw_data[[22]]))
-
-      temp
-    }
+  # Harmonize the plot input data type
+  fp_loaded <- .harmonize_plot_input(
+    fp_file_path = fp_file_path,
+    input_type = input_type,
+    station_name = station_name
   )
 
-  fp_sheet <- as.data.frame(fp_sheet, stringsAsFactors = FALSE)
-
-  needed_cols <- c("Family", "Original determination", "Voucher", "Collected")
-  missing_cols <- setdiff(needed_cols, names(fp_sheet))
-  if (length(missing_cols)) {
-    stop(
-      "The harmonized input is missing required columns: ",
-      paste(missing_cols, collapse = ", "),
-      call. = FALSE
-    )
-  }
-
-  fp_sheet$Family <- as.character(fp_sheet$Family)
-  fp_sheet$Voucher <- as.character(fp_sheet$Voucher)
-  fp_sheet$Collected <- as.character(fp_sheet$Collected)
-  fp_sheet$`Original determination` <- as.character(fp_sheet$`Original determination`)
+  fp_sheet  <- fp_loaded$fp_sheet
 
   has_tag <- !is.na(fp_sheet$`New Tag No`)
   is_yes <- !is.na(fp_sheet$Collected) & tolower(trimws(fp_sheet$Collected)) == "yes"
@@ -375,7 +248,7 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
   x[is.na(x)] <- ""
   x <- trimws(x)
   x[x %in% c("", "NA", "Na", "N/A")] <- NA_character_
-  genus <- sub("\\s+.*$", "", x)
+  genus <- sub("\\s+.*$", "", sub(".*[|]\\s", "", x))
   genus[is.na(x)] <- NA_character_
   genus
 }
