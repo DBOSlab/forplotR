@@ -85,10 +85,10 @@ extracted from the input file metadata.}
 \value{
 Invisibly returns a list with paths to generated outputs:
 \describe{
-  \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
-  \item{pdf_report}{Path to the rendered PDF report, or \code{NULL} if not generated.}
-  \item{xlsx_report}{Path to the Excel summary workbook, or \code{NULL} if not generated.}
-  \item{output_dir}{Directory where outputs were written.}
+\item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
+\item{pdf_report}{Path to the rendered PDF report, or \code{NULL} if not generated.}
+\item{xlsx_report}{Path to the Excel summary workbook, or \code{NULL} if not generated.}
+\item{output_dir}{Directory where outputs were written.}
 }
 When \code{input_type = "monitora"} and \code{station_name} has length greater
 than 1, the function recursively processes each station and invisibly returns
@@ -107,13 +107,13 @@ Supported inputs include ForestPlots.net field sheets, Indigenous Land field
 sheets, Query Library exports, and MONITORA layouts. Depending on the selected
 \code{input_type}, the function:
 \enumerate{
-  \item validates arguments and output directories;
-  \item reads and harmonizes the input table into a canonical internal schema;
-  \item extracts or overrides plot metadata;
-  \item cleans coordinates and diameter values and computes plot geometry;
-  \item generates whole-plot and subplot-level maps, with optional palm highlighting;
-  \item renders HTML and/or PDF reports;
-  \item optionally writes an Excel workbook summarizing collection balance per subplot.
+\item validates arguments and output directories;
+\item reads and harmonizes the input table into a canonical internal schema;
+\item extracts or overrides plot metadata;
+\item cleans coordinates and diameter values and computes plot geometry;
+\item generates whole-plot and subplot-level maps, with optional palm highlighting;
+\item renders HTML and/or PDF reports;
+\item optionally writes an Excel workbook summarizing collection balance per subplot.
 }
 
 Collection status is inferred from the canonical \code{Collected} column
@@ -126,10 +126,10 @@ summary files to disk.
 \section{Input types}{
 
 \describe{
-  \item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
-  \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
-  \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
-  \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
+\item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
+\item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+\item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
+\item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
 }
 }
 

@@ -94,9 +94,12 @@
 
 mk_voucher_dirs <- function(fp_file_path = NULL,
                             output_dir = "voucher_imgs",
-                            input_type = c("field_sheet", "field_sheet_ti",
-                                           "fp_query_sheet", "monitora"),
+                            input_type = c("field_sheet",
+                                           "field_sheet_ti",
+                                           "fp_query_sheet",
+                                           "monitora"),
                             station_name = NULL) {
+
   input_type <- match.arg(input_type)
 
   if (is.null(fp_file_path) || !file.exists(fp_file_path)) {
@@ -104,64 +107,6 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
   }
 
   output_dir <- .arg_check_dir(output_dir)
-
-  .clean_path_component <- function(x) {
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x <- trimws(x)
-    x <- gsub("[/\\:*?\"<>|]", "_", x)
-    x
-  }
-
-  .norm_txt <- function(x) {
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x2 <- suppressWarnings(iconv(x, from = "", to = "ASCII//TRANSLIT", sub = ""))
-    bad <- is.na(x2) | !nzchar(x2)
-    x2[bad] <- x[bad]
-    tolower(trimws(x2))
-  }
-
-  .extract_genus <- function(x) {
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x <- trimws(x)
-    x[x %in% c("", "NA", "Na", "N/A")] <- NA_character_
-    genus <- sub("\\s+.*$", "", x)
-    genus[is.na(x)] <- NA_character_
-    genus
-  }
-
-  .is_collected_value <- function(x, voucher = NULL) {
-    z <- .norm_txt(x)
-
-    out <- z %in% c(
-      "sim", "s", "yes", "y", "true", "1",
-      "x", "coletado", "coletada", "collected"
-    )
-
-    if (!is.null(voucher)) {
-      v <- as.character(voucher)
-      v[is.na(v)] <- ""
-      out <- out | nzchar(trimws(v))
-    }
-
-    out
-  }
-
-  .delete_empty_parents <- function(path, stop_at) {
-    cur <- normalizePath(path, winslash = "/", mustWork = FALSE)
-    stop_at <- normalizePath(stop_at, winslash = "/", mustWork = FALSE)
-
-    while (!identical(cur, stop_at) && dir.exists(cur)) {
-      if (length(list.files(cur, all.files = FALSE, no.. = TRUE)) == 0) {
-        unlink(cur, recursive = TRUE)
-        cur <- dirname(cur)
-      } else {
-        break
-      }
-    }
-  }
 
   fp_sheet <- switch(
     input_type,
@@ -296,6 +241,16 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
   fp_sheet$Collected <- as.character(fp_sheet$Collected)
   fp_sheet$`Original determination` <- as.character(fp_sheet$`Original determination`)
 
+  has_tag <- !is.na(fp_sheet$`New Tag No`)
+  is_yes <- !is.na(fp_sheet$Collected) & tolower(trimws(fp_sheet$Collected)) == "yes"
+  has_voucher <- !is.na(fp_sheet$Voucher) & trimws(fp_sheet$Voucher) != ""
+  rows <- has_tag & is_yes
+  fp_sheet$Voucher[rows] <- ifelse(
+    has_voucher[rows],
+    paste0(fp_sheet$Voucher[rows], " Tree#", fp_sheet$`New Tag No`[rows]),
+    paste0("Tree#", fp_sheet$`New Tag No`[rows])
+  )
+
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
     message("Created main output directory: ", output_dir)
@@ -397,3 +352,62 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
 
   invisible(fp_sheet)
 }
+
+.clean_path_component <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- trimws(x)
+  x <- gsub("[/\\:*?\"<>|]", "_", x)
+  x
+}
+
+.norm_txt <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x2 <- suppressWarnings(iconv(x, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  bad <- is.na(x2) | !nzchar(x2)
+  x2[bad] <- x[bad]
+  tolower(trimws(x2))
+}
+
+.extract_genus <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- trimws(x)
+  x[x %in% c("", "NA", "Na", "N/A")] <- NA_character_
+  genus <- sub("\\s+.*$", "", x)
+  genus[is.na(x)] <- NA_character_
+  genus
+}
+
+.is_collected_value <- function(x, voucher = NULL) {
+  z <- .norm_txt(x)
+
+  out <- z %in% c(
+    "sim", "s", "yes", "y", "true", "1",
+    "x", "coletado", "coletada", "collected"
+  )
+
+  if (!is.null(voucher)) {
+    v <- as.character(voucher)
+    v[is.na(v)] <- ""
+    out <- out | nzchar(trimws(v))
+  }
+
+  out
+}
+
+.delete_empty_parents <- function(path, stop_at) {
+  cur <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  stop_at <- normalizePath(stop_at, winslash = "/", mustWork = FALSE)
+
+  while (!identical(cur, stop_at) && dir.exists(cur)) {
+    if (length(list.files(cur, all.files = FALSE, no.. = TRUE)) == 0) {
+      unlink(cur, recursive = TRUE)
+      cur <- dirname(cur)
+    } else {
+      break
+    }
+  }
+}
+

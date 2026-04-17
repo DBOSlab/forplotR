@@ -99,11 +99,11 @@ herbarium sheet's notes. If \code{FALSE}, census notes will be omitted.}
 coordinates fall within the provided administrative division (country/majorarea).}
 
 \item{dir}{Pathway to the computer's directory, where the file will be saved.
-The default is to create a directory named **Results_herb_label**
+The default is to create a directory named \strong{Results_herb_label}
 and the search results will be saved within a subfolder named after the current
 date.}
 
-\item{filename}{Name of the output file. Default is **plot_to_herb_sheet**.}
+\item{filename}{Name of the output file. Default is \strong{plot_to_herb_sheet}.}
 }
 \value{
 A data frame in herbarium format with the processed data from the
@@ -135,8 +135,8 @@ forestplots sheet, such as DBH, field notes, and subplot coordinates.
 For instance, a final note in English might read:
 
 "Tree, 24.83cm DBH, with peeling bark, small buttress roots, bark with tiny
- reddish plates, crown completely exposed to vertical and lateral light in a
- 45 degree curve. Individual #3 in the subplot 1, x = 1.5m, y = 2.5m."
+reddish plates, crown completely exposed to vertical and lateral light in a
+45 degree curve. Individual #3 in the subplot 1, x = 1.5m, y = 2.5m."
 
 The phrases "with peeling bark" and "crown completely exposed to vertical
 and lateral light..." are automatically generated from the Rainfor codes,
@@ -144,7 +144,7 @@ while phrases such as "small buttress roots" and "bark with reddish plates"
 come from the original field notes recorded in the Forestplots sheet. The
 conversion of Rainfor codes and the construction of this descriptive text
 are supported in three languages: English, Portuguese, and Spanish, depending
-on the value set in the `language` argument.
+on the value set in the \code{language} argument.
 }
 \examples{
 \dontrun{

@@ -16,10 +16,10 @@ mk_voucher_dirs(
 in one of the supported plot-data layouts.}
 
 \item{output_dir}{Character. Root directory in which voucher image folders
-will be organized. Default is `"voucher_imgs"`.}
+will be organized. Default is \code{"voucher_imgs"}.}
 
-\item{input_type}{Character. Input layout. Must be one of `"field_sheet"`,
-`"field_sheet_ti"`, `"fp_query_sheet"`, or `"monitora"`.}
+\item{input_type}{Character. Input layout. Must be one of \code{"field_sheet"},
+\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
 
 \item{station_name}{Optional character or numeric. Station name or station
 identifier used to filter MONITORA spreadsheets when applicable. Ignored
@@ -27,7 +27,7 @@ for the other input types.}
 }
 \value{
 Invisibly returns the harmonized field-sheet data frame used
-  internally to organize the voucher directories.
+internally to organize the voucher directories.
 }
 \description{
 Organizes image folders of voucher specimens based on their
@@ -38,24 +38,24 @@ behavior according to the existing directory structure and to the selected
 input type.
 
 Internally, the input is harmonized into the same canonical field-sheet
-schema used elsewhere in the package. For `input_type = "fp_query_sheet"`
-and `input_type = "monitora"`, the function relies on the existing internal
-converters. For `input_type = "field_sheet_ti"`, it applies the same direct
+schema used elsewhere in the package. For \code{input_type = "fp_query_sheet"}
+and \code{input_type = "monitora"}, the function relies on the existing internal
+converters. For \code{input_type = "field_sheet_ti"}, it applies the same direct
 positional remapping used in the package workflow for Indigenous Land /
 Panará-style field sheets.
 
-On the **first execution**, the function reads voucher information from the
-input file, (i) creates a main folder (default: `"voucher_imgs"`) if it does
+On the \strong{first execution}, the function reads voucher information from the
+input file, (i) creates a main folder (default: \code{"voucher_imgs"}) if it does
 not already exist, and (ii) for each voucher treated as collected, creates a
-nested directory structure following the format `Family/Genus/Voucher`, where
+nested directory structure following the format \code{Family/Genus/Voucher}, where
 voucher images can be stored.
 
-On **subsequent executions**, the function performs a reorganization step.
-It scans the existing voucher directories inside `output_dir`, compares them
+On \strong{subsequent executions}, the function performs a reorganization step.
+It scans the existing voucher directories inside \code{output_dir}, compares them
 with the currently accepted taxonomic placement inferred from the harmonized
 data, and identifies folders that may reflect outdated or incorrect genus
 assignments. If a voucher is found inside a taxonomically outdated path, the
-function attempts to move the files to the correct `Family/Genus/Voucher`
+function attempts to move the files to the correct \code{Family/Genus/Voucher}
 directory. If the destination folder already contains files, the function
 avoids overwriting existing content and only moves files that are not already
 present.
@@ -67,9 +67,9 @@ tree remains synchronized with the most up-to-date taxonomic identification,
 making voucher image organization robust, repeatable, and easy to maintain
 over time.
 
-A voucher is treated as collected when the canonical `Collected` field
-indicates a positive collection status (for example `"Sim"`, `"Yes"`,
-`"Collected"`, `"Coletado"`, `"1"`, `"x"`, or similar values). As an
+A voucher is treated as collected when the canonical \code{Collected} field
+indicates a positive collection status (for example \code{"Sim"}, \code{"Yes"},
+\code{"Collected"}, \code{"Coletado"}, \code{"1"}, \code{"x"}, or similar values). As an
 additional fallback, the function also treats a record as collected when a
 non-empty voucher code is present after input harmonization.
 }

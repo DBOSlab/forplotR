@@ -69,6 +69,7 @@ Suggests:
     testthat (>= 3.0.0),
     withr
 RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
 URL:
     https://dboslab.github.io/forplotR-website/
     https://github.com/DBOSlab/forplotR
