@@ -191,7 +191,8 @@ plot_html_map <- function(fp_file_path = NULL,
   fp_loaded <- .harmonize_plot_input(
     fp_file_path = fp_file_path,
     input_type = input_type,
-    station_name = station_name
+    station_name = station_name,
+    verbose = verbose
   )
 
   fp_sheet  <- fp_loaded$fp_sheet

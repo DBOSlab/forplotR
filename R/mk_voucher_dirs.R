@@ -46,17 +46,23 @@
 #' non-empty voucher code is present after input harmonization.
 #'
 #' @param fp_file_path Character. Path to the input Excel file containing data
-#'   in one of the supported plot-data layouts.
+#' in one of the supported plot-data layouts.
+#'
 #' @param output_dir Character. Root directory in which voucher image folders
-#'   will be organized. Default is `"voucher_imgs"`.
+#' will be organized. Default is `"voucher_imgs"`.
+#'
 #' @param input_type Character. Input layout. Must be one of `"field_sheet"`,
-#'   `"field_sheet_ti"`, `"fp_query_sheet"`, or `"monitora"`.
+#' `"field_sheet_ti"`, `"fp_query_sheet"`, or `"monitora"`.
+#'
 #' @param station_name Optional character or numeric. Station name or station
-#'   identifier used to filter MONITORA spreadsheets when applicable. Ignored
-#'   for the other input types.
+#' identifier used to filter MONITORA spreadsheets when applicable. Ignored
+#' for the other input types.
+#'
+#' @param verbose Logical. If \code{TRUE}, prints detailed messages during
+#' processing.
 #'
 #' @return Invisibly returns the harmonized field-sheet data frame used
-#'   internally to organize the voucher directories.
+#' internally to organize the voucher directories.
 #'
 #' @examples
 #' \dontrun{
@@ -95,7 +101,8 @@
 mk_voucher_dirs <- function(fp_file_path = NULL,
                             output_dir = "voucher_imgs",
                             input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
-                            station_name = NULL) {
+                            station_name = NULL,
+                            verbose = TRUE) {
 
   input_type <- match.arg(input_type)
 
@@ -109,14 +116,15 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
   fp_loaded <- .harmonize_plot_input(
     fp_file_path = fp_file_path,
     input_type = input_type,
-    station_name = station_name
+    station_name = station_name,
+    verbose = verbose
   )
 
   fp_sheet  <- fp_loaded$fp_sheet
 
   has_tag <- !is.na(fp_sheet$`New Tag No`)
   is_yes <- !is.na(fp_sheet$Collected) & tolower(trimws(fp_sheet$Collected)) == "yes"
-  has_voucher <- !is.na(fp_sheet$Voucher) & trimws(fp_sheet$Voucher) != ""
+  has_voucher <- !is.na(fp_sheet$Voucher) & tolower(trimws(fp_sheet$Collected)) == "yes"
   rows <- has_tag & is_yes
   fp_sheet$Voucher[rows] <- ifelse(
     has_voucher[rows],
@@ -140,9 +148,15 @@ mk_voucher_dirs <- function(fp_file_path = NULL,
 
   for (i in seq_len(nrow(fp_sheet))) {
     voucher <- .clean_path_component(fp_sheet$Voucher[i])
+    voucher <- gsub("[.]", "", voucher)
+    voucher <- gsub("\\s", "_", voucher)
     collected_raw <- fp_sheet$Collected[i]
     family <- .clean_path_component(fp_sheet$Family[i])
     genus_correct <- .clean_path_component(.extract_genus(fp_sheet$`Original determination`[i]))
+
+    if (fp_sheet$Collected[i] %in% c("No", "no", "NO")) {
+      voucher <- ""
+    }
 
     if (!nzchar(voucher)) {
       n_skipped_missing_data <- n_skipped_missing_data + 1L

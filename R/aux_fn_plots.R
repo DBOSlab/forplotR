@@ -1,8 +1,5 @@
-# =============================================================================
-# Plot ingestion and geometry helpers
-# Author: Giulia Ottino & Domingos Cardoso
-# Revised: 08/Mar/2026
-# =============================================================================
+# Plot ingestion and geometry helpers ####
+# Authors: Giulia Ottino & Domingos Cardoso
 
 #' Normalize names for matching
 #'
@@ -818,136 +815,6 @@
     stop("Package 'readxl' is required to read MONITORA files.", call. = FALSE)
   }
 
-  .norm <- function(x) {
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x2 <- suppressWarnings(iconv(x, from = "", to = "ASCII//TRANSLIT", sub = ""))
-    x2[is.na(x2) | !nzchar(x2)] <- x[is.na(x2) | !nzchar(x2)]
-    tolower(gsub("[^a-z0-9]+", "", x2))
-  }
-
-  .find_best_col <- function(df, aliases) {
-    if (ncol(df) == 0) return(NA_character_)
-
-    cn_raw <- names(df)
-    cn_norm <- .norm(cn_raw)
-    ali_norm <- .norm(aliases)
-
-    hit_idx <- match(ali_norm, cn_norm, nomatch = 0L)
-    if (any(hit_idx > 0L)) {
-      return(cn_raw[hit_idx[which(hit_idx > 0L)[1]]])
-    }
-
-    for (a in ali_norm) {
-      if (!nzchar(a) || nchar(a) < 2L) next
-      hit <- which(grepl(a, cn_norm, fixed = TRUE))
-      if (length(hit) == 1L) {
-        return(cn_raw[hit[1]])
-      }
-    }
-
-    NA_character_
-  }
-
-  .find_best_numeric_col <- function(df, aliases) {
-    cand <- unique(stats::na.omit(vapply(
-      aliases,
-      function(a) .find_best_col(df, a),
-      FUN.VALUE = character(1)
-    )))
-
-    if (!length(cand)) return(NA_character_)
-
-    best <- cand[1]
-    best_n <- -1L
-    for (cl in cand) {
-      v <- .to_numeric(df[[cl]])
-      n_ok <- sum(is.finite(v), na.rm = TRUE)
-      if (n_ok > best_n) {
-        best_n <- n_ok
-        best <- cl
-      }
-    }
-    best
-  }
-
-  clean_spaces <- function(x) {
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x <- gsub(intToUtf8(0x00A0), " ", x, fixed = TRUE)
-    x <- gsub(intToUtf8(0x2007), " ", x, fixed = TRUE)
-    x <- gsub(intToUtf8(0x202F), " ", x, fixed = TRUE)
-    x <- gsub("\\s+", " ", x)
-    trimws(x)
-  }
-
-  .to_numeric <- function(x) {
-    if (is.factor(x)) x <- as.character(x)
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x <- clean_spaces(x)
-    x <- sub("^([^;/|]+)[;/|].*$", "\\1", x, perl = TRUE)
-    x <- gsub("\\.(?=\\d{3}(\\D|$))", "", x, perl = TRUE)
-    x <- gsub(",", ".", x, fixed = TRUE)
-
-    pat <- "[-+]?(?:\\d+\\.?\\d*|\\d*\\.?\\d+)"
-    has_num <- grepl(pat, x, perl = TRUE)
-
-    y <- rep(NA_character_, length(x))
-    y[has_num] <- regmatches(x[has_num], regexpr(pat, x[has_num], perl = TRUE))
-    suppressWarnings(as.numeric(y))
-  }
-
-  .to_year <- function(x) {
-    x <- as.character(x)
-    x[is.na(x)] <- ""
-    x <- gsub("\\s+", "", x)
-    x <- gsub(",", "", x, fixed = TRUE)
-    m <- regexpr("(?:19|20)\\d{2}", x, perl = TRUE)
-    y <- rep(NA_integer_, length(x))
-    hit <- m > 0
-    y[hit] <- suppressWarnings(as.integer(substr(
-      x[hit],
-      m[hit],
-      m[hit] + attr(m, "match.length")[hit] - 1
-    )))
-    y
-  }
-
-  .station_norm_name <- function(v) {
-    v <- clean_spaces(v)
-    v2 <- suppressWarnings(iconv(v, from = "", to = "ASCII//TRANSLIT", sub = ""))
-    v2[is.na(v2) | !nzchar(v2)] <- v[is.na(v2) | !nzchar(v2)]
-    tolower(v2)
-  }
-
-  .station_norm_num <- function(v) {
-    v <- clean_spaces(v)
-    v <- gsub("\\s+", "", v)
-    v <- sub("^0+([0-9])", "\\1", v)
-    v[v == ""] <- NA_character_
-    v
-  }
-
-  first_nonempty <- function(df, col, lixo = character(0)) {
-    if (is.na(col) || !(col %in% names(df)) || nrow(df) == 0) return("")
-    v <- clean_spaces(df[[col]])
-    ok <- !is.na(v) & nzchar(v) & !(tolower(v) %in% tolower(lixo))
-    v <- v[ok]
-    if (length(v) > 0) v[1] else ""
-  }
-
-  map_sub <- function(v) {
-    v <- toupper(clean_spaces(v))
-    dplyr::case_when(
-      v %in% c("N", "NORTE") ~ 1,
-      v %in% c("S", "SUL", "SOUTH") ~ 2,
-      v %in% c("L", "LESTE", "E", "EAST") ~ 3,
-      v %in% c("O", "OESTE", "W", "WEST") ~ 4,
-      TRUE ~ NA_real_
-    )
-  }
-
   df <- suppressMessages(
     readxl::read_excel(
       path,
@@ -961,7 +828,7 @@
     stop("Empty MONITORA worksheet.", call. = FALSE)
   }
 
-  names(df) <- clean_spaces(names(df))
+  names(df) <- .clean_spaces(names(df))
   nm <- names(df)
 
   col_subunidade <- if ("subunidade" %in% nm) "subunidade" else
@@ -1156,7 +1023,7 @@
       ]
 
       if (nrow(older)) {
-        old_tag <- clean_spaces(older[[col_tag]])
+        old_tag <- .clean_spaces(older[[col_tag]])
         old_x <- .to_numeric(older[[col_x]])
         old_y <- .to_numeric(older[[col_y]])
         old_year <- .to_year(older[[col_ano]])
@@ -1166,7 +1033,7 @@
         old_x <- old_x[ord]
         old_y <- old_y[ord]
 
-        tag_use <- clean_spaces(df_use[[col_tag]])
+        tag_use <- .clean_spaces(df_use[[col_tag]])
 
         for (i in which(need_xy)) {
           tg <- tag_use[i]
@@ -1182,13 +1049,13 @@
   }
 
   voucher_collector_raw <- if (!is.na(col_voucher_c) && col_voucher_c %in% names(df_use)) {
-    clean_spaces(df_use[[col_voucher_c]])
+    .clean_spaces(df_use[[col_voucher_c]])
   } else {
     rep("", nrow(df_use))
   }
 
   voucher_number_raw <- if (!is.na(col_voucher_n) && col_voucher_n %in% names(df_use)) {
-    clean_spaces(df_use[[col_voucher_n]])
+    .clean_spaces(df_use[[col_voucher_n]])
   } else {
     rep("", nrow(df_use))
   }
@@ -1203,19 +1070,19 @@
   voucher_collector_raw[!nzchar(voucher_collector_raw)] <- NA_character_
 
   gen <- if (!is.na(col_genero) && col_genero %in% names(df_use)) {
-    clean_spaces(df_use[[col_genero]])
+    .clean_spaces(df_use[[col_genero]])
   } else {
     rep(NA_character_, nrow(df_use))
   }
 
   esp <- if (!is.na(col_especie) && col_especie %in% names(df_use)) {
-    clean_spaces(df_use[[col_especie]])
+    .clean_spaces(df_use[[col_especie]])
   } else {
     rep(NA_character_, nrow(df_use))
   }
 
   family_vec <- if (!is.na(col_familia) && col_familia %in% names(df_use)) {
-    clean_spaces(df_use[[col_familia]])
+    .clean_spaces(df_use[[col_familia]])
   } else {
     rep(NA_character_, nrow(df_use))
   }
@@ -1268,11 +1135,11 @@
 
   od[is.na(od) | !nzchar(od)] <- "Indet indet"
 
-  morpho_vec <- if (!is.na(col_nomecomum) && col_nomecomum %in% names(df_use)) clean_spaces(df_use[[col_nomecomum]]) else rep(NA_character_, nrow(df_use))
+  morpho_vec <- if (!is.na(col_nomecomum) && col_nomecomum %in% names(df_use)) .clean_spaces(df_use[[col_nomecomum]]) else rep(NA_character_, nrow(df_use))
   morpho_vec[!nzchar(morpho_vec)] <- NA_character_
 
   collected_raw <- if (!is.na(col_coletado) && col_coletado %in% names(df_use)) {
-    clean_spaces(df_use[[col_coletado]])
+    .clean_spaces(df_use[[col_coletado]])
   } else {
     rep("", nrow(df_use))
   }
@@ -1285,7 +1152,7 @@
 
   collected_vec <- ifelse(is_collected, "Sim", NA_character_)
 
-  notes_vec <- if (!is.na(col_obs) && col_obs %in% names(df_use)) clean_spaces(df_use[[col_obs]]) else rep(NA_character_, nrow(df_use))
+  notes_vec <- if (!is.na(col_obs) && col_obs %in% names(df_use)) .clean_spaces(df_use[[col_obs]]) else rep(NA_character_, nrow(df_use))
   notes_vec[!nzchar(notes_vec)] <- NA_character_
 
   cap_vec <- if (!is.na(col_cap) && col_cap %in% names(df_use)) .to_numeric(df_use[[col_cap]]) else rep(NA_real_, nrow(df_use))
@@ -1298,7 +1165,7 @@
   out <- data.frame(
     `New Tag No` = as.character(df_use[[col_tag]]),
     `New Stem Grouping` = NA_character_,
-    T1 = map_sub(df_use[[col_subunidade]]),
+    T1 = .map_sub(df_use[[col_subunidade]]),
     T2 = .to_numeric(df_use[[col_nparcela]]),
     X = x_recent,
     Y = y_recent,
@@ -1342,16 +1209,16 @@
   lixo_uc <- c("", "na", "n/a", "-", "--", ".", "s/n", "sn")
   lixo_estacao <- c("", "na", "n/a", "-", "--", ".")
 
-  plot_name <- first_nonempty(df_use, col_uc, lixo_uc)
-  plot_code <- first_nonempty(df_use, col_estacao, lixo_estacao)
+  plot_name <- .first_nonempty(df_use, col_uc, lixo_uc)
+  plot_code <- .first_nonempty(df_use, col_estacao, lixo_estacao)
 
   if (!nzchar(plot_code) && !is.na(col_estacao_n) && col_estacao_n %in% names(df_use)) {
-    plot_code <- first_nonempty(df_use, col_estacao_n, lixo_estacao)
+    plot_code <- .first_nonempty(df_use, col_estacao_n, lixo_estacao)
   }
 
   team_val <- ""
   if (!is.na(col_coletores) && col_coletores %in% names(df_use)) {
-    team_vals <- unique(clean_spaces(df_use[[col_coletores]]))
+    team_vals <- unique(.clean_spaces(df_use[[col_coletores]]))
     team_vals <- team_vals[nzchar(team_vals)]
     if (length(team_vals)) {
       team_val <- paste(team_vals, collapse = "; ")
@@ -1362,7 +1229,7 @@
   dead_since_first <- NA_integer_
 
   if (!is.na(col_dead) && col_dead %in% names(df_all)) {
-    v <- tolower(clean_spaces(df_all[[col_dead]]))
+    v <- tolower(.clean_spaces(df_all[[col_dead]]))
     dead_since_first <- sum(v %in% c("sim", "s", "yes", "y", "true", "1"), na.rm = TRUE)
   }
 
@@ -1371,8 +1238,8 @@
     year_all <- .to_year(df_all[[col_ano]])
     y0 <- min(census_years, na.rm = TRUE)
     y1 <- max(census_years, na.rm = TRUE)
-    tag_first <- unique(clean_spaces(df_all[[col_tag]][year_all == y0]))
-    tag_last  <- unique(clean_spaces(df_all[[col_tag]][year_all == y1]))
+    tag_first <- unique(.clean_spaces(df_all[[col_tag]][year_all == y0]))
+    tag_last  <- unique(.clean_spaces(df_all[[col_tag]][year_all == y1]))
     tag_first <- tag_first[!is.na(tag_first) & nzchar(tag_first)]
     tag_last  <- tag_last[!is.na(tag_last) & nzchar(tag_last)]
     recruits_since_first <- length(setdiff(tag_last, tag_first))
@@ -1396,6 +1263,136 @@
   )
 
   out
+}
+
+.norm <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x2 <- suppressWarnings(iconv(x, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  x2[is.na(x2) | !nzchar(x2)] <- x[is.na(x2) | !nzchar(x2)]
+  tolower(gsub("[^a-z0-9]+", "", x2))
+}
+
+.find_best_col <- function(df, aliases) {
+  if (ncol(df) == 0) return(NA_character_)
+
+  cn_raw <- names(df)
+  cn_norm <- .norm(cn_raw)
+  ali_norm <- .norm(aliases)
+
+  hit_idx <- match(ali_norm, cn_norm, nomatch = 0L)
+  if (any(hit_idx > 0L)) {
+    return(cn_raw[hit_idx[which(hit_idx > 0L)[1]]])
+  }
+
+  for (a in ali_norm) {
+    if (!nzchar(a) || nchar(a) < 2L) next
+    hit <- which(grepl(a, cn_norm, fixed = TRUE))
+    if (length(hit) == 1L) {
+      return(cn_raw[hit[1]])
+    }
+  }
+
+  NA_character_
+}
+
+.find_best_numeric_col <- function(df, aliases) {
+  cand <- unique(stats::na.omit(vapply(
+    aliases,
+    function(a) .find_best_col(df, a),
+    FUN.VALUE = character(1)
+  )))
+
+  if (!length(cand)) return(NA_character_)
+
+  best <- cand[1]
+  best_n <- -1L
+  for (cl in cand) {
+    v <- .to_numeric(df[[cl]])
+    n_ok <- sum(is.finite(v), na.rm = TRUE)
+    if (n_ok > best_n) {
+      best_n <- n_ok
+      best <- cl
+    }
+  }
+  best
+}
+
+.clean_spaces <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- gsub(intToUtf8(0x00A0), " ", x, fixed = TRUE)
+  x <- gsub(intToUtf8(0x2007), " ", x, fixed = TRUE)
+  x <- gsub(intToUtf8(0x202F), " ", x, fixed = TRUE)
+  x <- gsub("\\s+", " ", x)
+  trimws(x)
+}
+
+.to_numeric <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- .clean_spaces(x)
+  x <- sub("^([^;/|]+)[;/|].*$", "\\1", x, perl = TRUE)
+  x <- gsub("\\.(?=\\d{3}(\\D|$))", "", x, perl = TRUE)
+  x <- gsub(",", ".", x, fixed = TRUE)
+
+  pat <- "[-+]?(?:\\d+\\.?\\d*|\\d*\\.?\\d+)"
+  has_num <- grepl(pat, x, perl = TRUE)
+
+  y <- rep(NA_character_, length(x))
+  y[has_num] <- regmatches(x[has_num], regexpr(pat, x[has_num], perl = TRUE))
+  suppressWarnings(as.numeric(y))
+}
+
+.to_year <- function(x) {
+  x <- as.character(x)
+  x[is.na(x)] <- ""
+  x <- gsub("\\s+", "", x)
+  x <- gsub(",", "", x, fixed = TRUE)
+  m <- regexpr("(?:19|20)\\d{2}", x, perl = TRUE)
+  y <- rep(NA_integer_, length(x))
+  hit <- m > 0
+  y[hit] <- suppressWarnings(as.integer(substr(
+    x[hit],
+    m[hit],
+    m[hit] + attr(m, "match.length")[hit] - 1
+  )))
+  y
+}
+
+.station_norm_name <- function(v) {
+  v <- .clean_spaces(v)
+  v2 <- suppressWarnings(iconv(v, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  v2[is.na(v2) | !nzchar(v2)] <- v[is.na(v2) | !nzchar(v2)]
+  tolower(v2)
+}
+
+.station_norm_num <- function(v) {
+  v <- .clean_spaces(v)
+  v <- gsub("\\s+", "", v)
+  v <- sub("^0+([0-9])", "\\1", v)
+  v[v == ""] <- NA_character_
+  v
+}
+
+.first_nonempty <- function(df, col, lixo = character(0)) {
+  if (is.na(col) || !(col %in% names(df)) || nrow(df) == 0) return("")
+  v <- .clean_spaces(df[[col]])
+  ok <- !is.na(v) & nzchar(v) & !(tolower(v) %in% tolower(lixo))
+  v <- v[ok]
+  if (length(v) > 0) v[1] else ""
+}
+
+.map_sub <- function(v) {
+  v <- toupper(.clean_spaces(v))
+  dplyr::case_when(
+    v %in% c("N", "NORTE") ~ 1,
+    v %in% c("S", "SUL", "SOUTH") ~ 2,
+    v %in% c("L", "LESTE", "E", "EAST") ~ 3,
+    v %in% c("O", "OESTE", "W", "WEST") ~ 4,
+    TRUE ~ NA_real_
+  )
 }
 
 
@@ -1669,6 +1666,7 @@
 #' @keywords internal
 #' @noRd
 .prepare_report_dashboard <- function(fp_sheet,
+                                      input_type,
                                       plot_size_ha = 1,
                                       subplot_size_m = 10,
                                       language = "en") {
@@ -1677,199 +1675,8 @@
     language <- "en"
   }
 
-  lab <- switch(
-    language,
-    pt = list(
-      metric = "M\u00e9trica",
-      value = "Valor",
-      total_individuals = "Total de indiv\u00edduos",
-      collected = "Coletados",
-      uncollected = "N\u00e3o coletados",
-      palms = "Palmeiras (Arecaceae)",
-      families = "Fam\u00edlias distintas",
-      species = "Esp\u00e9cies distintas",
-      genera = "G\u00eaneros distintos",
-      shannon = "\u00cdndice de Shannon",
-      simpson = "\u00cdndice de Simpson",
-      family_plot = "Fam\u00edlias mais comuns",
-      species_plot = "Esp\u00e9cies mais abundantes",
-      subplot_plot = "Percentual de coleta por subparcela",
-      dbh_plot = "Classes de DAP (cm)",
-      dbh_x = "Classe de DAP (cm)",
-      dbh_y = "Numero de indiv\u00edduos",
-      x_ind = "Indiv\u00edduos",
-      x_pct = "%",
-      subplot = "Subparcela",
-      species_tbl = c(
-        "Esp\u00e9cie", "Fam\u00edlia", "Abund\u00e2ncia", "Subparcelas",
-        "Dens. rel. (%)", "Freq. rel. (%)", "VI"
-      ),
-      family_tbl = c(
-        "Fam\u00edlia", "Abund\u00e2ncia", "Riqueza", "Subparcelas",
-        "Dens. rel. (%)", "Freq. rel. (%)", "VI"
-      )
-    ),
-    es = list(
-      metric = "M\u00e9trica",
-      value = "Valor",
-      total_individuals = "Total de individuos",
-      collected = "Espec\u00edmenes colectados",
-      uncollected = "Espec\u00edmenes no colectados",
-      palms = "Palmas (Arecaceae)",
-      families = "Familias distintas",
-      species = "Especies distintas",
-      genera = "G\u00e9neros distintos",
-      shannon = "\u00cdndice de Shannon",
-      simpson = "\u00cdndice de Simpson",
-      family_plot = "Familias m\u00e1s comunes",
-      species_plot = "Especies m\u00e1s abundantes",
-      subplot_plot = "Porcentaje de recolecci\u00f3n por subparcela",
-      dbh_plot = "Clases de DAP (cm)",
-      dbh_x = "Clase de DAP (cm)",
-      dbh_y = "N\u00famero de individuos",
-      x_ind = "Individuos",
-      x_pct = "%",
-      subplot = "Subparcela",
-      species_tbl = c(
-        "Especie", "Familia", "Abundancia", "Subparcelas",
-        "Dens. rel. (%)", "Freq. rel. (%)", "VI"
-      ),
-      family_tbl = c(
-        "Familia", "Abundancia", "Riqueza", "Subparcelas",
-        "Dens. rel. (%)", "Freq. rel. (%)", "VI"
-      )
-    ),
-    fr = list(
-      metric = "M\u00e9trique",
-      value = "Valeur",
-      total_individuals = "Nombre total d'individus",
-      collected = "Sp\u00e9cimens collect\u00e9s",
-      uncollected = "Sp\u00e9cimens non collect\u00e9s",
-      palms = "Palmiers (Arecaceae)",
-      families = "Familles distinctes",
-      species = "Esp\u00e8ces distinctes",
-      genera = "Genres distincts",
-      shannon = "Indice de Shannon",
-      simpson = "Indice de Simpson",
-      family_plot = "Familles les plus communes",
-      species_plot = "Esp\u00e8ces les plus abondantes",
-      subplot_plot = "Pourcentage de collecte par sous-parcelle",
-      dbh_plot = "Classes de DHP (cm)",
-      dbh_x = "Classe de DHP (cm)",
-      dbh_y = "Nombre d'individus",
-      x_ind = "Individus",
-      x_pct = "%",
-      subplot = "Sous-parcelle",
-      species_tbl = c(
-        "Esp\u00e8ce", "Famille", "Abondance", "Sous-parcelles",
-        "Densit\u00e9 rel. (%)", "Fr\u00e9q. rel. (%)", "IV"
-      ),
-      family_tbl = c(
-        "Famille", "Abondance", "Richesse", "Sous-parcelles",
-        "Densit\u00e9 rel. (%)", "Fr\u00e9q. rel. (%)", "IV"
-      )
-    ),
-    ma = list(
-      metric = "\u6307\u6807",
-      value = "\u6570\u503c",
-      total_individuals = "\u4e2a\u4f53\u603b\u6570",
-      collected = "\u5df2\u91c7\u96c6\u4e2a\u4f53",
-      uncollected = "\u672a\u91c7\u96c6\u4e2a\u4f53",
-      palms = "\u68d5\u6988\u79d1\u4e2a\u4f53 (Arecaceae)",
-      families = "\u4e0d\u540c\u79d1\u6570",
-      species = "\u4e0d\u540c\u7269\u79cd\u6570",
-      genera = "\u4e0d\u540c\u5c5e\u6570",
-      shannon = "Shannon \u6307\u6570",
-      simpson = "Simpson \u6307\u6570",
-      family_plot = "\u6700\u5e38\u89c1\u79d1",
-      species_plot = "\u6700\u4e30\u5bcc\u7269\u79cd",
-      subplot_plot = "\u5404\u5b50\u6837\u5730\u91c7\u96c6\u767e\u5206\u6bd4",
-      dbh_plot = "\u80f8\u5f84\u7b49\u7ea7 (cm)",
-      dbh_x = "\u80f8\u5f84\u7b49\u7ea7 (cm)",
-      dbh_y = "\u4e2a\u4f53\u6570\u91cf",
-      x_ind = "\u4e2a\u4f53\u6570",
-      x_pct = "%",
-      subplot = "\u5b50\u6837\u5730",
-      species_tbl = c(
-        "\u7269\u79cd", "\u79d1", "\u4e30\u5ea6", "\u5b50\u6837\u5730",
-        "\u76f8\u5bf9\u5bc6\u5ea6 (%)", "\u76f8\u5bf9\u9891\u7387 (%)", "\u91cd\u8981\u503c"
-      ),
-      family_tbl = c(
-        "\u79d1", "\u4e30\u5ea6", "\u4e30\u5bcc\u5ea6", "\u5b50\u6837\u5730",
-        "\u76f8\u5bf9\u5bc6\u5ea6 (%)", "\u76f8\u5bf9\u9891\u7387 (%)", "\u91cd\u8981\u503c"
-      )
-    ),
-    pa = list(
-      metric = "Hopjon",
-      value = "Kukr\u1ebd",
-      total_individuals = "P\u00e3p\u00e3 p\u00e2ri",
-      collected = "P\u00e2ri sonswa",
-      uncollected = "P\u00e2ri r\u00f5r\u0129",
-      palms = "Kwatis\u00f4m\u1ebdra (Arecaceae)",
-      families = "Kyapi\u00e2hapi\u00e2ra j\u00e0ri",
-      species = "P\u0129rak\u00e2ri j\u00e0ri",
-      genera = "G\u00eaneros distintos",
-      shannon = "Indice de Shannon",
-      simpson = "Indice de Simpson",
-      family_plot = "Inkj\u00eati tip\u0129njakjura",
-      species_plot = "Sotinkj\u00eati sop\u00e2ri m\u1ebdra",
-      subplot_plot = "Percentual de Coleta por Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
-      dbh_plot = "Classes de DAP (cm)",
-      dbh_x = "Classe de DAP (cm)",
-      dbh_y = "N\u00famero de P\u00e2ri",
-      x_ind = "P\u00e2ri",
-      x_pct = "%",
-      subplot = "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
-      species_tbl = c(
-        "P\u0129rak\u00e2ri", "Kyapi\u00e2hapi\u00e2ra", "Abund\u00e2ncia", "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
-        "Dens. rel. (%)", "Freq. rel. (%)", "VI"
-      ),
-      family_tbl = c(
-        "Kyapi\u00e2hapi\u00e2ra", "Abund\u00e2ncia", "Riqueza", "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
-        "Dens. rel. (%)", "Freq. rel. (%)", "VI"
-      )
-    ),
-    list(
-      metric = "Metric",
-      value = "Value",
-      total_individuals = "Total individuals",
-      collected = "Collected specimens",
-      uncollected = "Uncollected specimens",
-      palms = "Palms (Arecaceae)",
-      families = "Distinct families",
-      species = "Distinct species",
-      genera = "Distinct genera",
-      shannon = "Shannon index",
-      simpson = "Simpson index",
-      family_plot = "Most common families",
-      species_plot = "Most abundant species",
-      subplot_plot = "Collection percentage by subplot",
-      dbh_plot = "DBH classes (cm)",
-      dbh_x = "DBH class (cm)",
-      dbh_y = "Number of individuals",
-      x_ind = "Individuals",
-      x_pct = "%",
-      subplot = "Subplot",
-      species_tbl = c(
-        "Species", "Family", "Abundance", "Subplots",
-        "Rel. density (%)", "Rel. frequency (%)", "IV"
-      ),
-      family_tbl = c(
-        "Family", "Abundance", "Richness", "Subplots",
-        "Rel. density (%)", "Rel. frequency (%)", "IV"
-      )
-    )
-  )
-
-  fmt_int <- function(x) {
-    if (length(x) == 0 || is.na(x)) return(NA_character_)
-    as.character(as.integer(round(x)))
-  }
-
-  fmt_dec <- function(x, digits = 3) {
-    if (length(x) == 0 || is.na(x)) return(NA_character_)
-    sprintf(paste0("%.", digits, "f"), x)
-  }
+  lab <- .get_lab(language = language,
+                  dict = dict)
 
   df <- fp_sheet %>%
     dplyr::mutate(
@@ -1913,15 +1720,15 @@
       lab$simpson
     ),
     !!lab$value := c(
-      fmt_int(total_individuals),
-      fmt_int(collected_count),
-      fmt_int(uncollected_count),
-      fmt_int(palms_count),
-      fmt_int(distinct_families),
-      fmt_int(distinct_species),
-      fmt_int(distinct_genera),
-      fmt_dec(phytosoc$diversity_metrics$shannon_index, 3),
-      fmt_dec(phytosoc$diversity_metrics$simpson_index, 3)
+      .fmt_int(total_individuals),
+      .fmt_int(collected_count),
+      .fmt_int(uncollected_count),
+      .fmt_int(palms_count),
+      .fmt_int(distinct_families),
+      .fmt_int(distinct_species),
+      .fmt_int(distinct_genera),
+      .fmt_dec(phytosoc$diversity_metrics$shannon_index, 3),
+      .fmt_dec(phytosoc$diversity_metrics$simpson_index, 3)
     )
   )
 
@@ -2194,6 +2001,12 @@
     dbh_plotly <- NULL
   }
 
+  if (input_type == "field_sheet_ti") {
+    metrics_tbl <- metrics_tbl <- metrics_tbl[1:6, ]
+    species_metrics_tbl <- species_metrics_tbl[, 1:4]
+    family_metrics_tbl <- family_metrics_tbl[, 1:4]
+  }
+
   list(
     metrics_tbl = metrics_tbl,
     species_metrics_tbl = species_metrics_tbl,
@@ -2210,6 +2023,19 @@
   )
 }
 
+#' @keywords internal
+#' @noRd
+.fmt_int <- function(x) {
+  if (length(x) == 0 || is.na(x)) return(NA_character_)
+  as.character(as.integer(round(x)))
+}
+
+#' @keywords internal
+#' @noRd
+.fmt_dec <- function(x, digits = 3) {
+  if (length(x) == 0 || is.na(x)) return(NA_character_)
+  sprintf(paste0("%.", digits, "f"), x)
+}
 
 #' @keywords internal
 #' @noRd
@@ -2241,6 +2067,7 @@
                                 plot_code,
                                 spec_df,
                                 dashboard = NULL,
+                                dict,
                                 language = "en") {
   if (missing(language) || is.null(language) || !length(language)) {
     language <- "en"
@@ -2252,293 +2079,6 @@
     language <- "en"
   }
 
-  dict <- tibble::tibble(
-    en = c(
-      "Full Plot Report",
-      "MONITORA Program",
-      "Back to Contents",
-      "Contents",
-      "Metadata",
-      "Plot Name",
-      "Plot Code",
-      "Census No",
-      "Team",
-      "Total Specimens",
-      "Collected (excluding palms)",
-      "Not Collected (excluding palms)",
-      "Palms (Arecaceae)",
-      "Dead trees since first census",
-      "Recruits since first census",
-      "Dashboard",
-      "Metric Summary",
-      "Most Common Families",
-      "Most Abundant Species",
-      "Collection Percentage by Subplot",
-      "DBH Classes",
-      "DBH Class",
-      "Number of individuals",
-      "Species Metrics",
-      "Family Metrics",
-      "Species",
-      "Family",
-      "Abundance",
-      "Subplots",
-      "Rel. density (%)",
-      "Rel. frequency (%)",
-      "IV",
-      "Richness",
-      "General Plot",
-      "Collected Only",
-      "Not Collected Palms",
-      "Not Collected",
-      "Palms",
-      "Subplot Index",
-      "Subplots",
-      "Subplot ",
-      "Checklist",
-      "Individual Subplots"
-    ),
-
-    pt = c(
-      "Relat\u00f3rio Completo da Parcela = Full Plot Report",
-      "Programa MONITORA = MONITORA Program",
-      "Voltar ao Sum\u00e1rio = Back to Contents",
-      "Sum\u00e1rio = Contents",
-      "Metadados = Metadata",
-      "Nome da Parcela = Plot Name",
-      "C\u00f3digo da Parcela = Plot Code",
-      "N\u00famero de Censos = Census No",
-      "Equipe = Team",
-      "Total de Indiv\u00edduos = Total Specimens",
-      "Coletados (excluindo palmeiras) = Collected (excluding palms)",
-      "N\u00e3o Coletados (excluindo palmeiras) = Not Collected (excluding palms)",
-      "Palmeiras (Arecaceae) = Palms (Arecaceae)",
-      "\u00c1rvores mortas desde o primeiro censo = Dead trees since first census",
-      "Recrutas desde o primeiro censo = Recruits since first census",
-      "Dashboard = Dashboard",
-      "Resumo de M\u00e9tricas = Metric Summary",
-      "Fam\u00edlias Mais Comuns = Most Common Families",
-      "Esp\u00e9cies Mais Abundantes = Most Abundant Species",
-      "Percentual de Coleta por Subparcela = Collection Percentage by Subplot",
-      "Classes de DAP = DBH Classes",
-      "Classe de DAP = DBH Class",
-      "N\u00famero de indiv\u00edduos = Number of individuals",
-      "M\u00e9tricas de Esp\u00e9cies = Species Metrics",
-      "M\u00e9tricas de Fam\u00edlias = Family Metrics",
-      "Esp\u00e9cies = Species",
-      "Fam\u00edlia = Family",
-      "Abund\u00e2ncia = Abundance",
-      "Subparcelas = Subplots",
-      "Dens. rel. (%) = Rel. density (%)",
-      "Freq. rel. (%) = Rel. frequency (%)",
-      "VI = IV",
-      "Riqueza = Richness",
-      "Mapa Geral da Parcela = General Plot",
-      "Apenas Coletados = Collected Only",
-      "Palmeiras N\u00e3o Coletadas = Not Collected Palms",
-      "N\u00e3o Coletados = Not Collected",
-      "Palmeiras = Palms",
-      "\u00cdndice de Subparcelas = Subplot Index",
-      "Subparcelas = Subplots",
-      "Subparcela  = Subplot  ",
-      "Lista de Esp\u00e9cies = Checklist",
-      "Subparcelas Individuais = Individual Subplots"
-    ),
-
-    es = c(
-      "Informe completo de la parcela = Full Plot Report",
-      "Programa MONITORA = MONITORA Program",
-      "Volver al Contenido = Back to Contents",
-      "Contenido = Contents",
-      "Metadatos = Metadata",
-      "Nombre de la Parcela = Plot Name",
-      "C\u00f3digo de la Parcela = Plot Code",
-      "N\u00famero de Censos = Census No",
-      "Equipo = Team",
-      "Total de Individuos = Total Specimens",
-      "Colectados (excluyendo palmas) = Collected (excluding palms)",
-      "No Colectados (excluyendo palmas) = Not Collected (excluding palms)",
-      "Palmas (Arecaceae) = Palms (Arecaceae)",
-      "\u00c1rboles muertos desde el primer censo = Dead trees since first census",
-      "Reclutas desde el primer censo = Recruits since first census",
-      "Dashboard = Dashboard",
-      "Resumen de M\u00e9tricas = Metric Summary",
-      "Familias M\u00e1s Comunes = Most Common Families",
-      "Especies M\u00e1s Abundantes = Most Abundant Species",
-      "Porcentaje de Recolecci\u00f3n por Subparcela = Collection Percentage by Subplot",
-      "Clases de DAP = DBH Classes",
-      "Clase de DAP = DBH Class",
-      "N\u00famero de individuos = Number of individuals",
-      "M\u00e9tricas de Especies = Species Metrics",
-      "M\u00e9tricas de Familias = Family Metrics",
-      "Especies = Species",
-      "Familia = Family",
-      "Abundancia = Abundance",
-      "Subparcelas = Subplots",
-      "Dens. rel. (%) = Rel. density (%)",
-      "Freq. rel. (%) = Rel. frequency (%)",
-      "VI = IV",
-      "Riqueza = Richness",
-      "Mapa General de la Parcela = General Plot",
-      "Solo Colectados = Collected Only",
-      "Palmas No Colectadas = Not Collected Palms",
-      "No Colectados = Not Collected",
-      "Palmas = Palms",
-      "\u00cdndice de Subparcelas = Subplot Index",
-      "Subparcelas = Subplots",
-      "Subparcela  = Subplot ",
-      "Lista de Especies = Checklist",
-      "Subparcelas Individuales = Individual Subplots"
-    ),
-
-    fr = c(
-      "Rapport Complet de la Parcelle = Full Plot Report",
-      "Programme MONITORA = MONITORA Program",
-      "Retour au Sommaire = Back to Contents",
-      "Sommaire = Contents",
-      "M\u00e9tadonn\u00e9es = Metadata",
-      "Nom de la Parcelle = Plot Name",
-      "Code de la Parcelle = Plot Code",
-      "Num\u00e9ro de Recensement = Census No",
-      "\u00c9quipe = Team",
-      "Total des Individus = Total Specimens",
-      "Collect\u00e9s (hors palmiers) = Collected (excluding palms)",
-      "Non Collect\u00e9s (hors palmiers) = Not Collected (excluding palms)",
-      "Palmiers (Arecaceae) = Palms (Arecaceae)",
-      "Arbres morts depuis le premier recensement = Dead trees since first census",
-      "Recrues depuis le premier recensement = Recruits since first census",
-      "Tableau de bord = Dashboard",
-      "R\u00e9sum\u00e9 des M\u00e9triques = Metric Summary",
-      "Familles les Plus Communes = Most Common Families",
-      "Esp\u00e8ces les Plus Abondantes = Most Abundant Species",
-      "Pourcentage de Collecte par Sous-parcelle = Collection Percentage by Subplot",
-      "Classes de DHP = DBH Classes",
-      "Classe de DHP = DBH Class",
-      "Nombre d'individus = Number of individuals",
-      "M\u00e9triques des Esp\u00e8ces = Species Metrics",
-      "M\u00e9triques des Familles = Family Metrics",
-      "Esp\u00e8ces = Species",
-      "Famille = Family",
-      "Abondance = Abundance",
-      "Sous-parcelles = Subplots",
-      "Densit\u00e9 rel. (%) = Rel. density (%)",
-      "Fr\u00e9q. rel. (%) = Rel. frequency (%)",
-      "VI = IV",
-      "Richesse = Richness",
-      "Carte G\u00e9n\u00e9rale de la Parcelle = General Plot",
-      "Collect\u00e9s Seulement = Collected Only",
-      "Palmiers Non Collect\u00e9s = Not Collected Palms",
-      "Non Collect\u00e9s = Not Collected",
-      "Palmiers = Palms",
-      "Index des Sous-parcelles = Subplot Index",
-      "Sous-parcelles = Subplots",
-      "Sous-parcelle  = Subplot ",
-      "Liste des Esp\u00e8ces = Checklist",
-      "Sous-parcelles Individuelles = Individual Subplots"
-    ),
-
-    ma = c(
-      "\u6837\u5730\u5b8c\u6574\u62a5\u544a = Full Plot Report",
-      "MONITORA \u9879\u76ee = MONITORA Program",
-      "\u8fd4\u56de\u76ee\u5f55 = Back to Contents",
-      "\u76ee\u5f55 = Contents",
-      "\u5143\u6570\u636e = Metadata",
-      "\u6837\u5730\u540d\u79f0 = Plot Name",
-      "\u6837\u5730\u4ee3\u7801 = Plot Code",
-      "\u666e\u67e5\u7f16\u53f7 = Census No",
-      "\u56e2\u961f = Team",
-      "\u4e2a\u4f53\u603b\u6570 = Total Specimens",
-      "\u5df2\u91c7\u96c6\uff08\u4e0d\u542b\u68d5\u6988\u79d1\uff09 = Collected (excluding palms)",
-      "\u672a\u91c7\u96c6\uff08\u4e0d\u542b\u68d5\u6988\u79d1\uff09 = Not Collected (excluding palms)",
-      "\u68d5\u6988\u79d1\u4e2a\u4f53 (Arecaceae) = Palms (Arecaceae)",
-      "\u81ea\u7b2c\u4e00\u6b21\u666e\u67e5\u4ee5\u6765\u6b7b\u4ea1\u7684\u6811\u6728 = Dead trees since first census",
-      "\u81ea\u7b2c\u4e00\u6b21\u666e\u67e5\u4ee5\u6765\u65b0\u589e\u4e2a\u4f53 = Recruits since first census",
-      "\u4eea\u8868\u677f = Dashboard",
-      "\u6307\u6807\u6c47\u603b = Metric Summary",
-      "\u6700\u5e38\u89c1\u79d1 = Most Common Families",
-      "\u6700\u4e30\u5bcc\u7269\u79cd = Most Abundant Species",
-      "\u5404\u5b50\u6837\u5730\u91c7\u96c6\u767e\u5206\u6bd4 = Collection Percentage by Subplot",
-      "\u80f8\u5f84\u7b49\u7ea7 = DBH Classes",
-      "\u80f8\u5f84\u7b49\u7ea7 = DBH Class",
-      "\u4e2a\u4f53\u6570\u91cf = Number of individuals",
-      "\u7269\u79cd\u6307\u6807 = Species Metrics",
-      "\u79d1\u6307\u6807 = Family Metrics",
-      "\u7269\u79cd = Species",
-      "\u79d1 = Family",
-      "\u4e30\u5ea6 = Abundance",
-      "\u5b50\u6837\u5730 = Subplots",
-      "\u76f8\u5bf9\u5bc6\u5ea6 (%) = Rel. density (%)",
-      "\u76f8\u5bf9\u9891\u7387 (%) = Rel. frequency (%)",
-      "\u91cd\u8981\u503c = IV",
-      "\u4e30\u5bcc\u5ea6 = Richness",
-      "\u6837\u5730\u603b\u4f53\u5730\u56fe = General Plot",
-      "\u4ec5\u5df2\u91c7\u96c6\u4e2a\u4f53 = Collected Only",
-      "\u672a\u91c7\u96c6\u68d5\u6988\u79d1\u4e2a\u4f53 = Not Collected Palms",
-      "\u672a\u91c7\u96c6\u4e2a\u4f53 = Not Collected",
-      "\u68d5\u6988\u79d1 = Palms",
-      "\u5b50\u6837\u5730\u7d22\u5f15 = Subplot Index",
-      "\u5b50\u6837\u5730 = Subplots",
-      "\u5b50\u6837\u5730  = Subplot ",
-      "\u7269\u79cd\u6e05\u5355 = Checklist",
-      "\u5355\u4e2a\u5b50\u6837\u5730 = Individual Subplots"
-    ),
-
-    pa = c(
-      "Hokjya r\u00ea t\u00e3waj\u00e3ri p\u00e2p\u00e3\u00e3 r\u00eata kur\u00e2ri p\u00e2ri h\u00e3 = Full Plot Report",
-      "Programa MONITORA = MONITORA Program",
-      "Pikjatit\u00e3 t\u00e4 sokkjaraa = Back to Contents",
-      "T\u00e4 Sokkjaraa = Contents",
-      "R\u00ea raa san r\u00ea kuk\u00e2ri = Metadata",
-      "Issi r\u00ea t\u00e3 kuk\u00e2ri = Plot Name",
-      "Kypa kuk\u00e2ri = Plot Code",
-      "Junti h\u1ebd r\u00f5 s\u00ean p\u00e2rikran = Census No",
-      "S\u00e2p\u00ear\u00e3t\u00ea = Team",
-      "P\u00e3p\u00e3 p\u00e2ri = Total Specimens",
-      "P\u00e2ri sonswa = Collected (excluding palms)",
-      "P\u00e2ri r\u00f5r\u0129 = Not Collected (excluding palms)",
-      "Kwatis\u00f4m\u1ebdra = Palms (Arecaceae)",
-      "P\u00e2ri m\u00e3m\u00e3 jy ty = Dead trees since first census",
-      "P\u00e2rituem~era krep\u00e2\u00e2 s\u00e2\u00e2 = Recruits since first census",
-      "P\u00e3p\u00e3\u00e3 kja skreeha kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 = Dashboard",
-      "Swan kukrek\u00e2ra = Metric Summary",
-      "Inkj\u00eati tip\u0129njakjura = Most Common Families",
-      "Sotinkj\u00eati sop\u00e2ri m\u1ebdra = Most Abundant Species",
-      "Jyy ti he p\u00e2ri m\u1ebdra kar\u00ear\u00e2kjan kuk\u00e2ri s\u00e2\u00e2  = Collection Percentage by Subplot",
-      "Classes de DAP = DBH Classes",
-      "Classe de DAP = DBH Class",
-      "N\u00famero de p\u00e2ri = Number of individuals",
-      "P\u0129rak\u00e2ri p\u00e2ri m\u1ebdra = Species Metrics",
-      "P\u0129rak\u00e2ri p\u00e2ri kyapi\u00e2hapi\u00e2ra = Family Metrics",
-      "P\u0129rak\u00e2ri = Species",
-      "P\u0129rak\u00e2ri kyapi\u00e2hapi\u00e2ra = Family",
-      "Abund\u00e2ncia = Abundance",
-      "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 = Subplots",
-      "Dens. rel. (%) = Rel. density (%)",
-      "Freq. rel. (%) = Rel. frequency (%)",
-      "VI = IV",
-      "Sop\u00e2ri m\u1ebdra = Richness",
-      "P\u00e3p\u00e3 kypapr\u1ebdpi kuk\u00e2ri = General Plot",
-      "P\u00e2ri sonswa kypa kuk\u00e2ri kran = Collected Only",
-      "R\u00f5\u00f5rin kwatis\u00f4m\u00eara kuk\u00e2ri kran = Not Collected Palms",
-      "P\u00e2ri r\u00f5r\u0129 kypa kuk\u00e2ri kran = Not Collected",
-      "Kwatis\u00f4m\u1ebdra = Palms",
-      "T\u00e4 sokkjaraa r\u00ea t\u00e2 kuk\u00e2ra kran = Subplot Index",
-      "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 = Subplots",
-      "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2   = Subplot ",
-      "Issi pyr\u00e3h\u00e3 p\u00e2rijnsim\u1ebdra = Checklist",
-      "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 pyti = Individual Subplots"
-    )
-  )
-
-  .tr <- function(en_key) {
-    if (language == "en") return(en_key)
-    idx <- match(en_key, dict$en)
-    if (is.na(idx)) return(en_key)
-    raw <- dict[[language]][idx]
-    if (is.na(raw) || !nzchar(raw)) return(en_key)
-    trimws(sub("\\s*=\\s*.*$", "", raw))
-  }
-
   .translate_lines <- function(lines, dict, lang = c("en", "pt", "es", "fr", "ma", "pa")) {
     lang <- match.arg(lang)
 
@@ -2546,16 +2086,10 @@
       return(lines)
     }
 
-    clean_translation <- function(x) {
-      sub("=\\s+.*$", "", x)
-    }
-
-    dict_translated <- dict
-    dict_translated[[lang]] <- vapply(dict_translated[[lang]], clean_translation, character(1))
-
+    dict_temp <- dict[1:(nrow(dict)-2), ]
     out <- lines
     in_r_chunk <- FALSE
-    ord <- order(nchar(dict_translated$en), decreasing = TRUE)
+    ord <- order(nchar(dict_temp$en), decreasing = TRUE)
 
     for (j in seq_along(lines)) {
       line <- lines[j]
@@ -2578,7 +2112,7 @@
       }
 
       for (i in ord) {
-        line <- gsub(dict_translated$en[[i]], dict_translated[[lang]][[i]], line, fixed = TRUE)
+        line <- gsub(dict_temp$en[[i]], dict_temp[[lang]][[i]], line, fixed = TRUE)
       }
 
       out[j] <- line
@@ -2586,6 +2120,7 @@
 
     out
   }
+
   .chunk_id_factory <- local({
     i <- 0L
     function(prefix = "chunk") {
@@ -2687,6 +2222,10 @@
     "  interactive_uncollected_plot: NULL",
     "  uncollected_palm_plot: NULL",
     "  interactive_palm_plot: NULL",
+    "  priority_uncollected_plot: NULL",
+    "  interactive_priority_uncollected_plot: NULL",
+    "  priority_obj: NULL",
+    "  priority_species_tbl: NULL",
     "  subplots_list: NULL",
     "  subplot_size: 70",
     "  stats: NULL",
@@ -2945,13 +2484,13 @@
     "",
     "## Metadata {#metadata}",
     "",
-    paste0("**", .tr("Plot Name"), ":** ", "`r params$metadata$plot_name`"),
+    paste0("**", .tr_dict("plot_name", language = language, dict), ":** ", "`r params$metadata$plot_name`"),
     "",
-    paste0("**", .tr("Plot Code"), ":** ", "`r params$metadata$plot_code`"),
+    paste0("**", .tr_dict("plot_code", language = language, dict), ":** ", "`r params$metadata$plot_code`"),
     "",
-    paste0("**", .tr("Census No"), ":** ", "`r params$metadata$plot_census_no_fp`"),
+    paste0("**", .tr_dict("plot_census_no_fp", language = language, dict), ":** ", "`r params$metadata$plot_census_no_fp`"),
     "",
-    paste0("**", .tr("Team"), ":** ", "`r params$metadata$team`"),
+    paste0("**", .tr_dict("team", language = language, dict), ":** ", "`r params$metadata$team`"),
     "",
     .separator_block(),
     "",
@@ -3058,12 +2597,13 @@
   )
 
   nav_targets <- c(
-    sprintf("[%s](#contents)", .tr("Back to Contents")),
-    sprintf("[%s](#metadata)", .tr("Metadata")),
-    sprintf("[%s](#dashboard)", .tr("Dashboard")),
-    sprintf("[%s](#general-plot)", .tr("General Plot")),
-    sprintf("[%s](#subplot-index)", .tr("Subplot Index")),
-    sprintf("[%s](#checklist)", .tr("Checklist"))
+    sprintf("[%s](#contents)", .tr_dict("Back to Contents", language = language, dict)),
+    sprintf("[%s](#metadata)", .tr_dict("Metadata", language = language, dict)),
+    sprintf("[%s](#dashboard)", .tr_dict("Dashboard", language = language, dict)),
+    sprintf("[%s](#general-plot)", .tr_dict("General Plot", language = language, dict)),
+    sprintf("[%s](#subplot-index)", .tr_dict("Subplot Index", language = language, dict)),
+    sprintf("[%s](#priority-route)", .tr_dict("Priority Species to Collect", language = language, dict)),
+    sprintf("[%s](#checklist)", .tr_dict("Checklist", language = language, dict))
   )
 
   gencol_section <- c(
@@ -3182,7 +2722,7 @@
     "  'es' = 'Subparcelas',",
     "  'fr' = 'Sous-parcelles',",
     "  'ma' = '子样地',",
-    "  'pa' = 'Kukâra krepãã sââ',",
+    "  'pa' = 'Rêtâ kukâra krepãã sââ',",
     "  'Subplots'",
     ")",
     "",
@@ -3201,7 +2741,7 @@
     "  'es' = 'Subparcela ',",
     "  'fr' = 'Sous-parcelle ',",
     "  'ma' = '子样地 ',",
-    "  'pa' = 'Kukâra krepãã sââ ',",
+    "  'pa' = 'Rêtâ kukâra krepãã sââ ',",
     "  'Subplot '",
     ")",
     "",
@@ -3328,9 +2868,61 @@
   }))
 
 
-  checklist_section <- c(
+  priority_route_section <- c(
     "",
-    .pagebreak_block("pagebreak-checklist-intro"),
+    .pagebreak_block("pagebreak-priority-route"),
+    "",
+    "## Priority Subplots for Uncollected Species {#priority-route}",
+    "",
+    "```{r priority-route-html, echo=FALSE, eval=knitr::is_html_output()}",
+    "if (!is.null(params$interactive_priority_uncollected_plot)) {",
+    "  params$interactive_priority_uncollected_plot",
+    "} else if (!is.null(params$priority_uncollected_plot)) {",
+    "  print(params$priority_uncollected_plot)",
+    "}",
+    "```",
+    "",
+    "```{r priority-route-pdf, echo=FALSE, eval=knitr::is_latex_output(), fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",
+    "if (!is.null(params$priority_uncollected_plot)) {",
+    "  print(params$priority_uncollected_plot)",
+    "}",
+    "```",
+    "",
+    .tiny_nav_block(nav_targets, prefix = "priority-route"),
+    "",
+    .pagebreak_block(),
+    "",
+    "### Priority Species to Collect",
+    "",
+    "```{r priority-species-table, echo=FALSE, results='asis'}",
+    "if (!is.null(params$priority_species_tbl) && nrow(params$priority_species_tbl) > 0) {",
+    "  if (knitr::is_latex_output()) {",
+    "    cat('\\\\begingroup\\\\fontsize{6}{7}\\\\selectfont\\n')",
+    "",
+    "    print(knitr::kable(",
+    "      params$priority_species_tbl,",
+    "      align = c('l', 'l', 'r', 'l', 'l'),",
+    "      format = 'latex',",
+    "      booktabs = TRUE,",
+    "      longtable = TRUE",
+    "    ))",
+    "    cat('\\\\endgroup')",
+    "  } else {",
+    "    knitr::kable(",
+    "      params$priority_species_tbl,",
+    "      align = c('l', 'l', 'r', 'l', 'l')",
+    "    )",
+    "  }",
+    "} else {",
+    "  cat('No priority species identified.\\\\n')",
+    "}",
+    "```",
+    "",
+    .tiny_nav_block(nav_targets, prefix = "priority-species-collect"),
+    ""
+  )
+
+  checklist_section <- c(
     "",
     "## Checklist {#checklist}",
     "",
@@ -3433,7 +3025,14 @@
 
   .add_body(
     "## Individual Subplots {#individual-subplots}",
-    subplot_sections,
+    subplot_sections
+  )
+
+  .add_body(
+    priority_route_section
+  )
+
+  .add_body(
     checklist_section
   )
 
@@ -3488,7 +3087,11 @@
 #'
 #' @keywords internal
 #' @noRd
-.harmonize_plot_input <- function(fp_file_path, input_type, station_name = NULL) {
+.harmonize_plot_input <- function(fp_file_path,
+                                  input_type,
+                                  station_name = NULL,
+                                  verbose = TRUE) {
+
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(
     input_type,
@@ -3514,7 +3117,8 @@
         fp_sheet = as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE),
         team = if (!is.null(meta$team)) meta$team else "",
         plot_name = if (!is.null(meta$plot_name)) meta$plot_name else "",
-        plot_code = if (!is.null(meta$plot_code)) meta$plot_code else ""
+        plot_code = if (!is.null(meta$plot_code)) meta$plot_code else "",
+        census_no_fp = ""
       )
     },
 
@@ -3527,7 +3131,8 @@
         fp_sheet = as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE),
         team = if (!is.null(meta$team)) meta$team else "",
         plot_name = if (!is.null(meta$plot_name)) meta$plot_name else "",
-        plot_code = if (!is.null(meta$plot_code)) meta$plot_code else ""
+        plot_code = if (!is.null(meta$plot_code)) meta$plot_code else "",
+        census_no_fp = if (!is.null(meta$census_no_fp)) meta$census_no_fp else ""
       )
     },
 
@@ -3542,29 +3147,37 @@
       )
 
       raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
+      if (!("Collected" %in% names(raw))) {
+        raw$Collected <- NA_character_
+      }
 
-      if (nrow(raw) < 3L) {
+      metadata_row <- .safe_char_row(raw)
+
+      has_meta <- any(grepl("^\\s*(Plotcode:|Plot Code:|Plot Name:|Team:|PI:)",
+                            metadata_row, ignore.case = TRUE))
+
+      if (!has_meta) {
         stop(
           "The field_sheet input must contain a metadata row, a header row, and at least one data row.",
           call. = FALSE
         )
       }
 
-      header_row <- as.character(unlist(raw[2, , drop = TRUE]))
-      bad_hdr <- is.na(header_row) | !nzchar(trimws(header_row))
-      header_row[bad_hdr] <- paste0("NA_col_", seq_along(header_row))[bad_hdr]
+      header_row_idx <- .find_field_header_row(raw)
 
-      colnames(raw) <- make.unique(trimws(header_row))
-      fp_sheet <- raw[-(1:2), , drop = FALSE]
+      header <- raw[header_row_idx, ] |> unlist() |> as.character()
+      header[is.na(header) | header == ""] <- paste0("NA_col_", seq_along(header))[is.na(header) | header == ""]
 
-      meta_row_chr <- as.character(raw[1, , drop = TRUE])
-      meta_row_chr[is.na(meta_row_chr)] <- ""
+      raw <- raw[-seq_len(header_row_idx), , drop = FALSE]
+      colnames(raw) <- make.unique(header)
+      fp_sheet <- raw[, !is.na(colnames(raw)) & colnames(raw) != "", drop = FALSE]
 
       list(
         fp_sheet = as.data.frame(fp_sheet, stringsAsFactors = FALSE, check.names = FALSE),
-        team = .grab_meta_from_row(meta_row_chr, "Team"),
-        plot_name = .grab_meta_from_row(meta_row_chr, "Plot Name"),
-        plot_code = .grab_meta_from_row(meta_row_chr, "Plotcode")
+        team = .grab_meta_from_row(metadata_row, "Team"),
+        plot_name = .grab_meta_from_row(metadata_row, "Plot Name"),
+        plot_code = .grab_meta_from_row(metadata_row, "Plotcode"),
+        census_no_fp = ""
       )
     },
 
@@ -3580,6 +3193,8 @@
 
       raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
 
+      metadata_row <- .safe_char_row(raw)
+
       if (nrow(raw) < 3L) {
         stop(
           "The field_sheet_ti input must contain metadata, header, and data rows.",
@@ -3588,6 +3203,7 @@
       }
 
       raw_data <- raw[-c(1, 2), , drop = FALSE]
+      names(raw_data) <- raw[2, ]
 
       dest_cols <- .field_sheet_cols()
 
@@ -3600,41 +3216,36 @@
       temp$`New Tag No` <- as.character(raw_data[[1]])
       temp$`New Stem Grouping` <- as.character(raw_data[[2]])
       temp$T1 <- suppressWarnings(as.numeric(raw_data[[3]]))
-      temp$T2 <- suppressWarnings(as.numeric(raw_data[[4]]))
-      temp$X <- suppressWarnings(as.numeric(raw_data[[5]]))
-      temp$Y <- suppressWarnings(as.numeric(raw_data[[6]]))
-      temp$Family <- as.character(raw_data[[7]])
+      temp$X <- suppressWarnings(as.numeric(raw_data[[4]]))
+      temp$Y <- suppressWarnings(as.numeric(raw_data[[5]]))
+      temp$Family <- as.character(raw_data[[6]])
 
-      temp$`Original determination` <- paste0(as.character(raw_data[[9]]),
+      temp$`Original determination` <- paste0(as.character(raw_data[[8]]),
                                               " | ",
-                                              as.character(raw_data[[8]]))
+                                              as.character(raw_data[[7]]))
 
-      temp$Morphospecies <- as.character(raw_data[[10]])
-      temp$D <- suppressWarnings(as.numeric(raw_data[[11]]))
-      temp$POM <- suppressWarnings(as.numeric(raw_data[[12]]))
+      temp$Morphospecies <- as.character(raw_data[[9]])
+      temp$D <- suppressWarnings(as.numeric(raw_data[[10]]))
+      temp$POM <- suppressWarnings(as.numeric(raw_data[[11]]))
       temp$ExtraD <- NA_character_
       temp$ExtraPOM <- NA_character_
-      temp$Flag1 <- as.character(raw_data[[13]])
-      temp$Flag2 <- NA_character_
-      temp$Flag3 <- NA_character_
+      temp$Flag1 <- as.character(raw_data[[12]])
       temp$LI <- NA_character_
       temp$CI <- NA_character_
       temp$CF <- NA_character_
-      temp$CD1 <- NA_character_
-      temp$nrdups <- as.character(raw_data[[14]])
-      temp$Height <- suppressWarnings(as.numeric(raw_data[[15]]))
-      temp$Voucher <- as.character(raw_data[[16]])
-      temp$Silica <- as.character(raw_data[[17]])
-      temp$Collected <- as.character(raw_data[[18]])
-      temp$`Census Notes` <- as.character(raw_data[[19]])
-      temp$CAP <- suppressWarnings(as.numeric(raw_data[[21]]))
-      temp$`Basal Area` <- suppressWarnings(as.numeric(raw_data[[22]]))
+      temp$Height <- suppressWarnings(as.numeric(raw_data[[13]]))
+      temp$Voucher <- as.character(raw_data[[14]])
+      temp$Silica <- as.character(raw_data[[15]])
+      temp$Collected <- as.character(raw_data[[16]])
+      temp$`Census Notes` <- as.character(raw_data[[17]])
+      temp$CAP <- suppressWarnings(as.numeric(raw_data[[20]]))
 
       list(
         fp_sheet = temp,
-        team = "",
-        plot_name = "",
-        plot_code = ""
+        team = .grab_meta_from_row(metadata_row, "Team"),
+        plot_name = .grab_meta_from_row(metadata_row, "Plot Name"),
+        plot_code = .grab_meta_from_row(metadata_row, "Plotcode"),
+        census_no_fp = ""
       )
     }
   )
@@ -3662,16 +3273,1209 @@
     `Original determination` <- as.character(`Original determination`)
   })
 
+  fp_sheet <- out$fp_sheet
+
+  fp_sheet <- .replace_empty_with_na(fp_sheet)
+
+  # CONSOLIDATE MULTISTEMMED TREES
+  # It identifies trees with multiple stems (same New Stem Grouping),
+  # calculates equivalent diameter, and keeps only the main stem row.
+  if (!is.null(fp_sheet) && nrow(fp_sheet) > 0) {
+
+    # Check if we have the necessary columns
+    if (all(c("New Stem Grouping", "New Tag No") %in% names(fp_sheet))) {
+
+      # Count rows before consolidation
+      n_before <- nrow(fp_sheet)
+
+      # Count unique stem groups
+      n_groups <- fp_sheet %>%
+        dplyr::filter(!is.na(`New Stem Grouping`) & nzchar(`New Stem Grouping`)) %>%
+        dplyr::pull(`New Stem Grouping`) %>%
+        unique() %>%
+        length()
+
+      if (verbose) {
+        message("\n=== MULTISTEM CONSOLIDATION ===")
+        message("Rows before consolidation: ", n_before)
+        message("Unique stem groups found: ", n_groups)
+      }
+
+      # Apply consolidation
+      fp_sheet <- .consolidate_multistem_trees(fp_sheet, min_diameter = 5)
+
+      # Report results
+      n_after <- nrow(fp_sheet)
+      if (verbose) {
+        message("Rows after consolidation: ", n_after)
+        message("Rows removed: ", n_before - n_after)
+        message("================================\n")
+      } else {
+        message("Note: Columns 'New Stem Grouping' and/or 'New Tag No' not found. ")
+        message("      Multistem consolidation skipped.")
+      }
+    }
+  }
+
+  out$fp_sheet <- fp_sheet
+
   out
 }
 
-.grab_meta_from_row <- function(meta_row_chr, key) {
-  hit <- meta_row_chr[
-    grepl(paste0("^", key, "[:]\\s*"), meta_row_chr, ignore.case = TRUE)
+.grab_meta_from_row <- function(metadata_row, key) {
+
+  metadata_row <- gsub("\\s\\|\\s[^:]*:", ":", metadata_row)
+
+  hit <- metadata_row[
+    grepl(paste0("^", key, "[:]\\s*"), metadata_row, ignore.case = TRUE)
   ]
   if (length(hit)) {
     sub(paste0("^", key, "[:]\\s*"), "", hit[1], ignore.case = TRUE)
   } else {
-    ""
+    if (key %in% "Plot Name") {
+    } else {
+      "Unknown Plot"
+    }
   }
 }
+
+.replace_empty_with_na <- function(df) {
+  df[] <- lapply(df, function(col) {
+    if (is.character(col)) {
+      col[col == ""] <- NA
+    }
+    col
+  })
+  df
+}
+
+# Extract a character row from a data.frame / matrix / vector
+.safe_char_row <- function(x, row = 1L) {
+
+  if (is.null(x) || NROW(x) < row) return(character())
+
+  if (is.data.frame(x) || is.matrix(x)) {
+    v <- x[row, , drop = TRUE]
+  } else if (is.atomic(x)) {
+    v <- x
+  } else {
+    v <- x[[row]]
+  }
+
+  v <- as.character(v)
+  v[is.na(v)] <- ""
+  trimws(v)
+}
+
+#' Prioritize subplots to maximize collection of uncollected species
+#'
+#' @param fp_coords Data frame with canonical coordinates and at least:
+#'   T1, Family, Collected, Original determination, New Tag No.
+#' @param exclude_palms Logical. If TRUE, ignore Arecaceae.
+#' @param max_subplots Optional integer. If supplied, stop after this many
+#'   selected subplots even if not all species are covered.
+#'
+#' @return A list with:
+#'   \describe{
+#'     \item{priority_table}{One row per selected subplot in visiting order.}
+#'     \item{species_checklist}{Species-level checklist with tags and subplots.}
+#'     \item{subplot_summary}{All subplot summaries, including non-selected ones.}
+#'     \item{covered_species}{Character vector of covered species.}
+#'     \item{remaining_species}{Character vector of uncovered species.}
+#'   }
+#'
+#' @keywords internal
+#' @noRd
+.prioritize_uncollected_subplots <- function(fp_coords,
+                                             exclude_palms = TRUE,
+                                             max_subplots  = NULL) {
+
+  req <- c("T1", "Family", "Collected", "Original determination", "New Tag No")
+  miss <- setdiff(req, names(fp_coords))
+  if (length(miss)) {
+    stop(
+      "Missing required columns in `fp_coords`: ",
+      paste(miss, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  df <- fp_coords %>%
+    dplyr::mutate(
+      T1 = as.character(T1),
+      Family = trimws(as.character(Family)),
+      Family = dplyr::if_else(is.na(Family) | Family == "", "Indet", Family),
+      Collected = trimws(as.character(Collected)),
+      Species = trimws(as.character(`Original determination`)),
+      Species = dplyr::if_else(is.na(Species) | Species == "", "indet", Species),
+      `New Tag No` = trimws(as.character(`New Tag No`))
+    ) %>%
+    dplyr::filter(is.na(Collected) | Collected == "")
+
+  if (isTRUE(exclude_palms)) {
+    df <- df %>% dplyr::filter(Family != "Arecaceae")
+  }
+
+  if (!nrow(df)) {
+    return(list(
+      priority_table = tibble::tibble(),
+      species_checklist = tibble::tibble(),
+      subplot_summary = tibble::tibble(),
+      covered_species = character(0),
+      remaining_species = character(0)
+    ))
+  }
+
+  species_by_subplot <- df %>%
+    dplyr::group_by(T1) %>%
+    dplyr::summarise(
+      species_set = list(sort(unique(Species))),
+      n_species = dplyr::n_distinct(Species),
+      n_trees = dplyr::n(),
+      tags = list(sort(unique(`New Tag No`))),
+      .groups = "drop"
+    )
+
+  all_species <- sort(unique(df$Species))
+  uncovered <- all_species
+
+  chosen <- list()
+  chosen_ids <- character(0)
+  step <- 1L
+
+  while (length(uncovered) > 0) {
+    if (!is.null(max_subplots) && length(chosen_ids) >= max_subplots) break
+
+    candidate_scores <- species_by_subplot %>%
+      dplyr::filter(!(T1 %in% chosen_ids)) %>%
+      dplyr::rowwise() %>%
+      dplyr::mutate(
+        new_species = list(intersect(species_set, uncovered)),
+        n_new_species = length(new_species)
+      ) %>%
+      dplyr::ungroup() %>%
+      dplyr::arrange(
+        dplyr::desc(n_new_species),
+        dplyr::desc(n_trees),
+        suppressWarnings(as.numeric(T1)),
+        T1
+      )
+
+    if (!nrow(candidate_scores)) break
+    if (candidate_scores$n_new_species[1] == 0) break
+
+    best <- candidate_scores[1, , drop = FALSE]
+
+    chosen[[length(chosen) + 1L]] <- tibble::tibble(
+      visit_order = step,
+      subplot = best$T1,
+      n_new_species = best$n_new_species,
+      n_species_in_subplot = best$n_species,
+      n_uncollected_individuals = best$n_trees,
+      newly_covered_species = list(best$new_species[[1]]),
+      all_species_in_subplot = list(best$species_set[[1]]),
+      tags = list(best$tags[[1]])
+    )
+
+    chosen_ids <- c(chosen_ids, best$T1)
+    uncovered <- setdiff(uncovered, best$new_species[[1]])
+    step <- step + 1L
+  }
+
+  priority_table <- if (length(chosen)) {
+    dplyr::bind_rows(chosen)
+  } else {
+    tibble::tibble()
+  }
+
+  subplot_summary <- species_by_subplot %>%
+    dplyr::mutate(
+      selected = T1 %in% chosen_ids,
+      visit_order = match(T1, priority_table$subplot)
+    ) %>%
+    dplyr::arrange(
+      dplyr::desc(selected),
+      visit_order,
+      suppressWarnings(as.numeric(T1)),
+      T1
+    )
+
+  species_checklist <- df %>%
+    dplyr::group_by(Species, Family) %>%
+    dplyr::summarise(
+      n_trees = dplyr::n(),
+      subplots = list(sort(unique(T1))),
+      tags = list(sort(unique(`New Tag No`))),
+      .groups = "drop"
+    ) %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(
+      priority_subplots = {
+        sp <- intersect(subplots[[1]], priority_table$subplot)
+        if (length(sp)) {
+          ord <- match(sp, priority_table$subplot)
+          sp[which.min(ord)]
+        } else {
+          NA_character_
+        }
+      },
+      first_visit_order = {
+        if (!is.na(priority_subplots)) {
+          priority_table$visit_order[match(priority_subplots, priority_table$subplot)]
+        } else {
+          NA_integer_
+        }
+      }
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(first_visit_order, Species)
+
+  list(
+    priority_table = priority_table,
+    species_checklist = species_checklist,
+    subplot_summary = subplot_summary,
+    covered_species = setdiff(all_species, uncovered),
+    remaining_species = uncovered
+  )
+}
+
+#' Build priority map for uncollected-species tracking
+#'
+#' @param fp_coords Data frame with global_x/global_y/T1 and canonical columns.
+#' @param priority_obj Output of .prioritize_uncollected_subplots().
+#' @param subplot_size Numeric subplot side in meters.
+#' @param plot_width_m Plot width in meters.
+#' @param plot_length_m Plot length in meters.
+#' @param plot_name Plot name.
+#' @param plot_code Plot code.
+#' @param language Language code.
+#'
+#' @return ggplot object.
+#'
+#' @keywords internal
+#' @noRd
+.build_uncollected_priority_plot <- function(fp_coords,
+                                             priority_obj,
+                                             subplot_size,
+                                             plot_width_m,
+                                             plot_length_m,
+                                             plot_name,
+                                             plot_code,
+                                             language = "en") {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  n_rows <- floor(plot_length_m / subplot_size)
+  n_cols <- floor(plot_width_m / subplot_size)
+
+  subplot_grid <- expand.grid(
+    col = seq_len(n_cols) - 1L,
+    row = seq_len(n_rows) - 1L
+  ) %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(
+      T1 = as.character(col * n_rows + row + 1L),
+      xmin = col * subplot_size,
+      xmax = xmin + subplot_size,
+      ymin = dplyr::if_else(
+        col %% 2 == 0,
+        row * subplot_size,
+        (n_rows - row - 1L) * subplot_size
+      ),
+      ymax = ymin + subplot_size
+    )
+
+  selected_tbl <- priority_obj$priority_table %>%
+    dplyr::select(subplot, visit_order, n_new_species)
+
+  subplot_grid <- subplot_grid %>%
+    dplyr::left_join(selected_tbl, by = c("T1" = "subplot")) %>%
+    dplyr::mutate(
+      selected = !is.na(visit_order),
+      fill_group = dplyr::if_else(selected, "priority", "background")
+    )
+
+  uncollected_pts <- fp_coords %>%
+    dplyr::mutate(
+      Family = trimws(as.character(Family)),
+      Collected = trimws(as.character(Collected))
+    ) %>%
+    dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae")
+
+  p <- ggplot2::ggplot() +
+    ggplot2::geom_rect(
+      data = subplot_grid,
+      ggplot2::aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill_group),
+      color = "white",
+      linewidth = 0.25
+    ) +
+    ggplot2::geom_rect(
+      data = subplot_grid %>% dplyr::filter(selected),
+      ggplot2::aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+      fill = NA,
+      color = "black",
+      linewidth = 0.7
+    ) +
+    ggplot2::geom_text(
+      data = subplot_grid,
+      ggplot2::aes(
+        x = (xmin + xmax) / 2,
+        y = (ymin + ymax) / 2,
+        label = T1
+      ),
+      color = "gray55",
+      size = 2.2,
+      fontface = "bold"
+    ) +
+    ggplot2::geom_point(
+      data = uncollected_pts,
+      ggplot2::aes(x = global_x, y = global_y, size = diameter),
+      shape = 21,
+      fill = "red",
+      color = "black",
+      stroke = 0.2,
+      alpha = 0.85
+    ) +
+    ggplot2::geom_text(
+      data = uncollected_pts,
+      ggplot2::aes(x = global_x, y = global_y, label = `New Tag No`),
+      size = 0.65
+    ) +
+    ggplot2::scale_fill_manual(
+      values = c(background = "gray92", priority = "gray70"),
+      guide = "none"
+    ) +
+    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
+    ggplot2::scale_x_continuous(
+      limits = c(0, plot_width_m),
+      breaks = seq(0, plot_width_m, by = subplot_size)
+    ) +
+    ggplot2::scale_y_continuous(
+      limits = c(0, plot_length_m),
+      breaks = seq(0, plot_length_m, by = subplot_size)
+    ) +
+    ggplot2::coord_fixed() +
+    ggplot2::labs(
+      x = tr["x_m"],
+      y = tr["y_m"],
+      title = paste0(tr["plot_name"], ": ", plot_name),
+      subtitle = paste0(tr["plot_code"], ": ", plot_code)
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      panel.grid = ggplot2::element_blank(),
+      panel.border = ggplot2::element_rect(color = "gray70", fill = NA, linewidth = 0.3)
+    )
+  return(p)
+}
+
+#' Flatten priority checklist for display or export
+#'
+#' @param priority_obj Output of .prioritize_uncollected_subplots().
+#'
+#' @return Tibble.
+#' @keywords internal
+#' @noRd
+.flatten_priority_species_checklist <- function(priority_obj,
+                                                original_data = NULL,
+                                                render_html = TRUE,
+                                                language = "en") {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  if (is.null(priority_obj$species_checklist) || !nrow(priority_obj$species_checklist)) {
+    return(tibble::tibble())
+  }
+
+  # If original data is provided, use it to create accurate tag-subplot mapping
+  if (!is.null(original_data) && all(c("New Tag No", "T1") %in% names(original_data))) {
+    # Create a lookup table from original data
+    tag_subplot_lookup <- unique(original_data[, c("New Tag No", "T1")])
+    names(tag_subplot_lookup) <- c("tag", "subplot")
+    tag_subplot_lookup$tag <- as.character(tag_subplot_lookup$tag)
+    tag_subplot_lookup$subplot <- as.character(tag_subplot_lookup$subplot)
+
+    result <- priority_obj$species_checklist
+    result$Species <- paste0("*", result$Species, "*")
+    result$subplot_tag_links <- character(nrow(result))
+
+    for (i in seq_len(nrow(result))) {
+      tag_vec <- result$tags[[i]]
+      pairs <- character(length(tag_vec))
+
+      for (j in seq_along(tag_vec)) {
+        tg <- tag_vec[j]
+        sub_idx <- which(tag_subplot_lookup$tag == tg)
+        if (length(sub_idx) > 0) {
+          sub <- tag_subplot_lookup$subplot[sub_idx[1]]
+          # Create links for both HTML and LaTeX
+          pairs[j] <- sprintf("S%s - [%s](#subplot-%s)", sub, tg, sub)
+        } else {
+          pairs[j] <- paste0("? - ", tg)
+        }
+      }
+
+      # Sort by subplot number
+      subplot_nums <- suppressWarnings(as.numeric(gsub("S", "", pairs)))
+      pairs <- pairs[order(subplot_nums, pairs)]
+      result$subplot_tag_links[i] <- paste(pairs, collapse = " | ")
+    }
+
+    result <- result[, c("Family", "Species", "n_trees",
+                         "priority_subplots", "subplot_tag_links")]
+    names(result)[1] <- tr["hover_family"]
+    names(result)[2] <- tr["hover_species"]
+    names(result)[3] <- tr["n_trees"]
+    names(result)[4] <- tr["p_subplots"]
+    names(result)[5] <- tr["subplot_tag"]
+
+    return(tibble::as_tibble(result))
+
+  } else {
+    # Fallback to the simple version assuming tags and subplots align
+    result <- priority_obj$species_checklist
+    result$Species <- paste0("*", result$Species, "*")
+    result$subplot_tag_links <- character(nrow(result))
+
+    for (i in seq_len(nrow(result))) {
+      tag_vec <- result$tags[[i]]
+      subplot_vec <- result$subplots[[i]]
+
+      if (length(tag_vec) == length(subplot_vec) && length(tag_vec) > 0) {
+        # Create links for each tag-subplot pair
+        pairs <- character(length(tag_vec))
+        for (j in seq_along(tag_vec)) {
+          pairs[j] <- sprintf("S%s - [%s](#subplot-%s)", subplot_vec[j], tag_vec[j], subplot_vec[j])
+        }
+        # Sort by subplot number
+        pairs <- pairs[order(suppressWarnings(as.numeric(subplot_vec)))]
+        result$subplot_tag_links[i] <- paste(pairs, collapse = " | ")
+      } else if (length(tag_vec) > 0) {
+        result$subplot_tag_links[i] <- paste(tag_vec, collapse = " | ")
+      } else {
+        result$subplot_tag_links[i] <- ""
+      }
+    }
+
+    result <- result[, c("Family", "Species", "n_trees",
+                         "priority_subplots", "subplot_tag_links")]
+    names(result)[1] <- tr["hover_family"]
+    names(result)[2] <- tr["hover_species"]
+    names(result)[3] <- tr["n_trees"]
+    names(result)[4] <- tr["p_subplots"]
+    names(result)[5] <- tr["subplot_tag"]
+
+    return(tibble::as_tibble(result))
+  }
+}
+
+#' Retrieve all labels for one language from the dictionary
+#'
+#' Builds a named list of labels for a selected language using the translation
+#' dictionary. This is useful when many labels are needed repeatedly inside a
+#' function, avoiding multiple individual dictionary lookups.
+#'
+#' The dictionary is expected to contain a `key` column and one list-column per
+#' language, such as `en`, `pt`, `es`, `fr`, `ma`, and `pa`. Scalar labels are
+#' returned as character strings. Vector labels stored as nested list entries,
+#' such as `species_tbl` and `family_tbl`, are converted to character vectors.
+#'
+#' @param language Character string specifying the target language.
+#'   One of `"en"`, `"pt"`, `"es"`, `"fr"`, `"ma"`, or `"pa"`.
+#' @param dict Dictionary tibble containing all translations. It must include
+#'   a `key` column and a column matching `language`. Defaults to the global
+#'   `dict` object.
+#'
+#' @return A named list of translated labels. Names correspond to `dict$key`.
+#'
+#' @keywords internal
+#' @noRd
+#'
+#' @examples
+#' \dontrun{
+#' lab <- .get_lab("pt", dict)
+#'
+#' lab$plot_name
+#' # "Nome da Parcela"
+#'
+#' lab$status
+#' # "Status"
+#'
+#' lab$species_tbl
+#' # c("Espécie", "Família", "Abundância", "Subparcelas",
+#' #   "Dens. rel. (%)", "Freq. rel. (%)", "VI")
+#' }
+.get_lab <- function(language = "en", dict = dict) {
+  language <- match.arg(language, choices = c("en", "pt", "es", "fr", "ma", "pa"))
+
+  lab <- dict[[language]]
+  names(lab) <- dict$key
+
+  # Convert nested list entries such as species_tbl/family_tbl into character vectors
+  lab <- lapply(lab, function(x) {
+    if (is.list(x)) {
+      unlist(x, use.names = FALSE)
+    } else {
+      x
+    }
+  })
+
+  lab
+}
+
+#' Retrieve a single translation from the dictionary
+#'
+#' One-shot translation lookup without creating a closure. Useful for
+#' quick translations or when only a few keys are needed.
+#'
+#' @param key Character string. The translation key to look up.
+#' @param language Character string specifying the target language.
+#' @param dict The dictionary tibble containing all translations.
+#'   Defaults to the global `dict` object.
+#'
+#' @return Character string with the translated value. Returns the original
+#'   key with a warning if not found.
+#'
+#' @keywords internal
+#' @noRd
+#'
+#' @examples
+#' \dontrun{
+#' .tr_dict("plot_name", "pt", dict)   # "Nome da Parcela"
+#' .tr_dict("status", "es", dict)      # "Estado"
+#' .tr_dict("n_trees", "fr", dict)     # "Nombre d'Arbres"
+#' }
+.tr_dict <- function(key, language = "en", dict) {
+
+  # Validate and normalize language
+  language <- tolower(trimws(as.character(language)[1]))
+
+  if (!language %in% c("en", "pt", "es", "fr", "ma", "pa")) {
+    language <- "en"
+  }
+
+  # Search for translation
+  result <- dict[dict$key == key, language, drop = TRUE]
+
+  if (length(result) == 0 || is.na(result)) {
+    warning(paste("Translation key not found:", key))
+    return(key)
+  }
+
+  return(as.character(result))
+}
+
+#' Translate multiple keys at once
+#'
+#' Vectorized version of `.tr_dict()` for translating multiple keys efficiently.
+#'
+#' @param keys Character vector. The translation keys to look up.
+#' @param language Character string specifying the target language.
+#' @param dict The dictionary tibble containing all translations.
+#'
+#' @return Character vector with translated values.
+#'
+#' @keywords internal
+#' @noRd
+#'
+#' @examples
+#' \dontrun{
+#' keys <- c("plot_name", "plot_code", "team")
+#' .tr_dict_vec(keys, "pt")  # Returns: "Nome da Parcela", "Código da Parcela", "Equipe"
+#' }
+.tr_dict_vec <- function(keys, language = "en", dict = get("dict", envir = parent.frame())) {
+  sapply(keys, function(k) .tr_dict(k, language, dict), USE.NAMES = FALSE)
+}
+
+# Full dictionary of specific terms ####
+dict <- tibble::tibble(
+  key = c(
+    "Full Plot Report",
+    "MONITORA Program",
+    "Back to Contents",
+    "Priority Subplots for Uncollected Species",
+    "Priority Species to Collect",
+    "Contents",
+    "Metadata",
+    "plot_name",
+    "plot_code",
+    "plot_census_no_fp",
+    "team",
+    "Total Specimens",
+    "collected",
+    "uncollected",
+    "palms",
+    "Dead trees since first census",
+    "Recruits since first census",
+    "Dashboard",
+    "Metric Summary",
+    "Most Common Families",
+    "Most Abundant Species",
+    "Collection Percentage by Subplot",
+    "DBH Classes",
+    "DBH Class",
+    "Number of individuals",
+    "Species Metrics",
+    "Family Metrics",
+    "hover_species",
+    "hover_family",
+    "Abundance",
+    "Subplots",
+    "Rel. density (%)",
+    "Rel. frequency (%)",
+    "IV",
+    "Richness",
+    "General Plot",
+    "Collected Only",
+    "Not Collected Palms",
+    "Not Collected",
+    "Palms",
+    "Subplot Index",
+    "subplot",
+    "Subplot ",
+    "Checklist",
+    "Individual Subplots",
+    "status",
+    "dbh",
+    "x_m",
+    "y_m",
+    "local_x_m",
+    "local_y_m",
+    "collection_balance",
+    "subunit",
+    "hover_tag",
+    "hover_dbh",
+    "n_trees",
+    "p_subplots",
+    "subplot_tag",
+    "metric",
+    "value",
+    "total_individuals",
+    "families",
+    "species",
+    "genera",
+    "shannon",
+    "simpson",
+    "family_plot",
+    "species_plot",
+    "subplot_plot",
+    "dbh_plot",
+    "dbh_x",
+    "dbh_y",
+    "x_ind",
+    "x_pct",
+    "species_tbl",
+    "family_tbl"
+  ),
+
+  en = list(
+    "Full Plot Report",
+    "MONITORA Program",
+    "Back to Contents",
+    "Priority Subplots for Uncollected Species",
+    "Priority Species to Collect",
+    "Contents",
+    "Metadata",
+    "Plot Name",
+    "Plot Code",
+    "Census No",
+    "Team",
+    "Total Specimens",
+    "Collected (excluding palms)",
+    "Not Collected (excluding palms)",
+    "Palms (Arecaceae)",
+    "Dead trees since first census",
+    "Recruits since first census",
+    "Dashboard",
+    "Metric Summary",
+    "Most Common Families",
+    "Most Abundant Species",
+    "Collection Percentage by Subplot",
+    "DBH Classes",
+    "DBH Class",
+    "Number of individuals",
+    "Species Metrics",
+    "Family Metrics",
+    "Species",
+    "Family",
+    "Abundance",
+    "Subplots",
+    "Rel. density (%)",
+    "Rel. frequency (%)",
+    "IV",
+    "Richness",
+    "General Plot",
+    "Collected Only",
+    "Not Collected Palms",
+    "Not Collected",
+    "Palms",
+    "Subplot Index",
+    "Subplots",
+    "Subplot ",
+    "Checklist",
+    "Individual Subplots",
+    "Status",
+    "DBH (cm)",
+    "X (m)",
+    "Y (m)",
+    "Local X (m)",
+    "Local Y (m)",
+    "Collection Balance",
+    "Subunit",
+    "Tag",
+    "DBH",
+    "No Trees",
+    "Priority Subplots",
+    "Subplot - Tag",
+    "Metric",
+    "Value",
+    "Total individuals",
+    "Distinct families",
+    "Distinct species",
+    "Distinct genera",
+    "Shannon index",
+    "Simpson index",
+    "Most common families",
+    "Most abundant species",
+    "Collection percentage by subplot",
+    "DBH classes (cm)",
+    "DBH class (cm)",
+    "Number of individuals",
+    "Individuals",
+    "%",
+    list(
+      "Species", "Family", "Abundance", "Subplots",
+      "Rel. density (%)", "Rel. frequency (%)", "IV"
+    ),
+    list(
+      "Family", "Abundance", "Richness", "Subplots",
+      "Rel. density (%)", "Rel. frequency (%)", "IV"
+    )
+  ),
+
+  pt = list(
+    "Relat\u00f3rio Completo da Parcela",
+    "Programa MONITORA",
+    "Voltar ao Sum\u00e1rio",
+    "Subparcelas Priorit\u00e1rias com Esp\u00e9cies Ainda N\u00e3o Coletadas",
+    "Esp\u00e9cies Priorit\u00e1rias para Coletar",
+    "Sum\u00e1rio",
+    "Metadados",
+    "Nome da Parcela",
+    "C\u00f3digo da Parcela",
+    "N\u00famero do Censo",
+    "Equipe",
+    "Total de Esp\u00e9cimes",
+    "Coletados (excluindo palmeiras)",
+    "N\u00e3o Coletados (excluindo palmeiras)",
+    "Palmeiras (Arecaceae)",
+    "\u00c1rvores mortas desde o primeiro censo",
+    "Recrutas desde o primeiro censo",
+    "Painel",
+    "Resumo das M\u00e9tricas",
+    "Fam\u00edlias Mais Comuns",
+    "Esp\u00e9cies Mais Abundantes",
+    "Porcentagem de Coleta por Subparcela",
+    "Classes de DAP",
+    "Classe de DAP",
+    "N\u00famero de indiv\u00edduos",
+    "M\u00e9tricas por Esp\u00e9cie",
+    "M\u00e9tricas por Fam\u00edlia",
+    "Esp\u00e9cie",
+    "Fam\u00edlia",
+    "Abund\u00e2ncia",
+    "Subparcelas",
+    "Dens. rel. (%)",
+    "Freq. rel. (%)",
+    "VI",
+    "Riqueza",
+    "Parcela Geral",
+    "Apenas Coletados",
+    "Palmeiras N\u00e3o Coletadas",
+    "N\u00e3o Coletados",
+    "Palmeiras",
+    "\u00cdndice da Subparcela",
+    "Subparcelas",
+    "Subparcela ",
+    "Lista de Esp\u00e9cies",
+    "Subparcelas Individuais",
+    "Status",
+    "DAP (cm)",
+    "X (m)",
+    "Y (m)",
+    "X local (m)",
+    "Y local (m)",
+    "Balan\u00e7o de Coleta",
+    "Subunidade",
+    "Placa",
+    "DAP",
+    "No. \u00c1rvores",
+    "Subparcelas Priorit\u00e1rias",
+    "Subparcela - Placa",
+    "M\u00e9trica",
+    "Valor",
+    "Total de indiv\u00edduos",
+    "Fam\u00edlias distintas",
+    "Esp\u00e9cies distintas",
+    "G\u00eaneros distintos",
+    "\u00cdndice de Shannon",
+    "\u00cdndice de Simpson",
+    "Fam\u00edlias mais comuns",
+    "Esp\u00e9cies mais abundantes",
+    "Percentual de coleta por subparcela",
+    "Classes de DAP (cm)",
+    "Classe de DAP (cm)",
+    "Numero de indiv\u00edduos",
+    "Indiv\u00edduos",
+    "%",
+    list(
+      "Esp\u00e9cie", "Fam\u00edlia", "Abund\u00e2ncia", "Subparcelas",
+      "Dens. rel. (%)", "Freq. rel. (%)", "VI"
+    ),
+    list(
+      "Fam\u00edlia", "Abund\u00e2ncia", "Riqueza", "Subparcelas",
+      "Dens. rel. (%)", "Freq. rel. (%)", "VI"
+    )
+  ),
+
+  es = list(
+    "Informe Completo de la Parcela",
+    "Programa MONITORA",
+    "Volver al Contenido",
+    "Subparcelas prioritarias para especies no recolectadas",
+    "Especies Prioritarias para Colectar",
+    "Contenido",
+    "Metadatos",
+    "Nombre de la Parcela",
+    "C\u00f3digo de la Parcela",
+    "N\u00famero de Censo",
+    "Equipo",
+    "Total de Espec\u00edmenes",
+    "Colectados (excluyendo palmas)",
+    "No Colectados (excluyendo palmas)",
+    "Palmas (Arecaceae)",
+    "\u00c1rboles muertos desde el primer censo",
+    "Reclutas desde el primer censo",
+    "Tablero",
+    "Resumen de M\u00e9tricas",
+    "Familias M\u00e1s Comunes",
+    "Especies M\u00e1s Abundantes",
+    "Porcentaje de Colecta por Subparcela",
+    "Clases de DAP",
+    "Clase de DAP",
+    "N\u00famero de individuos",
+    "M\u00e9tricas por Especie",
+    "M\u00e9tricas por Familia",
+    "Especie",
+    "Familia",
+    "Abundancia",
+    "Subparcelas",
+    "Dens. rel. (%)",
+    "Frec. rel. (%)",
+    "VI",
+    "Riqueza",
+    "Parcela General",
+    "Solo Colectados",
+    "Palmas No Colectadas",
+    "No Colectados",
+    "Palmas",
+    "\u00cdndice de Subparcela",
+    "Subparcelas",
+    "Subparcela ",
+    "Listado de Especies",
+    "Subparcelas Individuales",
+    "Estado",
+    "DAP (cm)",
+    "X (m)",
+    "Y (m)",
+    "X local (m)",
+    "Y local (m)",
+    "Balance de Colecta",
+    "Subunidad",
+    "Etiqueta",
+    "DAP",
+    "N\u00famero de \u00c1rboles",
+    "Subparcelas Prioritarias",
+    "Subparcela - Etiqueta",
+    "M\u00e9trica",
+    "Valor",
+    "Total de individuos",
+    "Familias distintas",
+    "Especies distintas",
+    "G\u00e9neros distintos",
+    "\u00cdndice de Shannon",
+    "\u00cdndice de Simpson",
+    "Familias m\u00e1s comunes",
+    "Especies m\u00e1s abundantes",
+    "Porcentaje de recolecci\u00f3n por subparcela",
+    "Clases de DAP (cm)",
+    "Clase de DAP (cm)",
+    "N\u00famero de individuos",
+    "Individuos",
+    "%",
+    list(
+      "Especie", "Familia", "Abundancia", "Subparcelas",
+      "Dens. rel. (%)", "Freq. rel. (%)", "VI"
+    ),
+    list(
+      "Familia", "Abundancia", "Riqueza", "Subparcelas",
+      "Dens. rel. (%)", "Freq. rel. (%)", "VI"
+    )
+  ),
+
+  fr = list(
+    "Rapport Complet de la Parcelle",
+    "Programme MONITORA",
+    "Retour au Sommaire",
+    "Sous-parcelles prioritaires pour les esp\u00e8ces non collect\u00e9es",
+    "Esp\u00e8ces Prioritaires \u00e0 Collecter",
+    "Sommaire",
+    "M\u00e9tadonn\u00e9es",
+    "Nom de la Parcelle",
+    "Code de la Parcelle",
+    "Num\u00e9ro de Recensement",
+    "\u00c9quipe",
+    "Total des Sp\u00e9cimens",
+    "Collect\u00e9s (hors palmiers)",
+    "Non Collect\u00e9s (hors palmiers)",
+    "Palmiers (Arecaceae)",
+    "Arbres morts depuis le premier recensement",
+    "Recrues depuis le premier recensement",
+    "Tableau de Bord",
+    "R\u00e9sum\u00e9 des M\u00e9triques",
+    "Familles les Plus Courantes",
+    "Esp\u00e8ces les Plus Abondantes",
+    "Pourcentage de Collecte par Sous-parcelle",
+    "Classes de DHP",
+    "Classe de DHP",
+    "Nombre d'individus",
+    "M\u00e9triques par Esp\u00e8ce",
+    "M\u00e9triques par Famille",
+    "Esp\u00e8ce",
+    "Famille",
+    "Abondance",
+    "Sous-parcelles",
+    "Dens. rel. (%)",
+    "Fr\u00e9q. rel. (%)",
+    "VI",
+    "Richesse",
+    "Parcelle G\u00e9n\u00e9rale",
+    "Collect\u00e9s Uniquement",
+    "Palmiers Non Collect\u00e9s",
+    "Non Collect\u00e9s",
+    "Palmiers",
+    "Indice de Sous-parcelle",
+    "Sous-parcelles",
+    "Sous-parcelle ",
+    "Liste d’esp\u00e8ce",
+    "Sous-parcelles Individuelles",
+    "Statut",
+    "DHP (cm)",
+    "X (m)",
+    "Y (m)",
+    "X local (m)",
+    "Y local (m)",
+    "Bilan de Collecte",
+    "Sous-unit\u00e9",
+    "\u00c9tiquette",
+    "DHP",
+    "Nombre d'Arbres",
+    "Sous-parcelles Prioritaires",
+    "Sous-parcelle - \u00c9tiquette",
+    "M\u00e9trique",
+    "Valeur",
+    "Nombre total d'individus",
+    "Familles distinctes",
+    "Esp\u00e8ces distinctes",
+    "Genres distincts",
+    "Indice de Shannon",
+    "Indice de Simpson",
+    "Familles les plus communes",
+    "Esp\u00e8ces les plus abondantes",
+    "Pourcentage de collecte par sous-parcelle",
+    "Classes de DHP (cm)",
+    "Classe de DHP (cm)",
+    "Nombre d'individus",
+    "Individus",
+    "%",
+    list(
+      "Esp\u00e8ce", "Famille", "Abondance", "Sous-parcelles",
+      "Densit\u00e9 rel. (%)", "Fr\u00e9q. rel. (%)", "IV"
+    ),
+    list(
+      "Famille", "Abondance", "Richesse", "Sous-parcelles",
+      "Densit\u00e9 rel. (%)", "Fr\u00e9q. rel. (%)", "IV"
+    )
+  ),
+
+  ma = list(
+    "\u6837\u5730\u5b8c\u6574\u62a5\u544a",
+    "MONITORA \u9879\u76ee",
+    "\u8fd4\u56de\u76ee\u5f55",
+    "\u672a\u91c7\u96c6\u7269\u79cd\u7684\u4f18\u5148\u5b50\u6837\u5730",
+    "\u4f18\u5148\u91c7\u96c6\u7684\u7269\u79cd",
+    "\u76ee\u5f55",
+    "\u5143\u6570\u636e",
+    "\u6837\u5730\u540d\u79f0",
+    "\u6837\u5730\u4ee3\u7801",
+    "\u666e\u67e5\u7f16\u53f7",
+    "\u56e2\u961f",
+    "\u6807\u672c\u603b\u6570",
+    "\u5df2\u91c7\u96c6\uff08\u4e0d\u542b\u68d5\u6988\u79d1\uff09",
+    "\u672a\u91c7\u96c6\uff08\u4e0d\u542b\u68d5\u6988\u79d1\uff09",
+    "\u68d5\u6988\u79d1\uff08Arecaceae\uff09",
+    "\u81ea\u7b2c\u4e00\u6b21\u666e\u67e5\u4ee5\u6765\u6b7b\u4ea1\u7684\u6811\u6728",
+    "\u81ea\u7b2c\u4e00\u6b21\u666e\u67e5\u4ee5\u6765\u7684\u65b0\u4e2a\u4f53",
+    "\u4eea\u8868\u677f",
+    "\u6307\u6807\u6458\u8981",
+    "\u6700\u5e38\u89c1\u79d1",
+    "\u6700\u4e30\u5bcc\u7269\u79cd",
+    "\u6309\u5b50\u6837\u5730\u91c7\u96c6\u767e\u5206\u6bd4",
+    "\u80f8\u5f84\u7b49\u7ea7",
+    "\u80f8\u5f84\u7b49\u7ea7",
+    "\u4e2a\u4f53\u6570\u91cf",
+    "\u7269\u79cd\u6307\u6807",
+    "\u79d1\u6307\u6807",
+    "\u7269\u79cd",
+    "\u79d1",
+    "\u4e30\u5ea6",
+    "\u5b50\u6837\u5730",
+    "\u76f8\u5bf9\u5bc6\u5ea6\uff08%\uff09",
+    "\u76f8\u5bf9\u9891\u7387\uff08%\uff09",
+    "\u91cd\u8981\u503c",
+    "\u4e30\u5bcc\u5ea6",
+    "\u6837\u5730\u6982\u89c8",
+    "\u4ec5\u5df2\u91c7\u96c6",
+    "\u672a\u91c7\u96c6\u68d5\u6988\u79d1",
+    "\u672a\u91c7\u96c6",
+    "\u68d5\u6988\u79d1",
+    "\u5b50\u6837\u5730\u7d22\u5f15",
+    "\u5b50\u6837\u5730",
+    "\u5b50\u6837\u5730 ",
+    "\u6838\u5bf9\u6e05\u5355",
+    "\u5355\u4e2a\u5b50\u6837\u5730",
+    "\u72b6\u6001",
+    "\u80f8\u5f84\uff08\u5398\u7c73\uff09",
+    "X\uff08\u7c73\uff09",
+    "Y\uff08\u7c73\uff09",
+    "\u5c40\u90e8 X\uff08\u7c73\uff09",
+    "\u5c40\u90e8 Y\uff08\u7c73\uff09",
+    "\u91c7\u96c6\u5e73\u8861",
+    "\u5b50\u5355\u5143",
+    "\u6807\u7b7e",
+    "\u80f8\u5f84",
+    "\u6811\u6728\u6570\u91cf",
+    "\u4f18\u5148\u5b50\u6837\u5730",
+    "\u5b50\u6837\u5730 - \u6807\u7b7e",
+    "\u6307\u6807",
+    "\u6570\u503c",
+    "\u4e2a\u4f53\u603b\u6570",
+    "\u4e0d\u540c\u79d1\u6570",
+    "\u4e0d\u540c\u7269\u79cd\u6570",
+    "\u4e0d\u540c\u5c5e\u6570",
+    "Shannon \u6307\u6570",
+    "Simpson \u6307\u6570",
+    "\u6700\u5e38\u89c1\u79d1",
+    "\u6700\u4e30\u5bcc\u7269\u79cd",
+    "\u5404\u5b50\u6837\u5730\u91c7\u96c6\u767e\u5206\u6bd4",
+    "\u80f8\u5f84\u7b49\u7ea7 (cm)",
+    "\u80f8\u5f84\u7b49\u7ea7 (cm)",
+    "\u4e2a\u4f53\u6570\u91cf",
+    "\u4e2a\u4f53\u6570",
+    "%",
+    list(
+      "\u7269\u79cd", "\u79d1", "\u4e30\u5ea6", "\u5b50\u6837\u5730",
+      "\u76f8\u5bf9\u5bc6\u5ea6 (%)", "\u76f8\u5bf9\u9891\u7387 (%)", "\u91cd\u8981\u503c"
+    ),
+    list(
+      "\u79d1", "\u4e30\u5ea6", "\u4e30\u5bcc\u5ea6", "\u5b50\u6837\u5730",
+      "\u76f8\u5bf9\u5bc6\u5ea6 (%)", "\u76f8\u5bf9\u9891\u7387 (%)", "\u91cd\u8981\u503c"
+    )
+  ),
+
+  pa = list(
+    "Hokjya r\u00ea t\u00e3waj\u00e3ri p\u00e3p\u00e3\u00e3 r\u00eat\u00e3 kuk\u00e2ri p\u00e2ri h\u00e3",
+    "Programa MONITORA",
+    "Pikjatit\u00e3 t\u00e4 sokkjaraa",
+    "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 r\u00ea waj\u00e3ra h\u00ea p\u00e2ri",
+    "Waj\u00e3ra h\u00ea p\u00e2ri",
+    "T\u00e4 Sokkjaraa",
+    "R\u00ea raa san r\u00ea kuk\u00e2ri",
+    "Issi r\u00ea t\u00e3 kuk\u00e2ri",
+    "Kypa kuk\u00e2ri",
+    "Junti h\u1ebd r\u00f5 s\u00ean p\u00e2rikran",
+    "S\u00e2p\u00ear\u00e3t\u00ea",
+    "P\u00e3p\u00e3 p\u00e2ri",
+    "P\u00e2ri sonswa",
+    "P\u00e2ri r\u00f5r\u0129",
+    "Kwatis\u00f4m\u1ebdra",
+    "P\u00e2ri m\u00e3m\u00e3 jy ty",
+    "P\u00e2rituem~era krep\u00e2\u00e2 s\u00e2\u00e2",
+    "P\u00e3p\u00e3\u00e3 kja skreeha kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
+    "Swan kukrek\u00e2ra",
+    "Inkj\u00eati tip\u0129njakjura",
+    "Sotinkj\u00eati sop\u00e2ri m\u1ebdra",
+    "Jyy ti he p\u00e2ri m\u1ebdra kar\u00ear\u00e2kjan kuk\u00e2ri s\u00e2\u00e2",
+    "R\u00eat\u00e3 hosakreja p\u00e2ri m\u1ebdra wyme kiti",
+    "R\u00eat\u00e3 hosakreja p\u00e2ri m\u1ebdra wyme kiti",
+    "N\u00famero de p\u00e2ri",
+    "P\u0129rak\u00e2ri p\u00e2ri m\u1ebdra",
+    "P\u0129rak\u00e2ri p\u00e2ri kyapi\u00e2hapi\u00e2ra",
+    "P\u0129rak\u00e2ri",
+    "P\u0129rak\u00e2ri kyapi\u00e2hapi\u00e2ra",
+    "Inkj\u00eati",
+    "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
+    "Dens. rel. (%)",
+    "Freq. rel. (%)",
+    "VI",
+    "Inkj\u00eati sop\u0129r\u00e3k\u00e2ri",
+    "P\u00e3p\u00e3 kypapr\u1ebdpi kuk\u00e2ri",
+    "P\u00e2ri sonswa kypa kuk\u00e2ri kran",
+    "R\u00f5\u00f5rin kwatis\u00f4m\u00eara kuk\u00e2ri kran",
+    "P\u00e2ri r\u00f5r\u0129 kypa kuk\u00e2ri kran",
+    "Kwatis\u00f4m\u1ebdra",
+    "T\u00e4 sokkjaraa r\u00eat\u00e2 kuk\u00e2ra kran",
+    "R\u00eat\u00e3 kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
+    "R\u00eat\u00e3 kuk\ue2ra krep\u00e3\u00e3 s\u00e2\u00e2 ",
+    "Issi pyr\u00e3h\u00e3 p\u00e2rijnsim\u1ebdra",
+    "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 pyti",
+    "Junti h\u1ebd si m\u1ebdra",
+    "R\u00eat\u00e3 hosakreja p\u00e2ri m\u1ebdra wyme kiti",
+    "X (m)",
+    "Y (m)",
+    "X local (m)",
+    "Y local (m)",
+    "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
+    "Subunit",
+    "Pj\u00e3nk\u00e2proo p\u00e3\u00e3",
+    "R\u00eat\u00e3 hosakreja p\u00e2ri",
+    "Inkj\u00eati p\u00e2ri",
+    "Subparcelas Prioritarias",
+    "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 - Pj\u00e3nk\u00e2proo p\u00e3\u00e3",
+    "Hopjon",
+    "Kukr\u1ebd",
+    "Inkj\u00eati p\u00e3p\u00e3 p\u00e2ri",
+    "Kjapiahapi\u00e2ra p\u0129r\u00e3k\u00e2ri",
+    "Sop\u0129r\u00e3k\u00e2ri",
+    "G\u00eaneros distintos",
+    "Indice de Shannon",
+    "Indice de Simpson",
+    "Inkj\u00eati tip\u0129njakjura",
+    "Sotinkj\u00eati sop\u00e2ri m\u1ebdra",
+    "Jyy ti he p\u00e2ri m\u1ebdra kar\u00ear\u00e2kjan kuk\u00e2ri s\u00e2\u00e2",
+    "R\u00eat\u00e3 hosakreja p\u00e2ri m\u1ebdra wyme kiti (cm)",
+    "R\u00eat\u00e3 hosakreja p\u00e2ri m\u1ebdra wyme kiti (cm)",
+    "Inkj\u00eati p\u00e2ri",
+    "P\u00e2ri",
+    "%",
+    list(
+      "P\u0129rak\u00e2ri", "Kyapi\u00e2hapi\u00e2ra", "Inkj\u00eati", "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
+      "Dens. rel. (%)", "Freq. rel. (%)", "VI"
+    ),
+    list(
+      "Kyapi\u00e2hapi\u00e2ra", "Inkj\u00eati", "Inkj\u00eati sop\u0129r\u00e3k\u00e2ri", "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
+      "Dens. rel. (%)", "Freq. rel. (%)", "VI"
+    )
+  )
+)
+

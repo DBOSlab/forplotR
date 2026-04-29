@@ -21,6 +21,7 @@ plot_for_balance(
   render_html = TRUE,
   render_pdf = TRUE,
   write_xlsx = TRUE,
+  verbose = TRUE,
   dir = "Results_map_plot",
   filename = "plot_specimen"
 )
@@ -76,6 +77,10 @@ extracted from the input file metadata.}
 \item{render_pdf}{Logical. If \code{TRUE}, renders the PDF report.}
 
 \item{write_xlsx}{Logical. If \code{TRUE}, writes the Excel summary workbook.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints progress and diagnostic
+messages during input harmonization, coordinate computation, map generation,
+and report rendering.}
 
 \item{dir}{Output directory. A date-stamped subfolder in the format
 \code{ddMonYYYY} is created inside this directory.}
