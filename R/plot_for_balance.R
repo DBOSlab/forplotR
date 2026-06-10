@@ -95,6 +95,10 @@
 #'
 #' @param write_xlsx Logical. If \code{TRUE}, writes the Excel summary workbook.
 #'
+#' @param verbose Logical. If \code{TRUE}, prints progress and diagnostic
+#' messages during input harmonization, coordinate computation, map generation,
+#' and report rendering.
+#'
 #' @param dir Output directory. A date-stamped subfolder in the format
 #' \code{ddMonYYYY} is created inside this directory.
 #'
@@ -185,6 +189,7 @@ plot_for_balance <- function(fp_file_path = NULL,
                              render_html = TRUE,
                              render_pdf = TRUE,
                              write_xlsx = TRUE,
+                             verbose = TRUE,
                              dir = "Results_map_plot",
                              filename = "plot_specimen") {
 
@@ -255,7 +260,7 @@ plot_for_balance <- function(fp_file_path = NULL,
   language <- match.arg(tolower(trimws(as.character(language))),
                         c("en", "pt", "es", "fr", "ma", "pa"))
 
-  tr <- .plot_i18n(language)
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
 
   dir <- .arg_check_dir(dir)
 
@@ -287,290 +292,60 @@ plot_for_balance <- function(fp_file_path = NULL,
         write_xlsx = write_xlsx,
         dir = dir,
         filename = paste0(filename, "_station_", st),
-        language = language
+        language = language,
+        verbose = verbose
       )
     }
     return(invisible(TRUE))
   }
 
-  raw <- switch(
-    input_type,
-    "monitora" = .monitora_to_field_sheet_df(fp_file_path, station_name = station_name),
-    "fp_query_sheet" = .fp_query_to_field_sheet_df(fp_file_path),
-    "field_sheet" = suppressMessages(
-      readxl::read_excel(
-        fp_file_path,
-        sheet = 1,
-        col_names = FALSE,
-        .name_repair = "minimal"
-      )
-    ),
-    "field_sheet_ti" = suppressMessages(
-      readxl::read_excel(
-        fp_file_path,
-        sheet = 1,
-        col_names = FALSE,
-        .name_repair = "minimal"
-      )
-    )
+  # Harmonize the plot input data type
+  fp_loaded <- .harmonize_plot_input(
+    fp_file_path = fp_file_path,
+    input_type = input_type,
+    station_name = station_name,
+    verbose = verbose
   )
 
-  message("RAW import check:")
-  print(raw[1:15, 1:10])
+  fp_sheet  <- fp_loaded$fp_sheet
+  team <- fp_loaded$team
+  plot_name <- fp_loaded$plot_name
+  plot_code <- fp_loaded$plot_code
+  census_no_fp <- fp_loaded$census_no_fp
 
-  canonical_cols <- c(
-    "New Tag No", "T1", "T2", "X", "Y",
-    "Family", "Original determination", "D"
-  )
-
-  if (input_type %in% c("fp_query_sheet", "monitora")) {
-    has_meta <- FALSE
-
-    data <- as.data.frame(raw, stringsAsFactors = FALSE)
-    raw_meta <- attr(raw, "plot_meta")
-
-    team <- if (!is.null(arg_team) && nzchar(arg_team)) {
-      arg_team
-    } else if (!is.null(raw_meta) &&
-               !is.null(raw_meta$team) &&
-               nzchar(trimws(raw_meta$team))) {
-      raw_meta$team
-    } else {
-      ""
-    }
-
-    plot_name <- if (!is.null(arg_plot_name) && nzchar(arg_plot_name)) {
-      arg_plot_name
-    } else if (!is.null(raw_meta) &&
-               !is.null(raw_meta$plot_name) &&
-               nzchar(trimws(raw_meta$plot_name))) {
-      raw_meta$plot_name
-    } else {
-      "Unknown Plot"
-    }
-
-    plot_code <- if (!is.null(raw_meta) &&
-                     !is.null(raw_meta$plot_code) &&
-                     nzchar(trimws(raw_meta$plot_code))) {
-      raw_meta$plot_code
-    } else {
-      ""
-    }
-
-    plot_census_no_fp <- if (!is.null(arg_census_no_fp) && nzchar(arg_census_no_fp)) {
-      arg_census_no_fp
-    } else if (!is.null(raw_meta) &&
-               !is.null(raw_meta$census_no_fp) &&
-               nzchar(trimws(raw_meta$census_no_fp))) {
-      raw_meta$census_no_fp
-    } else {
-      ""
-    }
-
-    if (!all(canonical_cols %in% names(data))) {
-      stop(
-        "For input_type = '", input_type,
-        "', the imported table must already contain canonical columns. Missing: ",
-        paste(setdiff(canonical_cols, names(data)), collapse = ", "),
-        call. = FALSE
-      )
-    }
-
-    message("Input already converted to canonical schema; skipping header detection.")
-    message("Detected columns: ", paste(names(data)[1:min(12, ncol(data))], collapse = " | "))
-    message("Using metadata from raw/attributes:")
-    message("plot_name = ", plot_name)
-    message("plot_code = ", plot_code)
-    message("team = ", team)
-    message("DATA check:")
-    print(data[1:min(20, nrow(data)), intersect(c("New Tag No", "T1", "T2", "X", "Y"), names(data))])
-
-    if (!("Collected" %in% names(data))) data$Collected <- NA_character_
-
+  team <- if (.safe_nzchar(arg_team)) {
+    trimws(arg_team)
+  } else if (.safe_nzchar(team)) {
+    trimws(team)
   } else {
-
-    metadata_row <- .safe_char_row(raw)
-
-    has_meta <- any(grepl("^\\s*(Plotcode:|Plot Code:|Plot Name:|Team:|PI:)",
-                          metadata_row, ignore.case = TRUE))
-
-    team <- if (!is.null(arg_team) && nzchar(arg_team)) {
-      arg_team
-    } else {
-      hit <- metadata_row[grepl("^\\s*Team:", metadata_row, ignore.case = TRUE)]
-      if (length(hit)) sub("^\\s*Team:\\s*", "", hit[1], ignore.case = TRUE) else ""
-    }
-
-    plot_name <- if (!is.null(arg_plot_name) && nzchar(arg_plot_name)) {
-      arg_plot_name
-    } else {
-      hit <- metadata_row[grepl("^\\s*Plot Name:", metadata_row, ignore.case = TRUE)]
-      if (length(hit)) sub("^\\s*Plot Name:\\s*", "", hit[1], ignore.case = TRUE) else "Unknown Plot"
-    }
-
-    plot_code <- if (!is.null(arg_plot_code) && nzchar(arg_plot_code)) {
-      arg_plot_code
-    } else {
-      hit <- metadata_row[grepl("^\\s*(Plotcode:|Plot Code:)", metadata_row, ignore.case = TRUE)]
-      if (length(hit)) sub("^\\s*(Plotcode:|Plot Code:)\\s*", "", hit[1], ignore.case = TRUE) else ""
-    }
-
-    plot_census_no_fp <- if (!is.null(arg_census_no_fp) && nzchar(arg_census_no_fp)) {
-      arg_census_no_fp
-    } else {
-      "1"
-    }
-
-    if (input_type == "field_sheet_ti") {
-
-      raw_data <- raw[-c(1, 2), , drop = FALSE]
-      n <- nrow(raw_data)
-
-      dest_cols <- c(
-        "New Tag No","New Stem Grouping","T1","T2","X","Y","Family",
-        "Original determination","Morphospecies","D","POM","ExtraD","ExtraPOM",
-        "Flag1","Flag2","Flag3","LI","CI","CF","CD1","nrdups","Height",
-        "Voucher","Silica","Collected","Census Notes","CAP","Basal Area"
-      )
-
-      data <- as.data.frame(
-        setNames(
-          replicate(length(dest_cols), rep(NA, n), simplify = FALSE),
-          dest_cols
-        ),
-        stringsAsFactors = FALSE
-      )
-
-      data$`New Tag No` <- raw_data[[1]]
-      data$`New Stem Grouping` <- raw_data[[2]]
-      data$T1 <- raw_data[[3]]
-      data$T2 <- raw_data[[4]]
-      data$X <- raw_data[[5]]
-      data$Y <- raw_data[[6]]
-      data$Family <- raw_data[[7]]
-      data$`Original determination` <- paste0(raw_data[[9]], " | ", raw_data[[8]])
-      data$Morphospecies <- raw_data[[10]]
-      data$D <- raw_data[[11]]
-      data$POM <- raw_data[[12]]
-      data$Flag1 <- raw_data[[13]]
-      data$nrdups <- raw_data[[14]]
-      data$Height <- raw_data[[15]]
-      data$Voucher <- raw_data[[16]]
-      data$Silica <- raw_data[[17]]
-      data$Collected <- raw_data[[18]]
-      data$`Census Notes` <- raw_data[[19]]
-
-      message("Detected Indigenous Land layout; skipping header remap and using direct column mapping.")
-
-    } else {
-
-      header_row_idx <- .find_field_header_row(raw)
-
-      header <- raw[header_row_idx, ] |> unlist() |> as.character()
-      header[is.na(header) | header == ""] <- paste0("NA_col_", seq_along(header))[is.na(header) | header == ""]
-
-      data <- raw[-seq_len(header_row_idx), , drop = FALSE]
-      colnames(data) <- make.unique(header)
-      data <- data[, !is.na(colnames(data)) & colnames(data) != "", drop = FALSE]
-
-      message("Detected header row: ", header_row_idx)
-    }
-
-    message("Detected columns: ", paste(names(data)[1:min(12, ncol(data))], collapse = " | "))
-    message("DATA check:")
-    print(data[1:min(20, nrow(data)), intersect(c("New Tag No", "T1", "T2", "X", "Y"), names(data))])
-
-    if (!("Collected" %in% names(data))) data$Collected <- NA_character_
-  }
-  data$Collected <- gsub("^$", NA, data$Collected)
-  data <- .replace_empty_with_na(data)
-  if (!has_meta && input_type %in% c("field_sheet", "field_sheet_ti")) {
-    message("No metadata row found; proceeding without Plot Name / Plot Code / Team.")
+    ""
   }
 
-  fp_sheet <- as.data.frame(data, stringsAsFactors = FALSE)
-
-  # CONSOLIDATE MULTISTEMMED TREES
-  # It identifies trees with multiple stems (same New Stem Grouping),
-  # calculates equivalent diameter, and keeps only the main stem row.
-
-  if (!is.null(fp_sheet) && nrow(fp_sheet) > 0) {
-
-    # Check if we have the necessary columns
-    if (all(c("New Stem Grouping", "New Tag No") %in% names(fp_sheet))) {
-
-      # Count rows before consolidation
-      n_before <- nrow(fp_sheet)
-
-      # Count unique stem groups
-      n_groups <- fp_sheet %>%
-        dplyr::filter(!is.na(`New Stem Grouping`) & nzchar(`New Stem Grouping`)) %>%
-        dplyr::pull(`New Stem Grouping`) %>%
-        unique() %>%
-        length()
-
-      message("\n=== MULTISTEM CONSOLIDATION ===")
-      message("Rows before consolidation: ", n_before)
-      message("Unique stem groups found: ", n_groups)
-
-      # Apply consolidation
-      fp_sheet <- .consolidate_multistem_trees(fp_sheet, min_diameter = 5)
-
-      # Report results
-      n_after <- nrow(fp_sheet)
-      message("Rows after consolidation: ", n_after)
-      message("Rows removed: ", n_before - n_after)
-      message("================================\n")
-
-    } else {
-      message("Note: Columns 'New Stem Grouping' and/or 'New Tag No' not found. ")
-      message("      Multistem consolidation skipped.")
-    }
+  plot_name <- if (.safe_nzchar(arg_plot_name)) {
+    trimws(arg_plot_name)
+  } else if (.safe_nzchar(plot_name)) {
+    trimws(plot_name)
+  } else {
+    "Unknown Plot"
   }
 
-  if (!("Collected" %in% names(fp_sheet))) {
-    fp_sheet$Collected <- NA_character_
+  plot_code <- if (.safe_nzchar(arg_plot_code)) {
+    trimws(arg_plot_code)
+  } else if (.safe_nzchar(plot_code)) {
+    trimws(plot_code)
+  } else {
+    ""
   }
 
-  if (!("New Stem Grouping" %in% names(fp_sheet))) {
-    fp_sheet$`New Stem Grouping` <- NA_character_
+  plot_census_no_fp <- if (.safe_nzchar(arg_census_no_fp)) {
+    trimws(arg_census_no_fp)
+  } else if (.safe_nzchar(census_no_fp)) {
+    trimws(census_no_fp)
+  } else {
+    "1"
   }
-
-  if (!("T2" %in% names(fp_sheet))) {
-    fp_sheet$T2 <- NA_character_
-  }
-
-  required_cols <- c(
-    "New Tag No", "T1", "X", "Y",
-    "Family", "Original determination", "D"
-  )
-
-  missing_cols <- setdiff(required_cols, names(fp_sheet))
-
-  if (length(missing_cols)) {
-    stop(
-      paste0(
-        "Missing required columns after parsing input sheet: ",
-        paste(missing_cols, collapse = ", ")
-      ),
-      call. = FALSE
-    )
-  }
-
-  message("Canonical columns check:")
-  print(utils::head(fp_sheet[, c("New Tag No", "T1", "X", "Y")], 20))
 
   fp_clean <- .clean_fp_data(fp_sheet)
-  cat("\nCheck X/Y:\n")
-  print(summary(fp_clean$X))
-  print(summary(fp_clean$Y))
-
-  cat("\nTop pares X,Y:\n")
-  print(
-    fp_clean %>%
-      dplyr::count(X, Y, sort = TRUE) %>%
-      head(20)
-  )
 
   if (all(c("X", "Y") %in% names(fp_clean))) {
     same_xy <- sum(fp_clean$X == fp_clean$Y, na.rm = TRUE)
@@ -582,22 +357,11 @@ plot_for_balance <- function(fp_file_path = NULL,
     } else {
       NA_real_
     }
-    message("X summary:")
-    print(summary(fp_clean$X))
-    message("Y summary:")
-    print(summary(fp_clean$Y))
-    message("Proportion X == Y: ", round(same_xy / max(total_xy, 1), 3))
-    message("Correlation X~Y: ", round(cor_xy, 3))
-
-    if (total_xy > 0 && same_xy / total_xy > 0.5) {
-      warning(
-        "More than 50% of individuals have X == Y. X/Y may have been misread before plotting.",
-        call. = FALSE
-      )
-    }
   }
 
-  message("Computing plot coordinates...")
+  if (verbose) {
+    message("Computing plot coordinates...")
+  }
   if (input_type == "monitora") {
     fp_coords <- .compute_monitora_geometry(fp_clean, keep_only_cell = FALSE)
   } else {
@@ -656,7 +420,9 @@ plot_for_balance <- function(fp_file_path = NULL,
       dplyr::select(T1, center_x, center_y)
   }
 
-  message("Building plot maps...")
+  if (verbose) {
+    message("Building plot maps...")
+  }
 
   base_plot_interactive <- NULL
 
@@ -730,7 +496,9 @@ plot_for_balance <- function(fp_file_path = NULL,
     palms_plot <- base_plot_static + (fp_coords %>% dplyr::filter(is.na(Collected) & Family == "Arecaceae"))
   }
 
-  message("Saving PNG maps...")
+  if (verbose) {
+    message("Saving PNG maps...")
+  }
   ggplot2::ggsave(
     filename = file.path(foldername, paste0(filename, "_general.png")),
     plot = base_plot_static,
@@ -761,7 +529,56 @@ plot_for_balance <- function(fp_file_path = NULL,
     )
   }
 
-  message("Building subplot maps...")
+  priority_obj <- NULL
+  priority_plot <- NULL
+  priority_plot_file <- NULL
+
+  priority_plot_interactive <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    priority_obj <- .prioritize_uncollected_subplots(
+      fp_coords = fp_coords,
+      exclude_palms = TRUE
+    )
+
+    if (!is.null(priority_obj$priority_table) && nrow(priority_obj$priority_table) > 0) {
+      priority_plot <- .build_uncollected_priority_plot(
+        fp_coords = fp_coords,
+        priority_obj = priority_obj,
+        subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        language = language
+      )
+
+      if (isTRUE(render_html)) {
+        priority_plot_interactive <- .build_uncollected_priority_plot_interactive(
+          fp_coords = fp_coords,
+          priority_obj = priority_obj,
+          subplot_size = subplot_size,
+          plot_width_m = plot_width_m,
+          plot_length_m = plot_length_m,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          language = language
+        )
+      }
+
+      priority_plot_file <- file.path(foldername, paste0(filename, "_priority_uncollected_species.png"))
+
+      ggplot2::ggsave(
+        filename = priority_plot_file,
+        plot = priority_plot,
+        width = 14, height = 11, units = "in", dpi = 300
+      )
+    }
+  }
+
+  if (verbose) {
+    message("Building subplot maps...")
+  }
   subplot_plots <- list()
 
   if (input_type == "monitora") {
@@ -846,7 +663,6 @@ plot_for_balance <- function(fp_file_path = NULL,
           size = ggplot2::guide_legend(title = tr["dbh"], order = 2)
         )
 
-      #subplot_plots[[length(subplot_plots) + 1]] <- list(plot = p, data = sp_plot)
       subplot_plots[[length(subplot_plots) + 1]] <- list(
         plot = p,
         data = sp_plot,
@@ -912,8 +728,8 @@ plot_for_balance <- function(fp_file_path = NULL,
           guide = "legend"
         ) +
         ggplot2::labs(
-          title = paste(tr["plot_name"], plot_name),
-          subtitle = paste(tr["plot_code"], plot_code),
+          title = paste0(tr["plot_name"], ": ", plot_name),
+          subtitle = paste0(tr["plot_code"], ": ", plot_code),
           x = tr["x_m"],
           y = tr["y_m"]
         ) +
@@ -930,7 +746,6 @@ plot_for_balance <- function(fp_file_path = NULL,
           size = ggplot2::guide_legend(title = tr["dbh"], order = 2)
         )
 
-      #subplot_plots[[length(subplot_plots) + 1]] <- list(plot = p, data = sp_data)
       subplot_plots[[length(subplot_plots) + 1]] <- list(
         plot = p,
         data = sp_data,
@@ -941,9 +756,6 @@ plot_for_balance <- function(fp_file_path = NULL,
       )
     }
   }
-
-
-
 
   total_specimens <- nrow(fp_coords)
   collected_count <- sum(!is.na(fp_coords$Collected) & fp_coords$Family != "Arecaceae", na.rm = TRUE)
@@ -973,6 +785,7 @@ plot_for_balance <- function(fp_file_path = NULL,
 
   dashboard_obj <- .prepare_report_dashboard(
     fp_sheet = fp_coords,
+    input_type = input_type,
     plot_size_ha = plot_size,
     subplot_size_m = subplot_size,
     language = language
@@ -987,6 +800,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     plot_code = plot_code,
     spec_df = spec_df,
     dashboard = dashboard_obj,
+    dict = dict,
     language = language
   )
   writeLines(c(rmd_content, ""), rmd_path)
@@ -1022,9 +836,37 @@ plot_for_balance <- function(fp_file_path = NULL,
     tag_to_subplot = tag_to_subplot
   )
 
+  if (!is.null(priority_plot)) {
+    param_list$priority_uncollected_plot <- priority_plot
+  }
+
+  if (!is.null(priority_plot_interactive)) {
+    param_list$interactive_priority_uncollected_plot <- priority_plot_interactive
+  }
+
+  if (!is.null(priority_obj)) {
+    param_list$priority_obj <- priority_obj
+    param_list$priority_species_tbl <- .flatten_priority_species_checklist(
+      priority_obj,
+      original_data = fp_coords,
+      language = language
+    )
+  }
+
   if (!is.null(collected_plot)) param_list$collected_plot <- collected_plot
   if (!is.null(uncollected_plot)) param_list$uncollected_plot <- uncollected_plot
   if (!is.null(palms_plot)) param_list$uncollected_palm_plot <- palms_plot
+
+  if (!is.null(priority_plot_interactive)) {
+    param_list$interactive_priority_uncollected_plot <- priority_plot_interactive
+  }
+  if (!is.null(priority_obj)) {
+    param_list$priority_obj <- priority_obj
+    param_list$priority_species_tbl <- .flatten_priority_species_checklist(
+      priority_obj,
+      language = language
+    )
+  }
 
   # Build interactive plotly versions of the filtered maps for HTML
   if (isTRUE(render_html)) {
@@ -1118,7 +960,9 @@ plot_for_balance <- function(fp_file_path = NULL,
   xlsx_report <- NULL
 
   if (isTRUE(render_html)) {
-    message("Rendering HTML report (this may take a few minutes)...")
+    if (verbose) {
+      message("Rendering HTML report (this may take a few minutes)...")
+    }
     html_report <- .render_plot_report(
       rmd_path = rmd_path,
       output_path = foldername,
@@ -1130,7 +974,9 @@ plot_for_balance <- function(fp_file_path = NULL,
   }
 
   if (isTRUE(render_pdf)) {
-    message("Rendering PDF report...")
+    if (verbose) {
+      message("Rendering PDF report...")
+    }
     pdf_report <- tryCatch(
       .render_plot_report(
         rmd_path = rmd_path,
@@ -1174,7 +1020,30 @@ plot_for_balance <- function(fp_file_path = NULL,
   ))
 }
 
-#### Helpers ####
+
+# Helpers ####
+.find_field_header_row <- function(raw, max_check = 6) {
+  max_r <- min(nrow(raw), max_check)
+  targets <- c("New Tag No", "T1", "T2", "X", "Y", "Family", "D")
+
+  scores <- vapply(seq_len(max_r), function(i) {
+    row_i <- as.character(unlist(raw[i, , drop = TRUE]))
+    row_i[is.na(row_i)] <- ""
+    row_i <- trimws(row_i)
+    sum(targets %in% row_i)
+  }, numeric(1))
+
+  best <- which.max(scores)
+  if (!length(best) || scores[best] == 0) {
+    return(2L)
+  }
+  best
+}
+
+.safe_nzchar <- function(x) {
+  is.character(x) && length(x) == 1L && !is.na(x) && nzchar(trimws(x))
+}
+
 .collapse_sorted_tags <- function(x, sep = "|") {
   x <- trimws(as.character(x))
   x <- x[!is.na(x) & nzchar(x)]
@@ -1189,18 +1058,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   paste(x[ord], collapse = sep)
 }
 
-# Replace empty cells with NA ####
-.replace_empty_with_na <- function(df) {
-  df[] <- lapply(df, function(col) {
-    if (is.character(col)) {
-      col[col == ""] <- NA
-    }
-    col
-  })
-  df
-}
-
-# Data Clean ####
 .clean_fp_data <- function(fp_sheet) {
   fp_sheet %>%
     dplyr::mutate(
@@ -1210,144 +1067,6 @@ plot_for_balance <- function(fp_file_path = NULL,
       D  = .parse_num(D),
       Collected = as.character(Collected)
     )
-}
-
-.plot_i18n <- function(language = "en") {
-  language <- tolower(trimws(as.character(language)[1]))
-  if (!language %in% c("en", "pt", "es", "fr", "ma", "pa")) {
-    language <- "en"
-  }
-
-  dict <- list(
-    en = c(
-      status = "Status",
-      collected = "Collected",
-      uncollected = "Uncollected",
-      palms = "Palms",
-      dbh = "DBH (cm)",
-      plot_name = "Plot Name",
-      plot_code = "Plot Code",
-      plot_census_no_fp = "Census No",
-      team = "Team:",
-      x_m = "X (m)",
-      y_m = "Y (m)",
-      local_x_m = "Local X (m)",
-      local_y_m = "Local Y (m)",
-      collection_balance = "Collection Balance",
-      subplot = "Subplot",
-      subunit = "Subunit",
-      hover_tag = "Tag",
-      hover_species = "Species",
-      hover_dbh = "DBH"
-    ),
-    pt = c(
-      status = "Status",
-      collected = "Coletados",
-      uncollected = "Não Coletados",
-      palms = "Palmeiras",
-      dbh = "DAP (cm)",
-      plot_name = "Nome da Parcela",
-      plot_code = "Código da Parcela",
-      plot_census_no_fp = "Número do Censo",
-      team = "Equipe:",
-      x_m = "X (m)",
-      y_m = "Y (m)",
-      local_x_m = "X local (m)",
-      local_y_m = "Y local (m)",
-      collection_balance = "Balanço de Coleta",
-      subplot = "Subparcela",
-      subunit = "Subunidade",
-      hover_tag = "Placa",
-      hover_species = "Espécie",
-      hover_dbh = "DAP"
-    ),
-    es = c(
-      status = "Estado",
-      collected = "Colectados",
-      uncollected = "No Colectados",
-      plot_census_no_fp = "Número de Censo",
-      palms = "Palmas",
-      dbh = "DAP (cm)",
-      plot_name = "Nombre de la Parcela",
-      plot_code = "Código de la Parcela",
-      team = "Equipo",
-      x_m = "X (m)",
-      y_m = "Y (m)",
-      local_x_m = "X local (m)",
-      local_y_m = "Y local (m)",
-      collection_balance = "Balance de Recolección",
-      subplot = "Subparcela",
-      subunit = "Subunidad",
-      hover_tag = "Etiqueta",
-      hover_species = "Especie",
-      hover_dbh = "DAP"
-    ),
-    fr = c(
-      status = "Statut",
-      collected = "Collectés",
-      uncollected = "Non Collectés",
-      palms = "Palmiers",
-      dbh = "DHP (cm)",
-      plot_name = "Nom de la Parcelle",
-      plot_code = "Code de la Parcelle",
-      plot_census_no_fp = "Numéro de Recensement",
-      team = "Équipe",
-      x_m = "X (m)",
-      y_m = "Y (m)",
-      local_x_m = "X local (m)",
-      local_y_m = "Y local (m)",
-      collection_balance = "Bilan de Collecte",
-      subplot = "Sous-parcelle",
-      subunit = "Sous-unité",
-      hover_tag = "Étiquette",
-      hover_species = "Espèce",
-      hover_dbh = "DHP"
-    ),
-    ma = c(
-      status = "状态",
-      collected = "已采集",
-      uncollected = "未采集",
-      palms = "棕榈科",
-      dbh = "胸径 (cm)",
-      plot_name = "样地名称",
-      plot_code = "样地代码",
-      plot_census_no_fp = "普查编号",
-      team = "团队",
-      x_m = "X（米）",
-      y_m = "Y（米）",
-      local_x_m = "局部 X（米）",
-      local_y_m = "局部 Y（米）",
-      collection_balance = "采集平衡",
-      subplot = "子样地",
-      subunit = "子单元",
-      hover_tag = "标签",
-      hover_species = "物种",
-      hover_dbh = "胸径"
-    ),
-    pa = c(
-      status = "Junti hẽ si mẽra",
-      collected = "Pâri sonswa",
-      uncollected = "Pâri rõrĩ",
-      palms = "Kwatisômẽra",
-      dbh = "Classes de DAP",
-      plot_name = "Issi rê tâ kukâri",
-      plot_code = "Kypa kukâri",
-      plot_census_no_fp = "Junti hẽ rõ sên pârikran",
-      team = "Sâpêrãtê",
-      x_m = "X (m)",
-      y_m = "Y (m)",
-      local_x_m = "X local (m)",
-      local_y_m = "Y local (m)",
-      collection_balance = "Kukâra krepãã sââ",
-      subplot = "Kukâra krepãã sââ",
-      subunit = "Subunit",
-      hover_tag = "Placa",
-      hover_species = "Pĩrakâri jàri",
-      hover_dbh = "DAP"
-    )
-  )
-
-  dict[[language]]
 }
 
 # Build interactive fp base plot using plotly (client-side rendering — no SVG pre-computation)
@@ -1360,7 +1079,8 @@ plot_for_balance <- function(fp_file_path = NULL,
                                             plot_code,
                                             highlight_palms,
                                             language = "en") {
-  tr <- .plot_i18n(language)
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
 
   max_x <- floor(plot_width_m / subplot_size) * subplot_size
   max_y <- floor(plot_length_m / subplot_size) * subplot_size
@@ -1506,7 +1226,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   p
 }
 
-
 # Build fp base plot
 .build_fp_base_plot <- function(fp_coords,
                                 subplot_labels,
@@ -1517,7 +1236,8 @@ plot_for_balance <- function(fp_file_path = NULL,
                                 plot_code,
                                 highlight_palms,
                                 language = "en") {
-  tr <- .plot_i18n(language)
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
 
   status_levels <- c(tr["collected"], tr["uncollected"], tr["palms"])
   status_values <- stats::setNames(
@@ -1611,7 +1331,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   base_plot
 }
 
-
 # Build monitora base plot
 .build_monitora_base_plot <- function(
     fp_coords,
@@ -1620,9 +1339,9 @@ plot_for_balance <- function(fp_file_path = NULL,
     highlight_palms,
     language = "en",
     arm_offset = 18,
-    pad = 4
-) {
-  tr <- .plot_i18n(language)
+    pad = 4) {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
 
   status_levels <- c(tr["collected"], tr["uncollected"], tr["palms"])
   status_values <- stats::setNames(
@@ -1810,7 +1529,6 @@ plot_for_balance <- function(fp_file_path = NULL,
     mini_legend_layers
 }
 
-
 .build_monitora_base_plot_interactive <- function(fp_coords,
                                                   plot_name,
                                                   plot_code,
@@ -1819,7 +1537,7 @@ plot_for_balance <- function(fp_file_path = NULL,
                                                   arm_offset = 18,
                                                   pad = 4) {
 
-  tr <- .plot_i18n(language)
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
 
   stopifnot(all(
     c("draw_x", "draw_y", "subunit_letter", "Family", "Collected", "D", "New Tag No") %in% names(fp_coords)
@@ -2144,7 +1862,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   p
 }
 
-
 .build_monitora_subplot_plot_interactive <- function(sp_data,
                                                      subplot_size = 10,
                                                      highlight_palms,
@@ -2153,7 +1870,7 @@ plot_for_balance <- function(fp_file_path = NULL,
     return(NULL)
   }
 
-  tr <- .plot_i18n(language)
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
 
   use_x10 <- all(c("x10", "y10") %in% names(sp_data))
   x_col <- if (use_x10) "x10" else "X"
@@ -2253,6 +1970,163 @@ plot_for_balance <- function(fp_file_path = NULL,
     )
 }
 
+
+.build_uncollected_priority_plot_interactive <- function(fp_coords,
+                                                         priority_obj,
+                                                         subplot_size,
+                                                         plot_width_m,
+                                                         plot_length_m,
+                                                         plot_name,
+                                                         plot_code,
+                                                         language = "en") {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  n_rows <- floor(plot_length_m / subplot_size)
+  n_cols <- floor(plot_width_m / subplot_size)
+
+  subplot_grid <- expand.grid(
+    col = seq_len(n_cols) - 1L,
+    row = seq_len(n_rows) - 1L
+  ) %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(
+      T1 = as.character(col * n_rows + row + 1L),
+      xmin = col * subplot_size,
+      xmax = xmin + subplot_size,
+      ymin = dplyr::if_else(
+        col %% 2 == 0,
+        row * subplot_size,
+        (n_rows - row - 1L) * subplot_size
+      ),
+      ymax = ymin + subplot_size
+    )
+
+  selected_tbl <- priority_obj$priority_table %>%
+    dplyr::select(subplot, visit_order, n_new_species)
+
+  subplot_grid <- subplot_grid %>%
+    dplyr::left_join(selected_tbl, by = c("T1" = "subplot")) %>%
+    dplyr::mutate(
+      selected = !is.na(visit_order),
+      fill_color = dplyr::if_else(selected, "rgba(120,120,120,0.7)", "rgba(235,235,235,1)")
+    )
+
+  uncollected_pts <- fp_coords %>%
+    dplyr::mutate(
+      Family = trimws(as.character(Family)),
+      Collected = trimws(as.character(Collected)),
+      diameter = suppressWarnings(as.numeric(diameter))
+    ) %>%
+    dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae")
+
+  shapes <- c(
+    lapply(seq_len(nrow(subplot_grid)), function(i) {
+      list(
+        type = "rect",
+        x0 = subplot_grid$xmin[i],
+        x1 = subplot_grid$xmax[i],
+        y0 = subplot_grid$ymin[i],
+        y1 = subplot_grid$ymax[i],
+        line = list(
+          color = if (isTRUE(subplot_grid$selected[i])) "black" else "white",
+          width = if (isTRUE(subplot_grid$selected[i])) 1.3 else 0.5
+        ),
+        fillcolor = subplot_grid$fill_color[i],
+        layer = "below"
+      )
+    })
+  )
+
+  annotations <- c(
+    lapply(seq_len(nrow(subplot_grid)), function(i) {
+      txt <- subplot_grid$T1[i]
+      list(
+        x = (subplot_grid$xmin[i] + subplot_grid$xmax[i]) / 2,
+        y = (subplot_grid$ymin[i] + subplot_grid$ymax[i]) / 2,
+        text = txt,
+        showarrow = FALSE,
+        font = list(
+          size = if (isTRUE(subplot_grid$selected[i])) 11 else 9,
+          color = if (isTRUE(subplot_grid$selected[i])) "black" else "gray55"
+        ),
+        xref = "x",
+        yref = "y"
+      )
+    })
+  )
+
+  hover_text <- paste0(
+    "<b>", tr["hover_tag"], ":</b> ", uncollected_pts$`New Tag No`, "<br>",
+    "<b>", tr["hover_species"], ":</b> ", uncollected_pts$`Original determination`, "<br>",
+    "<b>", tr["subplot"], ":</b> ", uncollected_pts$T1, "<br>",
+    "<b>", tr["hover_dbh"], ":</b> ", round(suppressWarnings(as.numeric(uncollected_pts$D)) / 10, 1), " cm"
+  )
+
+  sizes <- uncollected_pts$diameter
+  sizes[!is.finite(sizes)] <- 0
+  sizes <- pmax(6, 2 + sizes * 3)
+
+  plotly::plot_ly(
+    x = uncollected_pts$global_x,
+    y = uncollected_pts$global_y,
+    type = "scatter",
+    mode = "markers+text",
+    marker = list(
+      color = "red",
+      size = sizes,
+      line = list(color = "black", width = 0.5),
+      symbol = "circle"
+    ),
+    text = as.character(uncollected_pts$`New Tag No`),
+    textposition = "middle center",
+    textfont = list(size = 7, color = "black"),
+    hovertext = hover_text,
+    hoverinfo = "text",
+    showlegend = FALSE
+  ) %>%
+    plotly::layout(
+      title = list(
+        text = paste0(
+          "<b>", tr["priority_subplots"], ": ", plot_name, "</b><br>",
+          "<sup>", tr["plot_code"], ": ", plot_code, "</sup>"
+        ),
+        x = 0.5
+      ),
+      xaxis = list(
+        title = tr["x_m"],
+        range = c(0, plot_width_m),
+        tickmode = "array",
+        tickvals = seq(0, plot_width_m, by = subplot_size),
+        ticktext = as.character(seq(0, plot_width_m, by = subplot_size)),
+        scaleanchor = "y",
+        scaleratio = 1,
+        showgrid = FALSE,
+        zeroline = FALSE
+      ),
+      yaxis = list(
+        title = tr["y_m"],
+        range = c(0, plot_length_m),
+        tickmode = "array",
+        tickvals = seq(0, plot_length_m, by = subplot_size),
+        ticktext = as.character(seq(0, plot_length_m, by = subplot_size)),
+        showgrid = FALSE,
+        zeroline = FALSE
+      ),
+      shapes = shapes,
+      annotations = annotations,
+      plot_bgcolor = "white",
+      paper_bgcolor = "white",
+      margin = list(l = 60, r = 40, t = 80, b = 60)
+    ) %>%
+    plotly::config(
+      responsive = TRUE,
+      displayModeBar = TRUE,
+      scrollZoom = TRUE,
+      displaylogo = FALSE,
+      toImageButtonOptions = list(format = "png", scale = 2)
+    )
+}
 
 # Get percentual values ####
 .collection_percentual <- function(fp_sheet, dir = getwd(),
@@ -2445,32 +2319,12 @@ plot_for_balance <- function(fp_file_path = NULL,
 }
 
 
-# Extract a character row from a data.frame / matrix / vector
-.safe_char_row <- function(x, row = 1L) {
-
-  if (is.null(x) || NROW(x) < row) return(character())
-
-  if (is.data.frame(x) || is.matrix(x)) {
-    v <- x[row, , drop = TRUE]
-  } else if (is.atomic(x)) {
-    v <- x
-  } else {
-    v <- x[[row]]
-  }
-
-  v <- as.character(v)
-  v[is.na(v)] <- ""
-  trimws(v)
-}
-
-
-.render_plot_report <- function(
-    rmd_path,
-    output_path,
-    output_name,
-    params,
-    format = c("pdf", "html"),
-    latex_engine = "pdflatex") {
+.render_plot_report <- function(rmd_path,
+                                output_path,
+                                output_name,
+                                params,
+                                format = c("pdf", "html"),
+                                latex_engine = "pdflatex") {
 
   format <- match.arg(format)
 
@@ -2587,7 +2441,6 @@ plot_for_balance <- function(fp_file_path = NULL,
   invisible(final_out)
 }
 
-
 .detect_coordinate_mode <- function(df) {
   has_local_xy <- .has_any(df, c("X")) && .has_any(df, c("Y"))
   has_std_xy <- .has_any(df, c("Standardised X", "Standardized X")) &&
@@ -2630,22 +2483,4 @@ plot_for_balance <- function(fp_file_path = NULL,
   }
 
   "unknown"
-}
-
-.find_field_header_row <- function(raw, max_check = 6) {
-  max_r <- min(nrow(raw), max_check)
-  targets <- c("New Tag No", "T1", "T2", "X", "Y", "Family", "D")
-
-  scores <- vapply(seq_len(max_r), function(i) {
-    row_i <- as.character(unlist(raw[i, , drop = TRUE]))
-    row_i[is.na(row_i)] <- ""
-    row_i <- trimws(row_i)
-    sum(targets %in% row_i)
-  }, numeric(1))
-
-  best <- which.max(scores)
-  if (!length(best) || scores[best] == 0) {
-    return(2L)
-  }
-  best
 }

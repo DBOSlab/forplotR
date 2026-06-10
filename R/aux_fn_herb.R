@@ -10,7 +10,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .herbaria_cache_paths <- function() {
   cache_dir <- getOption("forplotR.herbaria_cache_dir")
 
@@ -389,7 +388,6 @@
 #'
 #' @keywords internal
 #' @noRd
-#'
 .resource_guess_herbarium <- function(resource_id) {
   rid <- tolower(trimws(as.character(resource_id)))
   rid <- sub("^.*[?&]r=", "", rid)
@@ -651,7 +649,7 @@
   options(timeout = max(600, old_timeout))
   on.exit(options(timeout = old_timeout), add = TRUE)
 
-  if (isTRUE(verbose)) {
+  if (verbose) {
     message("Downloading DwC-A: ", info_row$herbarium, " [", info_row$ipt, "]")
   }
 
@@ -949,13 +947,13 @@
   cand <- tryCatch(DBI::dbGetQuery(con, qry), error = function(e) NULL)
 
   if (is.null(cand) || !nrow(cand)) {
-    if (isTRUE(verbose)) {
+    if (verbose) {
       message("No candidate records found for resource ", resource_id)
     }
     return(FALSE)
   }
 
-  if (isTRUE(verbose)) {
+  if (verbose) {
     message("Candidate records found: ", nrow(cand))
   }
 
@@ -1040,7 +1038,7 @@
   )), , drop = FALSE]
 
   if (!nrow(idx)) {
-    if (isTRUE(verbose)) {
+    if (verbose) {
       message("Candidates found, but none matched requested keys")
     }
     return(FALSE)
@@ -1048,7 +1046,7 @@
 
   DBI::dbWriteTable(con, "herbaria_index", idx, append = TRUE)
 
-  if (isTRUE(verbose)) {
+  if (verbose) {
     message("Index built with ", nrow(idx), " matched rows")
   }
 
@@ -1157,18 +1155,25 @@
 #' from `occurrenceID`.
 #'
 #' @param fp_df A data frame containing at least a `Voucher` column.
+#'
 #' @param herbaria Character vector of herbarium codes, for example `"RB"`.
+#'
 #' @param force_refresh Logical. If `TRUE`, forces redownload and reindexing
 #'   of DwC-A resources.
+#'
 #' @param keep_downloads Logical. If `FALSE`, temporary downloaded DwC-A folders
 #'   are removed at the end of the function.
-#' @param verbose Logical. If `TRUE`, prints detailed progress messages.
+#'
 #' @param collector_fallback Optional character scalar. Collector name used when
 #'   the voucher string does not explicitly include one.
+#'
 #' @param collector_codes Optional named character vector mapping compact
 #'   collector prefixes to full collector names.
+#'
 #' @param resource_map Optional named character vector overriding IPT resource
 #'   ids, using names such as `"RB::jabot"` or `"RB::reflora"`.
+#'
+#' @param verbose Logical. If `TRUE`, prints detailed progress messages.
 #'
 #' @return A character vector of length `nrow(fp_df)`. Each element is either
 #'   `NA_character_` or an HTML fragment containing a herbarium link.
@@ -1179,10 +1184,10 @@
                                    herbaria,
                                    force_refresh = FALSE,
                                    keep_downloads = FALSE,
-                                   verbose = FALSE,
                                    collector_fallback = NULL,
                                    collector_codes = NULL,
-                                   resource_map = NULL) {
+                                   resource_map = NULL,
+                                   verbose = TRUE) {
   .arg_check_herbarium(herbaria)
   herbaria <- unique(toupper(trimws(as.character(herbaria))))
 
@@ -1205,7 +1210,7 @@
     return(rep(NA_character_, nrow(fp_df)))
   }
 
-  if (isTRUE(verbose)) {
+  if (verbose) {
     message("HERBARIA LOOKUP")
     message("Herbaria: ", paste(herbaria, collapse = ", "))
     message("Records: ", nrow(fp_df))
@@ -1217,7 +1222,7 @@
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE), add = TRUE)
 
   # Remove download folders at the end unless the user wants to keep them.
-  if (!isTRUE(keep_downloads)) {
+  if (!keep_downloads) {
     on.exit({
       for (d in c("jabot_download", "reflora_download")) {
         if (dir.exists(d)) {
@@ -1229,152 +1234,16 @@
 
   already_loaded <- character(0)
 
-  # Download and load one resource only once.
-  load_resource_once <- function(rowi, dir_name) {
-    rid_key <- paste(rowi$herbarium, rowi$source, rowi$resource_id, sep = "::")
 
-    if (rid_key %in% already_loaded) {
-      return(TRUE)
-    }
+  ### AQUI
 
-    folder <- .download_dwca_one(
-      info_row = rowi,
-      dir = dir_name,
-      verbose = verbose,
-      force_refresh = force_refresh
-    )
-
-    if (is.null(folder)) {
-      return(FALSE)
-    }
-
-    occ_path <- file.path(folder, "occurrence.txt")
-
-    ok_load <- .duckdb_load_occurrence(
-      con = con,
-      occurrence_path = occ_path,
-      herbarium = rowi$herbarium,
-      source = rowi$source,
-      resource_id = rowi$resource_id,
-      verbose = verbose
-    )
-
-    if (isTRUE(ok_load)) {
-      already_loaded <<- c(already_loaded, rid_key)
-      return(TRUE)
-    }
-
-    FALSE
-  }
-
-  # Resolve links from an index table already stored in DuckDB.
-  resolve_links_from_index <- function(index_df, rows_to_check, source_label) {
-    out_local <- rep(NA_character_, nrow(fp_df))
-    resolved_local <- rep(FALSE, nrow(fp_df))
-
-    if (!nrow(index_df) || !length(rows_to_check)) {
-      return(list(links = out_local, resolved = resolved_local))
-    }
-
-    for (i in rows_to_check) {
-      pk <- parsed$primary_key[i]
-      fk <- parsed$fallback_key[i]
-
-      hit <- index_df[0, , drop = FALSE]
-
-      # Try primary key first.
-      if (!is.na(pk) && nzchar(pk)) {
-        hit <- index_df[
-          index_df$key == pk & index_df$key_type == "primary",
-          ,
-          drop = FALSE
-        ]
-      }
-
-      # Fall back to surname + number if needed.
-      if (!nrow(hit) && !is.na(fk) && nzchar(fk)) {
-        hit <- index_df[
-          index_df$key == fk & index_df$key_type == "fallback",
-          ,
-          drop = FALSE
-        ]
-      }
-
-      if (!nrow(hit)) {
-        next
-      }
-
-      if (identical(source_label, "jabot")) {
-        # JABOT URLs require catalogNumber and herbarium.
-        hit_valid <- hit[
-          !is.na(hit$catalogNumber) & nzchar(trimws(hit$catalogNumber)) &
-            !is.na(hit$herbarium) & nzchar(trimws(hit$herbarium)),
-          ,
-          drop = FALSE
-        ]
-
-        if (!nrow(hit_valid)) {
-          next
-        }
-
-        urls <- unique(mapply(
-          .make_jabot_url,
-          hit_valid$catalogNumber,
-          hit_valid$herbarium,
-          USE.NAMES = FALSE
-        ))
-
-        urls <- urls[!is.na(urls) & nzchar(urls)]
-
-        if (length(urls)) {
-          out_local[i] <- paste0(
-            "<br/><b>Herbarium image:</b> ",
-            sprintf("<a href='%s' target='_blank' title='JABOT'>JABOT</a>", urls[1])
-          )
-          resolved_local[i] <- TRUE
-        }
-
-      } else if (identical(source_label, "reflora")) {
-        # REFLORA URLs require occurrenceID.
-        hit_valid <- hit[
-          !is.na(hit$occurrenceID) & nzchar(trimws(hit$occurrenceID)),
-          ,
-          drop = FALSE
-        ]
-
-        if (!nrow(hit_valid)) {
-          next
-        }
-
-        urls <- unique(vapply(
-          hit_valid$occurrenceID,
-          .make_reflora_url,
-          character(1)
-        ))
-
-        urls <- urls[!is.na(urls) & nzchar(urls)]
-
-        if (length(urls)) {
-          out_local[i] <- paste0(
-            "<br/><b>Herbarium image:</b> ",
-            sprintf("<a href='%s' target='_blank' title='REFLORA'>REFLORA</a>", urls[1])
-          )
-          resolved_local[i] <- TRUE
-        }
-      }
-    }
-
-    list(links = out_local, resolved = resolved_local)
-  }
 
   out <- rep(NA_character_, nrow(fp_df))
   unresolved <- rep(TRUE, nrow(fp_df))
 
   herb_sql <- paste(sprintf("'%s'", gsub("'", "''", herbaria)), collapse = ", ")
 
-  # ============================================================================
-  # Step 1: Load and match JABOT only
-  # ============================================================================
+  # Step 1: Load and match JABOT only ####
   for (h in herbaria) {
     jabot_res <- .get_ipt_info(
       herbarium = h,
@@ -1383,7 +1252,7 @@
     )
 
     if (!nrow(jabot_res)) {
-      if (isTRUE(verbose)) {
+      if (verbose) {
         message("No JABOT resource found for ", h)
       }
       next
@@ -1391,7 +1260,7 @@
 
     jabot_res$source <- "jabot"
 
-    if (isTRUE(verbose)) {
+    if (verbose) {
       message("JABOT resources found for ", h, ": ", nrow(jabot_res))
       print(jabot_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)
     }
@@ -1399,7 +1268,7 @@
     for (i in seq_len(nrow(jabot_res))) {
       rowi <- jabot_res[i, , drop = FALSE]
 
-      ok_load <- load_resource_once(rowi, "jabot_download")
+      ok_load <- .load_resource_once(rowi, "jabot_download")
       if (!ok_load) {
         next
       }
@@ -1426,7 +1295,7 @@
     )
   )
 
-  jabot_resolved <- resolve_links_from_index(
+  jabot_resolved <- .resolve_links_from_index(
     index_df = idx_jabot,
     rows_to_check = which(unresolved),
     source_label = "jabot"
@@ -1437,9 +1306,7 @@
     unresolved[which(jabot_resolved$resolved)] <- FALSE
   }
 
-  # ============================================================================
-  # Step 2: Only if needed, load and match REFLORA for unresolved records
-  # ============================================================================
+  # Step 2: Only if needed, load and match REFLORA for unresolved records ####
   if (any(unresolved)) {
     need_primary_rf <- unique(stats::na.omit(parsed$primary_key[unresolved]))
     need_fallback_rf <- unique(stats::na.omit(parsed$fallback_key[unresolved]))
@@ -1453,7 +1320,7 @@
         )
 
         if (!nrow(reflora_res)) {
-          if (isTRUE(verbose)) {
+          if (verbose) {
             message("No REFLORA resource found for ", h)
           }
           next
@@ -1461,7 +1328,7 @@
 
         reflora_res$source <- "reflora"
 
-        if (isTRUE(verbose)) {
+        if (verbose) {
           message("REFLORA resources found for ", h, ": ", nrow(reflora_res))
           print(reflora_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)
         }
@@ -1469,7 +1336,7 @@
         for (i in seq_len(nrow(reflora_res))) {
           rowi <- reflora_res[i, , drop = FALSE]
 
-          ok_load <- load_resource_once(rowi, "reflora_download")
+          ok_load <- .load_resource_once(rowi, "reflora_download")
           if (!ok_load) {
             next
           }
@@ -1486,7 +1353,7 @@
         }
       }
 
-      # Query REFLORA matches from the local index.
+      # Query REFLORA matches from the local index ####
       idx_reflora <- DBI::dbGetQuery(
         con,
         paste0(
@@ -1496,7 +1363,7 @@
         )
       )
 
-      reflora_resolved <- resolve_links_from_index(
+      reflora_resolved <- .resolve_links_from_index(
         index_df = idx_reflora,
         rows_to_check = which(unresolved),
         source_label = "reflora"
@@ -1511,3 +1378,142 @@
 
   out
 }
+
+# Function to download and load one resource only once ####
+.load_resource_once <- function(rowi, dir_name) {
+  rid_key <- paste(rowi$herbarium, rowi$source, rowi$resource_id, sep = "::")
+
+  if (rid_key %in% already_loaded) {
+    return(TRUE)
+  }
+
+  folder <- .download_dwca_one(
+    info_row = rowi,
+    dir = dir_name,
+    verbose = verbose,
+    force_refresh = force_refresh
+  )
+
+  if (is.null(folder)) {
+    return(FALSE)
+  }
+
+  occ_path <- file.path(folder, "occurrence.txt")
+
+  ok_load <- .duckdb_load_occurrence(
+    con = con,
+    occurrence_path = occ_path,
+    herbarium = rowi$herbarium,
+    source = rowi$source,
+    resource_id = rowi$resource_id,
+    verbose = verbose
+  )
+
+  if (isTRUE(ok_load)) {
+    already_loaded <<- c(already_loaded, rid_key)
+    return(TRUE)
+  }
+
+  FALSE
+}
+
+# Resolve links from an index table already stored in DuckDB ####
+.resolve_links_from_index <- function(index_df, rows_to_check, source_label) {
+  out_local <- rep(NA_character_, nrow(fp_df))
+  resolved_local <- rep(FALSE, nrow(fp_df))
+
+  if (!nrow(index_df) || !length(rows_to_check)) {
+    return(list(links = out_local, resolved = resolved_local))
+  }
+
+  for (i in rows_to_check) {
+    pk <- parsed$primary_key[i]
+    fk <- parsed$fallback_key[i]
+
+    hit <- index_df[0, , drop = FALSE]
+
+    # Try primary key first.
+    if (!is.na(pk) && nzchar(pk)) {
+      hit <- index_df[
+        index_df$key == pk & index_df$key_type == "primary",
+        ,
+        drop = FALSE
+      ]
+    }
+
+    # Fall back to surname + number if needed.
+    if (!nrow(hit) && !is.na(fk) && nzchar(fk)) {
+      hit <- index_df[
+        index_df$key == fk & index_df$key_type == "fallback",
+        ,
+        drop = FALSE
+      ]
+    }
+
+    if (!nrow(hit)) {
+      next
+    }
+
+    if (identical(source_label, "jabot")) {
+      # JABOT URLs require catalogNumber and herbarium.
+      hit_valid <- hit[
+        !is.na(hit$catalogNumber) & nzchar(trimws(hit$catalogNumber)) &
+          !is.na(hit$herbarium) & nzchar(trimws(hit$herbarium)),
+        ,
+        drop = FALSE
+      ]
+
+      if (!nrow(hit_valid)) {
+        next
+      }
+
+      urls <- unique(mapply(
+        .make_jabot_url,
+        hit_valid$catalogNumber,
+        hit_valid$herbarium,
+        USE.NAMES = FALSE
+      ))
+
+      urls <- urls[!is.na(urls) & nzchar(urls)]
+
+      if (length(urls)) {
+        out_local[i] <- paste0(
+          "<br/><b>Herbarium image:</b> ",
+          sprintf("<a href='%s' target='_blank' title='JABOT'>JABOT</a>", urls[1])
+        )
+        resolved_local[i] <- TRUE
+      }
+
+    } else if (identical(source_label, "reflora")) {
+      # REFLORA URLs require occurrenceID.
+      hit_valid <- hit[
+        !is.na(hit$occurrenceID) & nzchar(trimws(hit$occurrenceID)),
+        ,
+        drop = FALSE
+      ]
+
+      if (!nrow(hit_valid)) {
+        next
+      }
+
+      urls <- unique(vapply(
+        hit_valid$occurrenceID,
+        .make_reflora_url,
+        character(1)
+      ))
+
+      urls <- urls[!is.na(urls) & nzchar(urls)]
+
+      if (length(urls)) {
+        out_local[i] <- paste0(
+          "<br/><b>Herbarium image:</b> ",
+          sprintf("<a href='%s' target='_blank' title='REFLORA'>REFLORA</a>", urls[1])
+        )
+        resolved_local[i] <- TRUE
+      }
+    }
+  }
+
+  list(links = out_local, resolved = resolved_local)
+}
+
