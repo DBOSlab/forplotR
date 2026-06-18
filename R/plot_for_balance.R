@@ -791,6 +791,18 @@ plot_for_balance <- function(fp_file_path = NULL,
     language = language
   )
 
+  ggplot2::ggsave(
+    filename = file.path(foldername, paste0(filename, "_species_plot.png")),
+    plot = dashboard_obj$species_plot,
+    width = 14, height = 11, units = "in", dpi = 300
+  )
+
+  ggplot2::ggsave(
+    filename = file.path(foldername, paste0(filename, "_family_plot.png")),
+    plot = dashboard_obj$family_plot,
+    width = 14, height = 11, units = "in", dpi = 300
+  )
+
   rmd_content <- .create_rmd_content(
     subplot_plots = subplot_plots,
     tf_col = tf_col,
