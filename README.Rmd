@@ -42,16 +42,16 @@ library(forplotR)
 
 ## Usage
 
-Below are the description of the four main functions (`fp_herb_converter`, `mk_voucher_dirs`, `plot_for_balance` and `plot_html_map`) available in the package and how to use them.\
+Below are the description of the four main functions (`forplot_sheets`, `forplot_vouchers`, `forplot_balance` and `forplot_map`) available in the package and how to use them.\
 
-#### _1. `fp_herb_converter`_
+#### _1. `forplot_sheets`_
 
 This code is purposed to convert forest plot census data into a herbarium spreadsheet format. The function reads a ForestPlots-format field dataset and an empty herbarium template, and outputs a filled herbarium data frame (and Excel file) with taxonomy, location, and collector information. It ensures required metadata (location, coordinates, etc.) are provided and adds any relevant notes (e.g., diameter, census notes) to the herbarium sheet. The default herbarium format is JABOT, with support for BRAHMS or a custom format (user-specified column mapping).
 
 ```r
 library(forplotR)
 
-fp_herb_converter(forestplots_file_path = NULL,
+forplot_sheets(forestplots_file_path = NULL,
      herb_file_path = NULL,
      language = "en",
      herbarium_format = "jabot",
@@ -88,12 +88,12 @@ This process ensures clear, standardized and multilingual descriptions for herba
 
 ---
 
-#### _2. `mk_voucher_dirs`_
+#### _2. `forplot_vouchers`_
 
 This function creates a folder structure for organizing voucher images or files. It is especially useful for large projects where images of herbarium specimens or field vouchers need to be grouped by collector, number, or taxonomic name.
 
 ```r
-mk_voucher_dirs(
+forplot_vouchers(
      input_df = my_dataframe,
      base_dir = "herbarium_vouchers"
 )
@@ -105,12 +105,12 @@ Each row in the input data frame generates a subdirectory like `herbarium_vouche
 
 ---
 
-#### _3. `plot_for_balance`_
+#### _3. `forplot_balance`_
 
 This function plots the balance of taxonomic representation in the herbarium dataset using bar plots. It helps assess the sampling effort by family, genus, or species.
 
 ```r
-plot_for_balance(
+forplot_balance(
      fp_file_path = "data/forestplot.xlsx",
      plot_size = 1,
      subplot_size = 10,
@@ -124,12 +124,12 @@ The function generates A full PDF report with plot metadata and navigable sectio
 
 ---
 
-#### _4. `plot_html_map`_
+#### _4. `forplot_map`_
 
 This function creates an interactive HTML map using leaflet to visualize collection localities. It is useful for reporting or exploring the spatial distribution of vouchers.
 
 ```r
-plot_html_map(
+forplot_map(
      fp_file_path = "data/forestplot.xlsx",        
      vertex_coords = "data/vertex.xlsx",       
      map_type = "street",  

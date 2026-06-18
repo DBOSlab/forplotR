@@ -1,0 +1,2498 @@
+#' Generate forest plot specimen map and collection balance
+#'
+#' @author Giulia Ottino & Domingos Cardoso
+#'
+#' @description
+#' Generate specimen collection-balance maps and reports from
+#' \href{https://forestplots.net/}{ForestPlots.net} or
+#' \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{MONITORA program}
+#' field data. The function reads plot data, standardizes coordinates and
+#' specimen metadata, builds plot and subplot maps, and optionally exports
+#' HTML/PDF reports and an Excel summary workbook.
+#'
+#' @details
+#' Supported inputs include ForestPlots.net field sheets, Indigenous Land field
+#' sheets, Query Library exports, and MONITORA layouts. Depending on the selected
+#' \code{input_type}, the function:
+#' \enumerate{
+#'   \item validates arguments and output directories;
+#'   \item reads and harmonizes the input table into a canonical internal schema;
+#'   \item extracts or overrides plot metadata;
+#'   \item cleans coordinates and diameter values and computes plot geometry;
+#'   \item generates whole-plot and subplot-level maps, with optional palm highlighting;
+#'   \item renders HTML and/or PDF reports;
+#'   \item optionally writes an Excel workbook summarizing collection balance per subplot.
+#' }
+#'
+#' Collection status is inferred from the canonical \code{Collected} column
+#' after input harmonization. For some input types, this field is derived from
+#' source-specific voucher or collection-status columns.
+#'
+#' The function is primarily called for its side effects of writing reports and
+#' summary files to disk.
+#'
+#' @section Input types:
+#' \describe{
+#'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
+#'   \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
+#' }
+#'
+#' @section Side effects:
+#' The function creates output files on disk, including map images, an optional
+#' HTML report, an optional PDF report, and an optional Excel workbook. Temporary
+#' intermediate files used during report rendering are removed before exit.
+#'
+#' @param fp_file_path Path to the input Excel file in ForestPlots.net
+#' field-sheet, Query Library, or MONITORA format.
+#'
+#' @param language Output language. One of \code{"en"} (English),
+#' \code{"pt"} (Portuguese), \code{"es"} (Spanish), \code{"fr"} (French),
+#' \code{"ma"} (Mandarin), or \code{"pa"} (Panará).
+#'
+#' @param input_type Input layout. One of \code{"field_sheet"},
+#' \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.
+#'
+#' @param plot_size Total plot size in hectares. Used for \code{"field_sheet"}
+#' and \code{"fp_query_sheet"} inputs. Ignored when
+#' \code{input_type = "monitora"}.
+#'
+#' @param subplot_size Side length of each subplot in meters.
+#'
+#' @param plot_width_m Plot width in meters. Used for \code{"field_sheet"} and
+#' \code{"fp_query_sheet"} inputs. Ignored when
+#' \code{input_type = "monitora"}.
+#'
+#' @param plot_length_m Plot length in meters. Used for \code{"field_sheet"} and
+#' \code{"fp_query_sheet"} inputs. Ignored when
+#' \code{input_type = "monitora"}.
+#'
+#' @param highlight_palms Logical. If \code{TRUE}, Arecaceae individuals are
+#' highlighted in maps and treated as a separate visual status category.
+#'
+#' @param station_name Optional station identifier used when
+#' \code{input_type = "monitora"}. If a character vector of length greater than
+#' 1 is supplied, the function recursively generates one report per station,
+#' appending the station identifier to \code{filename}.
+#'
+#' @param plot_name Optional plot name. If provided, overrides the plot name
+#' extracted from the input file metadata.
+#'
+#' @param plot_code Optional plot code. If provided, overrides the plot code
+#' extracted from the input file metadata.
+#'
+#' @param plot_census_no Optional census number. If provided, overrides the
+#' census number extracted from a \code{"fp_query_sheet"} input. For field-sheet
+#' inputs, the function falls back to \code{"1"} when no value is available.
+#'
+#' @param team Optional team or PI name. If provided, overrides the team
+#' extracted from the input file metadata.
+#'
+#' @param render_html Logical. If \code{TRUE}, renders the HTML report.
+#'
+#' @param render_pdf Logical. If \code{TRUE}, renders the PDF report.
+#'
+#' @param write_xlsx Logical. If \code{TRUE}, writes the Excel summary workbook.
+#'
+#' @param verbose Logical. If \code{TRUE}, prints progress and diagnostic
+#' messages during input harmonization, coordinate computation, map generation,
+#' and report rendering.
+#'
+#' @param dir Output directory. A date-stamped subfolder in the format
+#' \code{ddMonYYYY} is created inside this directory.
+#'
+#' @param filename Basename for generated output files, without extension.
+#'
+#' @return Invisibly returns a list with paths to generated outputs:
+#' \describe{
+#'   \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
+#'   \item{pdf_report}{Path to the rendered PDF report, or \code{NULL} if not generated.}
+#'   \item{xlsx_report}{Path to the Excel summary workbook, or \code{NULL} if not generated.}
+#'   \item{output_dir}{Directory where outputs were written.}
+#' }
+#' When \code{input_type = "monitora"} and \code{station_name} has length greater
+#' than 1, the function recursively processes each station and invisibly returns
+#' \code{TRUE}.
+#'
+#' @import ggplot2
+#' @importFrom readxl read_excel
+#' @importFrom dplyr mutate if_else group_by arrange select distinct filter bind_rows any_of case_when rename_with rename n
+#' @importFrom magrittr "%>%"
+#' @importFrom grDevices pdf dev.off colorRampPalette
+#' @importFrom utils capture.output download.file read.csv
+#' @importFrom rmarkdown render pdf_document
+#' @importFrom openxlsx read.xlsx createWorkbook addWorksheet writeData createStyle addStyle saveWorkbook
+#' @importFrom tinytex latexmk
+#' @importFrom readr locale read_delim
+#' @importFrom tibble as_tibble tibble
+#' @importFrom here here
+#' @importFrom stringr str_to_lower str_trim str_detect str_remove word
+#' @importFrom tidyr replace_na
+#' @importFrom grid unit
+#' @importFrom writexl write_xlsx
+#' @importFrom stats na.omit setNames
+#' @importFrom plotly plot_ly layout config
+#' @importFrom htmlwidgets onRender
+#'
+#' @examples
+#' \dontrun{
+#' # ForestPlots.net field sheet
+#' forplot_balance(
+#'   fp_file_path = "data/forestplot.xlsx",
+#'   input_type = "field_sheet",
+#'   language = "en"
+#' )
+#'
+#' # Query export with explicit plot geometry
+#' forplot_balance(
+#'   fp_file_path = "data/query_export.xlsx",
+#'   input_type = "fp_query_sheet",
+#'   plot_size = 1,
+#'   plot_width_m = 100,
+#'   subplot_size = 10,
+#'   render_html = TRUE,
+#'   render_pdf = FALSE
+#' )
+#'
+#' # MONITORA data for one station
+#' forplot_balance(
+#'   fp_file_path = "data/monitora.xlsx",
+#'   input_type = "monitora",
+#'   station_name = "Station1"
+#' )
+#'
+#' # MONITORA data for multiple stations
+#' forplot_balance(
+#'   fp_file_path = "data/monitora.xlsx",
+#'   input_type = "monitora",
+#'   station_name = c("Station1", "Station2")
+#' )
+#' }
+#'
+#' @export
+#'
+
+forplot_balance <- function(fp_file_path = NULL,
+                            language = c("en", "pt", "es", "fr", "ma", "pa"),
+                            input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+                            plot_size = 1,
+                            subplot_size = 10,
+                            plot_width_m = 100,
+                            plot_length_m = NULL,
+                            highlight_palms = TRUE,
+                            station_name = NULL,
+                            plot_name = NULL,
+                            plot_code = NULL,
+                            plot_census_no = NULL,
+                            team = NULL,
+                            render_html = TRUE,
+                            render_pdf = TRUE,
+                            write_xlsx = TRUE,
+                            verbose = TRUE,
+                            dir = "Results_map_plot",
+                            filename = "plot_specimen") {
+
+  .validate_subplot_size(subplot_size)
+
+  input_type <- tolower(trimws(as.character(input_type)))
+  input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
+
+  if (!is.logical(render_html) || length(render_html) != 1 || is.na(render_html)) {
+    stop("`render_html` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (!is.logical(render_pdf) || length(render_pdf) != 1 || is.na(render_pdf)) {
+    stop("`render_pdf` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (!is.logical(write_xlsx) || length(write_xlsx) != 1 || is.na(write_xlsx)) {
+    stop("`write_xlsx` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    .validate_plot_size(plot_size)
+
+    plot_area_m2 <- plot_size * 10000
+
+    if (!is.null(plot_width_m)) {
+      if (!is.numeric(plot_width_m) || length(plot_width_m) != 1 || is.na(plot_width_m) || plot_width_m <= 0) {
+        stop("`plot_width_m` must be a single positive numeric value.", call. = FALSE)
+      }
+    }
+
+    if (!is.null(plot_length_m)) {
+      if (!is.numeric(plot_length_m) || length(plot_length_m) != 1 || is.na(plot_length_m) || plot_length_m <= 0) {
+        stop("`plot_length_m` must be a single positive numeric value.", call. = FALSE)
+      }
+    }
+
+    if (is.null(plot_width_m) && is.null(plot_length_m)) {
+      plot_width_m <- 100
+    }
+
+    if (is.null(plot_length_m)) {
+      plot_length_m <- plot_area_m2 / plot_width_m
+    }
+
+    if (is.null(plot_width_m)) {
+      plot_width_m <- plot_area_m2 / plot_length_m
+    }
+
+    if (abs((plot_width_m * plot_length_m) - plot_area_m2) > 1e-6) {
+      stop(
+        "`plot_width_m * plot_length_m` must match the area implied by `plot_size`.",
+        call. = FALSE
+      )
+    }
+
+    if ((plot_width_m %% subplot_size) != 0 || (plot_length_m %% subplot_size) != 0) {
+      stop(
+        "`plot_width_m` and `plot_length_m` must be exact multiples of `subplot_size`.",
+        call. = FALSE
+      )
+    }
+  } else {
+    plot_width_m <- NULL
+    plot_length_m <- NULL
+  }
+
+  language <- match.arg(tolower(trimws(as.character(language))),
+                        c("en", "pt", "es", "fr", "ma", "pa"))
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  dir <- .arg_check_dir(dir)
+
+  foldername <- file.path(dir, format(Sys.time(), "%d%b%Y"))
+  if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
+  if (!dir.exists(foldername)) dir.create(foldername, recursive = TRUE)
+
+  arg_plot_name <- plot_name
+  arg_plot_code <- plot_code
+  arg_census_no_fp <- plot_census_no
+  arg_team <- team
+
+  if (input_type == "monitora" && !is.null(station_name) && length(station_name) > 1L) {
+    for (st in unique(trimws(as.character(station_name)))) {
+      forplot_balance(
+        fp_file_path = fp_file_path,
+        input_type = "monitora",
+        plot_size = plot_size,
+        subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        highlight_palms = highlight_palms,
+        station_name = st,
+        plot_name = arg_plot_name,
+        plot_code = arg_plot_code,
+        team = arg_team,
+        render_html = render_html,
+        render_pdf = render_pdf,
+        write_xlsx = write_xlsx,
+        dir = dir,
+        filename = paste0(filename, "_station_", st),
+        language = language,
+        verbose = verbose
+      )
+    }
+    return(invisible(TRUE))
+  }
+
+  # Harmonize the plot input data type
+  fp_loaded <- .harmonize_plot_input(
+    fp_file_path = fp_file_path,
+    input_type = input_type,
+    station_name = station_name,
+    verbose = verbose
+  )
+
+  fp_sheet  <- fp_loaded$fp_sheet
+  team <- fp_loaded$team
+  plot_name <- fp_loaded$plot_name
+  plot_code <- fp_loaded$plot_code
+  census_no_fp <- fp_loaded$census_no_fp
+
+  team <- if (.safe_nzchar(arg_team)) {
+    trimws(arg_team)
+  } else if (.safe_nzchar(team)) {
+    trimws(team)
+  } else {
+    ""
+  }
+
+  plot_name <- if (.safe_nzchar(arg_plot_name)) {
+    trimws(arg_plot_name)
+  } else if (.safe_nzchar(plot_name)) {
+    trimws(plot_name)
+  } else {
+    "Unknown Plot"
+  }
+
+  plot_code <- if (.safe_nzchar(arg_plot_code)) {
+    trimws(arg_plot_code)
+  } else if (.safe_nzchar(plot_code)) {
+    trimws(plot_code)
+  } else {
+    ""
+  }
+
+  plot_census_no_fp <- if (.safe_nzchar(arg_census_no_fp)) {
+    trimws(arg_census_no_fp)
+  } else if (.safe_nzchar(census_no_fp)) {
+    trimws(census_no_fp)
+  } else {
+    "1"
+  }
+
+  fp_clean <- .clean_fp_data(fp_sheet)
+
+  if (all(c("X", "Y") %in% names(fp_clean))) {
+    same_xy <- sum(fp_clean$X == fp_clean$Y, na.rm = TRUE)
+    total_xy <- sum(is.finite(fp_clean$X) & is.finite(fp_clean$Y))
+    n_complete_xy <- sum(is.finite(fp_clean$X) & is.finite(fp_clean$Y))
+
+    cor_xy <- if (n_complete_xy >= 2) {
+      suppressWarnings(cor(fp_clean$X, fp_clean$Y, use = "complete.obs"))
+    } else {
+      NA_real_
+    }
+  }
+
+  if (verbose) {
+    message("Computing plot coordinates...")
+  }
+  if (input_type == "monitora") {
+    fp_coords <- .compute_monitora_geometry(fp_clean, keep_only_cell = FALSE)
+  } else {
+    fp_coords <- .compute_global_coordinates(
+      fp_clean = fp_clean,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m
+    )
+  }
+
+  fp_coords <- fp_coords %>%
+    dplyr::mutate(
+      diameter = (D / 100) * 2,
+      `New Tag No` = trimws(as.character(`New Tag No`))
+    )
+
+  spec_df <- fp_coords %>%
+    dplyr::mutate(
+      Family = as.character(Family),
+      Family = dplyr::if_else(is.na(Family) | Family == "", "Indet", Family),
+      `Original determination` = as.character(`Original determination`),
+      Species = dplyr::if_else(
+        is.na(`Original determination`) | `Original determination` == "",
+        "indet",
+        `Original determination`
+      ),
+      Species_fmt = paste0("*", Species, "*")
+    ) %>%
+    dplyr::group_by(Family, Species_fmt) %>%
+    dplyr::summarise(
+      tags = .collapse_sorted_tags(`New Tag No`, sep = " | "),
+      tag_vec = list(unique(trimws(as.character(`New Tag No`)))),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(dplyr::if_else(Family == "Indet", 0, 1), Family)
+
+  subplot_labels <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    subplot_labels <- tibble::tibble(T1 = sort(unique(fp_coords$T1))) %>%
+      dplyr::mutate(
+        T1 = suppressWarnings(as.numeric(T1)),
+        n_subplots_per_col = floor(plot_length_m / subplot_size),
+        col_index = (T1 - 1) %/% n_subplots_per_col,
+        row_index = (T1 - 1) %% n_subplots_per_col,
+        subplot_y = dplyr::if_else(
+          col_index %% 2 == 0,
+          row_index * subplot_size,
+          (n_subplots_per_col - 1 - row_index) * subplot_size
+        ),
+        subplot_x = col_index * subplot_size,
+        center_x = subplot_x + subplot_size / 2,
+        center_y = subplot_y + subplot_size / 2
+      ) %>%
+      dplyr::select(T1, center_x, center_y)
+  }
+
+  if (verbose) {
+    message("Building plot maps...")
+  }
+
+  base_plot_interactive <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    base_plot_static <- .build_fp_base_plot(
+      fp_coords = fp_coords,
+      subplot_labels = subplot_labels,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
+      plot_name = plot_name,
+      plot_code = plot_code,
+      highlight_palms = highlight_palms,
+      language = language
+    )
+    if (isTRUE(render_html)) {
+      base_plot_interactive <- .build_fp_base_plot_interactive(
+        fp_coords = fp_coords,
+        subplot_labels = subplot_labels,
+        subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        highlight_palms = highlight_palms,
+        language = language
+      )
+    }
+  } else {
+    base_plot_static <- .build_monitora_base_plot(
+      fp_coords = fp_coords,
+      plot_name = plot_name,
+      plot_code = plot_code,
+      highlight_palms = highlight_palms,
+      language = language
+    )
+    if (isTRUE(render_html)) {
+      base_plot_interactive <- .build_monitora_base_plot_interactive(
+        fp_coords = fp_coords,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        highlight_palms = highlight_palms,
+        language = language
+      )
+    } else {
+      base_plot_interactive <- NULL
+    }
+  }
+
+  rmd_path <- file.path(foldername, paste0(filename, "_temp.Rmd"))
+  final_html <- file.path(foldername, paste0(filename, "_full_report.html"))
+  final_pdf  <- file.path(foldername, paste0(filename, "_full_report.pdf"))
+
+  collected_plot <- NULL
+  uncollected_plot <- NULL
+  palms_plot <- NULL
+
+  # Use static ggplot
+  tf_col <- !is.na(fp_coords$Collected)
+  if (any(tf_col)) {
+    collected_plot <- base_plot_static + (fp_coords %>% dplyr::filter(!is.na(Collected) & Family != "Arecaceae"))
+  }
+
+  tf_uncol <- is.na(fp_coords$Collected)
+  if (any(tf_uncol)) {
+    uncollected_plot <- base_plot_static + (fp_coords %>% dplyr::filter(is.na(Collected) & Family != "Arecaceae"))
+  }
+
+  tf_palm <- fp_coords$Family %in% "Arecaceae"
+  if (any(tf_palm)) {
+    palms_plot <- base_plot_static + (fp_coords %>% dplyr::filter(is.na(Collected) & Family == "Arecaceae"))
+  }
+
+  if (verbose) {
+    message("Saving PNG maps...")
+  }
+  ggplot2::ggsave(
+    filename = file.path(foldername, paste0(filename, "_general.png")),
+    plot = base_plot_static,
+    width = 14, height = 11, units = "in", dpi = 300
+  )
+
+  if (!is.null(collected_plot)) {
+    ggplot2::ggsave(
+      filename = file.path(foldername, paste0(filename, "_collected.png")),
+      plot = collected_plot,
+      width = 14, height = 11, units = "in", dpi = 300
+    )
+  }
+
+  if (!is.null(uncollected_plot)) {
+    ggplot2::ggsave(
+      filename = file.path(foldername, paste0(filename, "_uncollected.png")),
+      plot = uncollected_plot,
+      width = 14, height = 11, units = "in", dpi = 300
+    )
+  }
+
+  if (!is.null(palms_plot)) {
+    ggplot2::ggsave(
+      filename = file.path(foldername, paste0(filename, "_uncollected_palms.png")),
+      plot = palms_plot,
+      width = 14, height = 11, units = "in", dpi = 300
+    )
+  }
+
+  priority_obj <- NULL
+  priority_plot <- NULL
+  priority_plot_file <- NULL
+
+  priority_plot_interactive <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    priority_obj <- .prioritize_uncollected_subplots(
+      fp_coords = fp_coords,
+      exclude_palms = TRUE
+    )
+
+    if (!is.null(priority_obj$priority_table) && nrow(priority_obj$priority_table) > 0) {
+      priority_plot <- .build_uncollected_priority_plot(
+        fp_coords = fp_coords,
+        priority_obj = priority_obj,
+        subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        language = language
+      )
+
+      if (isTRUE(render_html)) {
+        priority_plot_interactive <- .build_uncollected_priority_plot_interactive(
+          fp_coords = fp_coords,
+          priority_obj = priority_obj,
+          subplot_size = subplot_size,
+          plot_width_m = plot_width_m,
+          plot_length_m = plot_length_m,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          language = language
+        )
+      }
+
+      priority_plot_file <- file.path(foldername, paste0(filename, "_priority_uncollected_species.png"))
+
+      ggplot2::ggsave(
+        filename = priority_plot_file,
+        plot = priority_plot,
+        width = 14, height = 11, units = "in", dpi = 300
+      )
+    }
+  }
+
+  if (verbose) {
+    message("Building subplot maps...")
+  }
+  subplot_plots <- list()
+
+  if (input_type == "monitora") {
+    arms_order <- c("N", "S", "L", "O")
+    arm_id <- stats::setNames(1:4, arms_order)
+
+    full_idx <- do.call(rbind, lapply(arms_order, function(a) {
+      data.frame(subunit_letter = a, T2 = 1:10, stringsAsFactors = FALSE)
+    }))
+    full_idx$T1 <- (arm_id[full_idx$subunit_letter] - 1L) * 10L + full_idx$T2
+
+    .safe_breaks <- function(x) {
+      x <- x[is.finite(x)]
+      if (!length(x)) return(c(1, 3, 7, 10))
+      rng <- range(x)
+      br <- round(seq(rng[1], rng[2], length.out = 4), 0)
+      br[1] <- rng[1]
+      br[4] <- rng[2]
+      br
+    }
+
+    for (k in seq_len(nrow(full_idx))) {
+      sub <- full_idx$subunit_letter[k]
+      t2 <- full_idx$T2[k]
+
+      sp_data <- fp_coords %>%
+        dplyr::filter(subunit_letter == sub, T2 == t2) %>%
+        dplyr::mutate(
+          Status = dplyr::case_when(
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
+          ),
+          Status = factor(Status, levels = c(tr["collected"], tr["uncollected"], tr["palms"])),
+          diameter = dplyr::if_else(is.finite(D / 10), D / 10, NA_real_)
+        )
+
+      sp_plot <- .compute_monitora_geometry(sp_data, keep_only_cell = TRUE)
+
+      brk <- .safe_breaks(sp_plot$diameter)
+      brk <- unique(stats::na.omit(brk))
+      if (length(brk) < 2) brk <- c(brk, brk + 0.01)
+      if (anyDuplicated(brk)) brk <- unique(round(brk, 2))
+      brk <- sort(brk)
+
+      p <- ggplot2::ggplot(sp_plot, ggplot2::aes(x = x10, y = y10)) +
+        ggplot2::geom_rect(ggplot2::aes(xmin = 0, xmax = 10, ymin = 0, ymax = 10),
+                           fill = NA, color = "black", linewidth = 0.6) +
+        ggplot2::geom_point(ggplot2::aes(size = diameter, fill = Status),
+                            shape = 21, color = "black", stroke = 0.2, alpha = 0.9) +
+        ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.7) +
+        ggplot2::scale_fill_manual(
+          values = stats::setNames(
+            c("gray", "red", "gold"),
+            c(tr["collected"], tr["uncollected"], tr["palms"])
+          ),
+          name = tr["status"]
+        ) +
+        ggplot2::scale_size_area(
+          name = tr["dbh"],
+          breaks = brk,
+          labels = sprintf("%.1f", brk),
+          limits = c(0, max(brk, na.rm = TRUE)),
+          max_size = 10,
+          guide = "legend"
+        ) +
+        ggplot2::labs(
+          title = paste(tr["subunit"], sub, "—", tr["subplot"], t2),
+          subtitle = paste(tr["plot_name"], plot_name, "|", tr["plot_code"], plot_code),
+          x = tr["local_x_m"],
+          y = tr["local_y_m"]
+        ) +
+        ggplot2::coord_fixed() +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+          panel.grid.minor = ggplot2::element_blank(),
+          panel.grid.major = ggplot2::element_line(linewidth = 0.3, color = "gray80"),
+          legend.position = "right"
+        ) +
+        ggplot2::guides(
+          fill = ggplot2::guide_legend(override.aes = list(size = 5), order = 1),
+          size = ggplot2::guide_legend(title = tr["dbh"], order = 2)
+        )
+
+      subplot_plots[[length(subplot_plots) + 1]] <- list(
+        plot = p,
+        data = sp_plot,
+        plotly = if (isTRUE(render_html)) .build_monitora_subplot_plot_interactive(sp_plot,
+                                                                                   subplot_size = subplot_size,
+                                                                                   highlight_palms = highlight_palms,
+                                                                                   language = language) else NULL
+      )
+    }
+
+  } else {
+    all_subplot_ids <- seq_len(
+      floor(plot_width_m / subplot_size) * floor(plot_length_m / subplot_size)
+    )
+    for (i in all_subplot_ids) {
+      sp_data <- fp_coords %>%
+        dplyr::filter(T1 == i) %>%
+        dplyr::mutate(
+          Status = dplyr::case_when(
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
+          ),
+          Status = factor(Status, levels = c(tr["collected"], tr["uncollected"], tr["palms"])),
+          diameter = dplyr::if_else(is.finite(D / 10), D / 10, NA_real_)
+        )
+
+      valid_d <- sp_data$diameter[is.finite(sp_data$diameter)]
+      if (length(valid_d)) {
+        min_d <- min(valid_d)
+        max_d <- max(valid_d)
+        breaks_d <- round(seq(min_d, max_d, length.out = 4), 0)
+        breaks_d[1] <- min_d
+        breaks_d[4] <- max_d
+      } else {
+        max_d <- 10
+        breaks_d <- c(1, 3, 7, 10)
+      }
+
+      d_limit <- max_d
+      breaks_d <- unique(stats::na.omit(round(breaks_d, 1)))
+      if (length(breaks_d) < 2) breaks_d <- c(breaks_d, breaks_d + 0.01)
+
+      p <- ggplot2::ggplot(sp_data, ggplot2::aes(x = X, y = Y)) +
+        ggplot2::annotate("rect", xmin = 0, xmax = subplot_size, ymin = 0, ymax = subplot_size,
+                          fill = NA, color = "darkolivegreen", linewidth = 0.6) +
+        ggplot2::geom_point(ggplot2::aes(size = diameter, fill = Status),
+                            shape = 21, color = "black", stroke = 0.2, alpha = 0.9) +
+        ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 1.7) +
+        ggplot2::scale_fill_manual(
+          values = stats::setNames(
+            c("gray", "red", "gold"),
+            c(tr["collected"], tr["uncollected"], tr["palms"])
+          ),
+          name = tr["status"]
+        ) +
+        ggplot2::scale_size_area(
+          name = tr["dbh"],
+          breaks = breaks_d,
+          labels = sprintf("%.1f", breaks_d),
+          limits = c(0, d_limit),
+          max_size = 10,
+          guide = "legend"
+        ) +
+        ggplot2::labs(
+          title = paste0(tr["plot_name"], ": ", plot_name),
+          subtitle = paste0(tr["plot_code"], ": ", plot_code),
+          x = tr["x_m"],
+          y = tr["y_m"]
+        ) +
+        ggplot2::coord_fixed() +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+          panel.grid.minor = ggplot2::element_blank(),
+          panel.grid.major = ggplot2::element_line(linewidth = 0.3, color = "gray80"),
+          panel.border = ggplot2::element_rect(color = "gray80", fill = NA, linewidth = 0.3),
+          legend.position = "right",
+        ) +
+        ggplot2::guides(
+          fill = ggplot2::guide_legend(override.aes = list(size = 5), order = 1),
+          size = ggplot2::guide_legend(title = tr["dbh"], order = 2)
+        )
+
+      subplot_plots[[length(subplot_plots) + 1]] <- list(
+        plot = p,
+        data = sp_data,
+        plotly = if (isTRUE(render_html)) .build_monitora_subplot_plot_interactive(sp_data,
+                                                                                   subplot_size = subplot_size,
+                                                                                   highlight_palms = highlight_palms,
+                                                                                   language = language) else NULL
+      )
+    }
+  }
+
+  total_specimens <- nrow(fp_coords)
+  collected_count <- sum(!is.na(fp_coords$Collected) & fp_coords$Family != "Arecaceae", na.rm = TRUE)
+  uncollected_count <- sum(is.na(fp_coords$Collected) & fp_coords$Family != "Arecaceae", na.rm = TRUE)
+  palms_count <- sum(fp_coords$Family == "Arecaceae", na.rm = TRUE)
+
+  if (tolower(trimws(as.character(input_type))) == "monitora") {
+    tag_to_subplot <- fp_coords %>%
+      dplyr::transmute(
+        `New Tag No` = trimws(as.character(`New Tag No`)),
+        subunit_letter = as.character(subunit_letter),
+        T2 = suppressWarnings(as.integer(T2)),
+        subplot_index = dplyr::case_when(
+          subunit_letter == "N" ~ T2,
+          subunit_letter == "S" ~ 10L + T2,
+          subunit_letter == "L" ~ 20L + T2,
+          subunit_letter == "O" ~ 30L + T2,
+          TRUE ~ NA_integer_
+        )
+      ) %>%
+      dplyr::distinct()
+  } else {
+    tag_to_subplot <- fp_coords %>%
+      dplyr::select(`New Tag No`, T1) %>%
+      dplyr::distinct()
+  }
+
+  dashboard_obj <- .prepare_report_dashboard(
+    fp_sheet = fp_coords,
+    input_type = input_type,
+    plot_size_ha = plot_size,
+    subplot_size_m = subplot_size,
+    language = language
+  )
+
+  ggplot2::ggsave(
+    filename = file.path(foldername, paste0(filename, "_species_plot.png")),
+    plot = dashboard_obj$species_plot,
+    width = 14, height = 11, units = "in", dpi = 300
+  )
+
+  ggplot2::ggsave(
+    filename = file.path(foldername, paste0(filename, "_family_plot.png")),
+    plot = dashboard_obj$family_plot,
+    width = 14, height = 11, units = "in", dpi = 300
+  )
+
+  rmd_content <- .create_rmd_content(
+    subplot_plots = subplot_plots,
+    tf_col = tf_col,
+    tf_uncol = tf_uncol,
+    tf_palm = tf_palm,
+    plot_name = plot_name,
+    plot_code = plot_code,
+    spec_df = spec_df,
+    dashboard = dashboard_obj,
+    dict = dict,
+    language = language
+  )
+  writeLines(c(rmd_content, ""), rmd_path)
+
+  options(tinytex.pdflatex.args = "--no-crop")
+
+  param_list <- list(
+    language = language,
+    input_type = input_type,
+    metadata = list(
+      plot_name = plot_name,
+      plot_census_no_fp = plot_census_no_fp,
+      plot_code = plot_code,
+      team = team,
+      census_years = if (exists("monitora_census_years", inherits = TRUE)) get("monitora_census_years") else NULL,
+      census_n = if (exists("monitora_census_n", inherits = TRUE)) get("monitora_census_n") else NULL
+    ),
+    main_plot = base_plot_static,
+    interactive_main_plot = base_plot_interactive,
+    subplots_list = subplot_plots,
+    subplot_size = subplot_size,
+    stats = list(
+      total = total_specimens,
+      collected = collected_count,
+      uncollected = uncollected_count,
+      palms = palms_count,
+      spec_df = spec_df,
+      dead_since_first = if (exists("monitora_dead_since_first", inherits = TRUE)) get("monitora_dead_since_first") else NULL,
+      recruits_since_first = if (exists("monitora_recruits_since_first", inherits = TRUE)) get("monitora_recruits_since_first") else NULL
+    ),
+    dashboard = dashboard_obj,
+    tag_list = unique(trimws(as.character(fp_coords$`New Tag No`))),
+    tag_to_subplot = tag_to_subplot
+  )
+
+  if (!is.null(priority_plot)) {
+    param_list$priority_uncollected_plot <- priority_plot
+  }
+
+  if (!is.null(priority_plot_interactive)) {
+    param_list$interactive_priority_uncollected_plot <- priority_plot_interactive
+  }
+
+  if (!is.null(priority_obj)) {
+    param_list$priority_obj <- priority_obj
+    param_list$priority_species_tbl <- .flatten_priority_species_checklist(
+      priority_obj,
+      original_data = fp_coords,
+      language = language
+    )
+  }
+
+  if (!is.null(collected_plot)) param_list$collected_plot <- collected_plot
+  if (!is.null(uncollected_plot)) param_list$uncollected_plot <- uncollected_plot
+  if (!is.null(palms_plot)) param_list$uncollected_palm_plot <- palms_plot
+
+  if (!is.null(priority_plot_interactive)) {
+    param_list$interactive_priority_uncollected_plot <- priority_plot_interactive
+  }
+  if (!is.null(priority_obj)) {
+    param_list$priority_obj <- priority_obj
+    param_list$priority_species_tbl <- .flatten_priority_species_checklist(
+      priority_obj,
+      language = language
+    )
+  }
+
+  # Build interactive plotly versions of the filtered maps for HTML
+  if (isTRUE(render_html)) {
+
+    collected_data <- fp_coords %>% dplyr::filter(!is.na(Collected) & Collected != "" & Family != "Arecaceae")
+    uncollected_data <- fp_coords %>% dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae")
+    palm_data <- fp_coords %>% dplyr::filter((is.na(Collected) | Collected == "") & Family == "Arecaceae")
+
+    if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+
+      if (nrow(collected_data) > 0) {
+        param_list$interactive_collected_plot <- .build_fp_base_plot_interactive(
+          fp_coords = collected_data,
+          subplot_labels = subplot_labels,
+          subplot_size = subplot_size,
+          plot_width_m = plot_width_m,
+          plot_length_m = plot_length_m,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          highlight_palms = FALSE,
+          language = language
+        )
+      }
+
+      if (nrow(uncollected_data) > 0) {
+        param_list$interactive_uncollected_plot <- .build_fp_base_plot_interactive(
+          fp_coords = uncollected_data,
+          subplot_labels = subplot_labels,
+          subplot_size = subplot_size,
+          plot_width_m = plot_width_m,
+          plot_length_m = plot_length_m,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          highlight_palms = FALSE,
+          language = language
+        )
+      }
+
+      if (nrow(palm_data) > 0) {
+        param_list$interactive_palm_plot <- .build_fp_base_plot_interactive(
+          fp_coords = palm_data,
+          subplot_labels = subplot_labels,
+          subplot_size = subplot_size,
+          plot_width_m = plot_width_m,
+          plot_length_m = plot_length_m,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          highlight_palms = TRUE,
+          language = language
+        )
+      }
+
+    } else if (input_type == "monitora") {
+
+      if (nrow(collected_data) > 0) {
+        param_list$interactive_collected_plot <- .build_monitora_base_plot_interactive(
+          fp_coords = collected_data,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          highlight_palms = FALSE,
+          language = language
+        )
+      }
+
+      if (nrow(uncollected_data) > 0) {
+        param_list$interactive_uncollected_plot <- .build_monitora_base_plot_interactive(
+          fp_coords = uncollected_data,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          highlight_palms = FALSE,
+          language = language
+        )
+      }
+
+      if (nrow(palm_data) > 0) {
+        param_list$interactive_palm_plot <- .build_monitora_base_plot_interactive(
+          fp_coords = palm_data,
+          plot_name = plot_name,
+          plot_code = plot_code,
+          highlight_palms = TRUE,
+          language = language
+        )
+      }
+    }
+  }
+
+  latex_engine <- "xelatex"
+
+  html_report <- NULL
+  pdf_report <- NULL
+  xlsx_report <- NULL
+
+  if (isTRUE(render_html)) {
+    if (verbose) {
+      message("Rendering HTML report (this may take a few minutes)...")
+    }
+    html_report <- .render_plot_report(
+      rmd_path = rmd_path,
+      output_path = foldername,
+      output_name = final_html,
+      params = param_list,
+      format = "html",
+      latex_engine = latex_engine
+    )
+  }
+
+  if (isTRUE(render_pdf)) {
+    if (verbose) {
+      message("Rendering PDF report...")
+    }
+    pdf_report <- tryCatch(
+      .render_plot_report(
+        rmd_path = rmd_path,
+        output_path = foldername,
+        output_name = final_pdf,
+        params = param_list,
+        format = "pdf",
+        latex_engine = latex_engine
+      ),
+      error = function(e) {
+        warning("PDF generation failed: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  }
+
+  if (isTRUE(write_xlsx)) {
+    if (input_type != "monitora") {
+      xlsx_report <- .collection_percentual(
+        fp_sheet = fp_coords,
+        dir = foldername,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        plot_census_no_fp = plot_census_no_fp,
+        team = team,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        subplot_size = subplot_size
+      )
+    }
+  }
+
+  unlink(rmd_path, force = TRUE)
+  unlink(gsub("_temp[.]Rmd", "_temp.knit.md", rmd_path), force = TRUE)
+
+  invisible(list(
+    html_report = html_report,
+    pdf_report = pdf_report,
+    xlsx_report = xlsx_report,
+    output_dir = foldername
+  ))
+}
+
+
+# Helpers ####
+.find_field_header_row <- function(raw, max_check = 6) {
+  max_r <- min(nrow(raw), max_check)
+  targets <- c("New Tag No", "T1", "T2", "X", "Y", "Family", "D")
+
+  scores <- vapply(seq_len(max_r), function(i) {
+    row_i <- as.character(unlist(raw[i, , drop = TRUE]))
+    row_i[is.na(row_i)] <- ""
+    row_i <- trimws(row_i)
+    sum(targets %in% row_i)
+  }, numeric(1))
+
+  best <- which.max(scores)
+  if (!length(best) || scores[best] == 0) {
+    return(2L)
+  }
+  best
+}
+
+.safe_nzchar <- function(x) {
+  is.character(x) && length(x) == 1L && !is.na(x) && nzchar(trimws(x))
+}
+
+.collapse_sorted_tags <- function(x, sep = "|") {
+  x <- trimws(as.character(x))
+  x <- x[!is.na(x) & nzchar(x)]
+
+  if (!length(x)) return(NA_character_)
+
+  x <- unique(x)
+
+  x_num <- suppressWarnings(as.numeric(x))
+  ord <- order(is.na(x_num), x_num, x)
+
+  paste(x[ord], collapse = sep)
+}
+
+.clean_fp_data <- function(fp_sheet) {
+  fp_sheet %>%
+    dplyr::mutate(
+      T1 = suppressWarnings(as.integer(.parse_num(T1))),
+      X  = .parse_num(X),
+      Y  = .parse_num(Y),
+      D  = .parse_num(D),
+      Collected = as.character(Collected)
+    )
+}
+
+# Build interactive fp base plot using plotly (client-side rendering — no SVG pre-computation)
+.build_fp_base_plot_interactive <- function(fp_coords,
+                                            subplot_labels,
+                                            subplot_size,
+                                            plot_width_m,
+                                            plot_length_m,
+                                            plot_name,
+                                            plot_code,
+                                            highlight_palms,
+                                            language = "en") {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  max_x <- floor(plot_width_m / subplot_size) * subplot_size
+  max_y <- floor(plot_length_m / subplot_size) * subplot_size
+
+  # Determine status and colour per individual
+  status <- dplyr::case_when(
+    highlight_palms & fp_coords$Family == "Arecaceae" ~ tr["palms"],
+    !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ tr["collected"],
+    TRUE ~ tr["uncollected"]
+  )
+  color_map <- stats::setNames(c("gray80", "#EF4444", "gold"),
+                               c(tr["collected"], tr["uncollected"], tr["palms"]))
+  point_colors <- unname(color_map[status])
+
+  # Marker sizes proportional to diameter (cm); fallback to minimum when NA
+  diams <- fp_coords$diameter
+  diams[!is.finite(diams)] <- 0
+  sizes <- 2 + diams * 3
+  sizes <- pmax(sizes, 6)
+
+  # Hover tooltip text
+  status_label <- dplyr::case_when(
+    !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ tr["collected"],
+    fp_coords$Family == "Arecaceae" ~ tr["palms"],
+    TRUE ~ tr["uncollected"]
+  )
+  hover_text <- paste0(
+    "<b>", tr["hover_tag"], ":", "</b> ", fp_coords$`New Tag No`, "<br>",
+    "<b>", tr["hover_species"], ":", "</b> ", fp_coords$`Original determination`, "<br>",
+    "<b>", tr["hover_dbh"], ":", "</b> ", round(fp_coords$D/10, 1), " cm<br>",
+    "<b>", tr["status"], ":", "</b> ", status_label
+  )
+
+  # Sanitised tag IDs matched to checklist anchors
+  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(fp_coords$`New Tag No`)))
+
+  # Grid lines and border as plotly shapes
+  v_lines <- lapply(seq(0, max_x, by = subplot_size), function(x) {
+    list(type = "line", x0 = x, x1 = x, y0 = 0, y1 = max_y,
+         line = list(color = "gray", width = 0.4), layer = "below")
+  })
+  h_lines <- lapply(seq(0, max_y, by = subplot_size), function(y) {
+    list(type = "line", x0 = 0, x1 = max_x, y0 = y, y1 = y,
+         line = list(color = "gray", width = 0.4), layer = "below")
+  })
+  border <- list(type = "rect", x0 = 0, x1 = max_x, y0 = 0, y1 = max_y,
+                 line = list(color = "darkolivegreen", width = 2.0),
+                 fillcolor = "rgba(0,0,0,0)", layer = "below")
+  all_shapes <- c(v_lines, h_lines, list(border))
+
+  # Subplot number labels as plotly annotations
+  annotations <- list()
+  if (!is.null(subplot_labels) && nrow(subplot_labels) > 0) {
+    annotations <- lapply(seq_len(nrow(subplot_labels)), function(i) {
+      list(x = subplot_labels$center_x[i],
+           y = subplot_labels$center_y[i],
+           text = as.character(subplot_labels$T1[i]),
+           showarrow = FALSE,
+           font = list(size = 9, color = "lightgray"),
+           xref = "x", yref = "y")
+    })
+  }
+
+  # Create tick values for every subplot_size (10 meters)
+  tick_vals_x <- seq(0, max_x, by = subplot_size)
+  tick_vals_y <- seq(0, max_y, by = subplot_size)
+
+  # Build the plotly scatter
+  p <- plotly::plot_ly(
+    x = fp_coords$global_x,
+    y = fp_coords$global_y,
+    type = "scatter",
+    mode = "markers+text",
+    height = 1000,  # Increased from 850 to 1000
+    width = 1200,  # Add explicit width
+    marker = list(color = point_colors, size = sizes,
+                  line = list(color = "black", width = 0.5),
+                  symbol = "circle"),
+    text = as.character(fp_coords$`New Tag No`),
+    textposition = "middle center",
+    textfont = list(size = 7, color = "black"),
+    hovertext = hover_text,
+    hoverinfo = "text",
+    customdata = tag_ids,
+    showlegend = FALSE
+  ) %>%
+    plotly::layout(
+      title = list(
+        text = paste0("<b>", tr["collection_balance"], ": ", plot_name, "</b><br>",
+                      "<sup>", tr["plot_code"], ": ", plot_code, "</sup>"),
+        x = 0.5, xanchor = "center"
+      ),
+      xaxis = list(
+        title = list(text = tr["x_m"], standoff = 2),
+        range = c(-1, max_x + 2),
+        scaleanchor = "y",
+        scaleratio = 1,
+        showgrid = FALSE,
+        zeroline = FALSE,
+        tickmode = "array",
+        tickvals = tick_vals_x,
+        ticktext = as.character(tick_vals_x),
+        automargin = TRUE
+      ),
+      yaxis = list(
+        title = list(text = tr["y_m"], standoff = 2),
+        range = c(-1, max_y + 2),
+        showgrid = FALSE,
+        zeroline = FALSE,
+        tickmode = "array",
+        tickvals = tick_vals_y,
+        ticktext = as.character(tick_vals_y),
+        automargin = TRUE
+      ),
+      shapes = all_shapes,
+      annotations = annotations,
+      plot_bgcolor = "white",
+      paper_bgcolor = "white",
+      margin = list(l = 60, r = 60, t = 80, b = 60),  # Increased margins
+      autosize = FALSE  # Change to FALSE for fixed dimensions
+    ) %>%
+    plotly::config(responsive = TRUE,
+                   displayModeBar = TRUE,
+                   scrollZoom = TRUE,
+                   doubleClick = "reset",
+                   displaylogo = FALSE,
+                   toImageButtonOptions = list(format = "png", scale = 2)
+    ) %>%
+    htmlwidgets::onRender(
+      "function(el) {
+         el.on('plotly_click', function(eventData) {
+           if (!eventData.points || eventData.points.length === 0) return;
+           var tag = eventData.points[0].customdata;
+           if (!tag) return;
+           var anchor = document.getElementById('checklist-tag-' + tag);
+           if (anchor) {
+             anchor.scrollIntoView({behavior: 'smooth', block: 'center'});
+           }
+         });
+       }"
+    )
+
+  p
+}
+
+# Build fp base plot
+.build_fp_base_plot <- function(fp_coords,
+                                subplot_labels,
+                                subplot_size,
+                                plot_width_m,
+                                plot_length_m,
+                                plot_name,
+                                plot_code,
+                                highlight_palms,
+                                language = "en") {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  status_levels <- c(tr["collected"], tr["uncollected"], tr["palms"])
+  status_values <- stats::setNames(
+    c("gray", "red", "gold"),
+    status_levels
+  )
+
+  max_x <- floor(plot_width_m / subplot_size) * subplot_size
+  max_y <- floor(plot_length_m / subplot_size) * subplot_size
+
+  base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
+    ggplot2::geom_vline(
+      xintercept = seq(0, max_x, by = subplot_size),
+      color = "gray80",
+      linewidth = 0.3
+    ) +
+    ggplot2::geom_hline(
+      yintercept = seq(0, max_y, by = subplot_size),
+      color = "gray80",
+      linewidth = 0.3
+    ) +
+    ggplot2::geom_rect(
+      ggplot2::aes(xmin = 0, xmax = max_x, ymin = 0, ymax = max_y),
+      fill = NA,
+      color = "darkolivegreen",
+      linewidth = 0.6
+    ) +
+    ggplot2::geom_text(
+      data = subplot_labels,
+      ggplot2::aes(x = center_x, y = center_y, label = T1),
+      color = "gray",
+      size = 2,
+      fontface = "bold",
+      inherit.aes = FALSE
+    ) +
+    ggplot2::geom_point(
+      ggplot2::aes(
+        size = diameter,
+        fill = factor(
+          dplyr::case_when(
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
+          ),
+          levels = status_levels
+        )
+      ),
+      shape = 21,
+      stroke = 0.2,
+      color = "black",
+      alpha = 0.9
+    ) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = `New Tag No`),
+      vjust = 0.5,
+      hjust = 0.5,
+      size = 0.6
+    ) +
+    ggplot2::scale_x_continuous(
+      limits = c(0, max_x),
+      breaks = seq(0, max_x, by = subplot_size)
+    ) +
+    ggplot2::scale_y_continuous(
+      limits = c(0, max_y),
+      breaks = seq(0, max_y, by = subplot_size)
+    ) +
+    ggplot2::coord_fixed(ratio = 1, clip = "off") +
+    ggplot2::scale_fill_manual(
+      values = status_values,
+      name = tr["status"]
+    ) +
+    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
+    ggplot2::labs(
+      x = tr["x_m"],
+      y = tr["y_m"],
+      title = paste0(tr["collection_balance"], ": ", plot_name),
+      subtitle = paste0(tr["plot_code"], ": ", plot_code)
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      legend.position = "right",
+      legend.justification = c(0, 1),
+      legend.box.margin = ggplot2::margin(0, 5, 0, 5),
+      plot.margin = ggplot2::margin(5.5, 20, 5.5, 5.5),
+      panel.border = ggplot2::element_rect(color = "gray80", fill = NA, linewidth = 0.3)
+    ) +
+    ggplot2::guides(
+      fill = ggplot2::guide_legend(override.aes = list(size = 5))
+    )
+
+  base_plot
+}
+
+# Build monitora base plot
+.build_monitora_base_plot <- function(
+    fp_coords,
+    plot_name,
+    plot_code,
+    highlight_palms,
+    language = "en",
+    arm_offset = 18,
+    pad = 4) {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  status_levels <- c(tr["collected"], tr["uncollected"], tr["palms"])
+  status_values <- stats::setNames(
+    c("gray", "red", "gold"),
+    status_levels
+  )
+  stopifnot(all(c("draw_x","draw_y","subunit_letter","D","Collected","Family") %in% names(fp_coords)))
+
+  # ---- constants ----
+  arm_length <- 50
+  cell_size <- 10
+  gap_title <- 3.0
+  gap_sub <- 2.5
+  left_inset <- 0.8
+
+  # grid per arm
+  mk_cells <- function(arm) {
+    base <- expand.grid(c = 0:4, r = 0:1)
+    if (arm == "N") {
+      dplyr::mutate(base, arm="N",
+                    xmin=-cell_size+r*cell_size, xmax=-cell_size+r*cell_size+cell_size,
+                    ymin= arm_offset+c*cell_size, ymax= arm_offset+c*cell_size+cell_size)
+    } else if (arm == "S") {
+      dplyr::mutate(base, arm="S",
+                    xmin=-cell_size+r*cell_size, xmax=-cell_size+r*cell_size+cell_size,
+                    ymin=-(arm_offset+arm_length)+c*cell_size,
+                    ymax=-(arm_offset+arm_length)+c*cell_size+cell_size)
+    } else if (arm == "L") {
+      dplyr::mutate(base, arm="L",
+                    xmin= arm_offset+c*cell_size, xmax= arm_offset+c*cell_size+cell_size,
+                    ymin=-cell_size+r*cell_size, ymax=-cell_size+r*cell_size+cell_size)
+    } else { # O
+      dplyr::mutate(base, arm="O",
+                    xmin=-(arm_offset+arm_length)+c*cell_size,
+                    xmax=-(arm_offset+arm_length)+c*cell_size+cell_size,
+                    ymin=-cell_size+r*cell_size, ymax=-cell_size+r*cell_size+cell_size)
+    }
+  }
+  cells <- dplyr::bind_rows(mk_cells("N"), mk_cells("S"), mk_cells("L"), mk_cells("O"))
+
+  centers <- cells %>%
+    dplyr::mutate(
+      cx=(xmin+xmax)/2, cy=(ymin+ymax)/2,
+      col_from_center = dplyr::case_when(arm %in% c("N","L") ~ c, arm %in% c("S","O") ~ 4L - c, TRUE ~ c),
+      col_idx  = col_from_center + 1L,
+      base_num = (col_idx - 1L) * 2L + 1L,
+      label = ifelse(col_idx %% 2L == 1L, base_num + r, base_num + (1L - r))
+    ) %>% dplyr::select(-col_from_center, -col_idx, -base_num)
+
+  # cross & limits
+  to_arm <- arm_offset
+  solid_half <- 10  # 10 m each side => total 20 m
+  gx_min <- -(arm_offset + arm_length) - pad
+  gx_max <- (arm_offset + arm_length) + pad
+  gy_min <- gx_min
+  gy_max <- gx_max
+  y_max_ext <- gy_max + gap_title + gap_sub + 0.5
+
+  edge_pad_in <- max(0.6, pad/2)
+  arm_labels <- data.frame(
+    lab = c("N","S","L","O"),
+    lx = c(0, 0, gx_max - edge_pad_in, gx_min + edge_pad_in),
+    ly = c(gy_max - edge_pad_in, gy_min + edge_pad_in, 0, 0),
+    hjust = c(0.5, 0.5, 0.0, 1.0),
+    vjust = c(0.0, 1.0, 0.5, 0.5)
+  )
+
+  # --- mini legend (define BEFORE building the plot) --------------------
+  dashed_len <- max(to_arm - solid_half, 0)
+  sx <- gx_max - 130   # more left  if you decrease
+  sy <- gy_min + 10   # lower      if you decrease
+
+  mini_legend_layers <- list(
+    ggplot2::geom_segment(
+      x = sx, y = sy, xend = sx + dashed_len, yend = sy,
+      inherit.aes = FALSE, color = "gray50", linewidth = 0.6, linetype = "22",
+      show.legend = FALSE
+    ),
+    ggplot2::annotate(
+      "text", x = sx + dashed_len/2, y = sy - 1.6, label = "40 m",
+      size = 3.4, hjust = 0.5, vjust = 1, color = "gray30"
+    ),
+    ggplot2::geom_segment(
+      x = sx, y = sy - 5.0, xend = sx + 20, yend = sy - 5.0,
+      inherit.aes = FALSE, color = "gray35", linewidth = 0.7,
+      show.legend = FALSE
+    ),
+    ggplot2::annotate(
+      "text", x = sx + 10, y = sy - 6.6, label = "20 m",
+      size = 3.4, hjust = 0.5, vjust = 1, color = "gray30"
+    )
+  )
+
+  # build plot -----------------------------------------------------------
+  ggplot2::ggplot(
+    fp_coords,
+    ggplot2::aes(
+      x = dplyr::case_when(
+        subunit_letter %in% c("N","S") ~ draw_x,
+        subunit_letter == "L" ~ draw_x - 50 + arm_offset,
+        subunit_letter == "O" ~ draw_x + 100 - (arm_offset + arm_length),
+        TRUE ~ draw_x
+      ),
+      y = dplyr::case_when(
+        subunit_letter %in% c("L","O") ~ draw_y,
+        subunit_letter == "N" ~ draw_y - 50 + arm_offset,
+        subunit_letter == "S" ~ draw_y + 100 - (arm_offset + arm_length),
+        TRUE ~ draw_y
+      )
+    )
+  ) +
+    ggplot2::geom_rect(
+      data = cells,
+      ggplot2::aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+      inherit.aes = FALSE, fill = NA, color = "gray70", linewidth = 0.28, show.legend = FALSE
+    ) +
+    ggplot2::geom_text(
+      data = centers,
+      ggplot2::aes(x = cx, y = cy, label = label),
+      inherit.aes = FALSE, size = 3.2, fontface = "bold", color = "gray35", show.legend = FALSE
+    ) +
+    ggplot2::geom_segment(x = -solid_half, xend = solid_half, y = 0, yend = 0,
+                          inherit.aes = FALSE, color = "gray35", linewidth = 0.7, show.legend = FALSE) +
+    ggplot2::geom_segment(y = -solid_half, yend = solid_half, x = 0, xend = 0,
+                          inherit.aes = FALSE, color = "gray35", linewidth = 0.7, show.legend = FALSE) +
+    ggplot2::geom_segment(x = -to_arm, xend = -solid_half, y = 0, yend = 0,
+                          inherit.aes = FALSE, color = "gray50", linewidth = 0.6, linetype = "22", show.legend = FALSE) +
+    ggplot2::geom_segment(x = solid_half, xend = to_arm, y = 0, yend = 0,
+                          inherit.aes = FALSE, color = "gray50", linewidth = 0.6, linetype = "22", show.legend = FALSE) +
+    ggplot2::geom_segment(y = -to_arm, yend = -solid_half, x = 0, xend = 0,
+                          inherit.aes = FALSE, color = "gray50", linewidth = 0.6, linetype = "22", show.legend = FALSE) +
+    ggplot2::geom_segment(y = solid_half, yend = to_arm, x = 0, xend = 0,
+                          inherit.aes = FALSE, color = "gray50", linewidth = 0.6, linetype = "22", show.legend = FALSE) +
+    ggplot2::geom_point(
+      ggplot2::aes(
+        size = (D/10),
+        fill = factor(
+          dplyr::case_when(
+            highlight_palms & Family == "Arecaceae" ~ tr["palms"],
+            !is.na(Collected) & Collected != "" ~ tr["collected"],
+            TRUE ~ tr["uncollected"]
+          ),
+          levels = status_levels
+        )
+      ),
+      shape = 21, stroke = 0.2, color = "black", alpha = 0.9
+    ) +
+    ggplot2::geom_text(ggplot2::aes(label = `New Tag No`), size = 0.65, show.legend = FALSE) +
+    ggplot2::annotate("text",
+                      x = gx_min + left_inset, y = gy_max + gap_title + gap_sub,
+                      label = paste0(tr["collection_balance"], ": ", plot_name),
+                      size = 5, hjust = 0, vjust = 1
+    ) +
+    ggplot2::annotate("text",
+                      x = gx_min + left_inset, y = gy_max + gap_title,
+                      label = paste0(tr["plot_code"], ": ", ifelse(is.null(plot_code), "", plot_code)),
+                      size = 3.8, hjust = 0, vjust = 1
+    ) +
+    ggplot2::scale_x_continuous(limits = c(gx_min, gx_max),
+                                expand = ggplot2::expansion(add = c(6, 0))) +
+    ggplot2::scale_y_continuous(limits = c(gy_min, y_max_ext),
+                                expand = ggplot2::expansion(add = c(8, 0))) +  # extra bottom room for "10 m"
+    ggplot2::coord_fixed(clip = "off") +
+    ggplot2::theme_void() +
+    ggplot2::scale_fill_manual(
+      values = status_values,
+      name = tr["status"]
+    ) +
+    ggplot2::scale_size_continuous(range = c(2,6), guide = "none") +
+    ggplot2::geom_text(
+      data = arm_labels,
+      ggplot2::aes(x = lx, y = ly, label = lab, hjust = hjust, vjust = vjust),
+      inherit.aes = FALSE, size = 9, fontface = "bold", show.legend = FALSE
+    ) +
+    ggplot2::theme(
+      legend.position = c(0.98, 0.10),
+      legend.justification = c(1, 0),
+      legend.background = ggplot2::element_rect(fill = "white", colour = NA),
+      legend.title = ggplot2::element_text(size = 13, face = "plain"),
+      legend.text = ggplot2::element_text(size = 12),
+      legend.key.size = grid::unit(1.1, "lines")
+    ) +
+    ggplot2::guides(fill = ggplot2::guide_legend(override.aes = list(size = 6), order = 1)) +
+    # <- add the pre-built list of layers here
+    mini_legend_layers
+}
+
+.build_monitora_base_plot_interactive <- function(fp_coords,
+                                                  plot_name,
+                                                  plot_code,
+                                                  highlight_palms,
+                                                  language = "en",
+                                                  arm_offset = 18,
+                                                  pad = 4) {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  stopifnot(all(
+    c("draw_x", "draw_y", "subunit_letter", "Family", "Collected", "D", "New Tag No") %in% names(fp_coords)
+  ))
+
+  arm_length <- 50
+  cell_size <- 10
+  gap_title <- 3.0
+  gap_sub <- 2.5
+  left_inset <- 0.8
+
+  to_arm <- arm_offset
+  solid_half <- 10
+  gx_min <- -(arm_offset + arm_length) - pad
+  gx_max <-  (arm_offset + arm_length) + pad
+  gy_min <- gx_min
+  gy_max <- gx_max
+  y_max_ext <- gy_max + gap_title + gap_sub + 0.5
+
+  # Rebuild the same transformed plotting coordinates used in the static MONITORA plot
+  plot_df <- fp_coords %>%
+    dplyr::mutate(
+      plot_x = dplyr::case_when(
+        subunit_letter %in% c("N", "S") ~ draw_x,
+        subunit_letter == "L" ~ draw_x - 50 + arm_offset,
+        subunit_letter == "O" ~ draw_x + 100 - (arm_offset + arm_length),
+        TRUE ~ draw_x
+      ),
+      plot_y = dplyr::case_when(
+        subunit_letter %in% c("L", "O") ~ draw_y,
+        subunit_letter == "N" ~ draw_y - 50 + arm_offset,
+        subunit_letter == "S" ~ draw_y + 100 - (arm_offset + arm_length),
+        TRUE ~ draw_y
+      )
+    )
+
+  status <- dplyr::case_when(
+    highlight_palms & plot_df$Family == "Arecaceae" ~ tr["palms"],
+    !is.na(plot_df$Collected) & plot_df$Collected != "" ~ tr["collected"],
+    TRUE ~ tr["uncollected"]
+  )
+
+  color_map <- stats::setNames(
+    c("gray80", "#EF4444", "gold"),
+    c(tr["collected"], tr["uncollected"], tr["palms"])
+  )
+  point_colors <- unname(color_map[status])
+
+  diams <- suppressWarnings(as.numeric(plot_df$D)) / 10
+  diams[!is.finite(diams)] <- 0
+  sizes <- pmax(4, sqrt(diams) * 3.5)
+
+  hover_text <- paste0(
+    "<b>", tr["hover_tag"], ":</b> ", plot_df$`New Tag No`, "<br>",
+    "<b>", tr["hover_species"], ":</b> ", plot_df$`Original determination`, "<br>",
+    "<b>", tr["hover_dbh"], ":</b> ", round(suppressWarnings(as.numeric(plot_df$D)) / 10, 1), " cm<br>",
+    "<b>", tr["status"], ":</b> ", status
+  )
+
+  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(plot_df$`New Tag No`)))
+
+  # Build the same arm-cell architecture used in the static plot
+  mk_cells <- function(arm) {
+    base <- expand.grid(c = 0:4, r = 0:1)
+    if (arm == "N") {
+      dplyr::mutate(
+        base, arm = "N",
+        xmin = -cell_size + r * cell_size,
+        xmax = -cell_size + r * cell_size + cell_size,
+        ymin = arm_offset + c * cell_size,
+        ymax = arm_offset + c * cell_size + cell_size
+      )
+    } else if (arm == "S") {
+      dplyr::mutate(
+        base, arm = "S",
+        xmin = -cell_size + r * cell_size,
+        xmax = -cell_size + r * cell_size + cell_size,
+        ymin = -(arm_offset + arm_length) + c * cell_size,
+        ymax = -(arm_offset + arm_length) + c * cell_size + cell_size
+      )
+    } else if (arm == "L") {
+      dplyr::mutate(
+        base, arm = "L",
+        xmin = arm_offset + c * cell_size,
+        xmax = arm_offset + c * cell_size + cell_size,
+        ymin = -cell_size + r * cell_size,
+        ymax = -cell_size + r * cell_size + cell_size
+      )
+    } else { # O
+      dplyr::mutate(
+        base, arm = "O",
+        xmin = -(arm_offset + arm_length) + c * cell_size,
+        xmax = -(arm_offset + arm_length) + c * cell_size + cell_size,
+        ymin = -cell_size + r * cell_size,
+        ymax = -cell_size + r * cell_size + cell_size
+      )
+    }
+  }
+
+  cells <- dplyr::bind_rows(
+    mk_cells("N"),
+    mk_cells("S"),
+    mk_cells("L"),
+    mk_cells("O")
+  )
+
+  centers <- cells %>%
+    dplyr::mutate(
+      cx = (xmin + xmax) / 2,
+      cy = (ymin + ymax) / 2,
+      col_from_center = dplyr::case_when(
+        arm %in% c("N", "L") ~ c,
+        arm %in% c("S", "O") ~ 4L - c,
+        TRUE ~ c
+      ),
+      col_idx = col_from_center + 1L,
+      base_num = (col_idx - 1L) * 2L + 1L,
+      label = ifelse(col_idx %% 2L == 1L, base_num + r, base_num + (1L - r))
+    ) %>%
+    dplyr::select(-col_from_center, -col_idx, -base_num)
+
+  edge_pad_in <- max(0.6, pad / 2)
+  arm_labels <- data.frame(
+    lab = c("N", "S", "L", "O"),
+    lx = c(0, 0, gx_max - edge_pad_in, gx_min + edge_pad_in),
+    ly = c(gy_max - edge_pad_in, gy_min + edge_pad_in, 0, 0),
+    stringsAsFactors = FALSE
+  )
+
+  # Plotly shapes: cell grid
+  cell_shapes <- lapply(seq_len(nrow(cells)), function(i) {
+    list(
+      type = "rect",
+      x0 = cells$xmin[i],
+      x1 = cells$xmax[i],
+      y0 = cells$ymin[i],
+      y1 = cells$ymax[i],
+      line = list(color = "gray70", width = 0.8),
+      fillcolor = "rgba(0,0,0,0)",
+      layer = "below"
+    )
+  })
+
+  # Plotly shapes: cross and dashed connectors
+  cross_shapes <- list(
+    list(type = "line", x0 = -solid_half, x1 =  solid_half, y0 = 0, y1 = 0,
+         line = list(color = "gray35", width = 1.2), layer = "below"),
+    list(type = "line", x0 = 0, x1 = 0, y0 = -solid_half, y1 =  solid_half,
+         line = list(color = "gray35", width = 1.2), layer = "below"),
+
+    list(type = "line", x0 = -to_arm, x1 = -solid_half, y0 = 0, y1 = 0,
+         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below"),
+    list(type = "line", x0 =  solid_half, x1 =  to_arm, y0 = 0, y1 = 0,
+         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below"),
+    list(type = "line", x0 = 0, x1 = 0, y0 = -to_arm, y1 = -solid_half,
+         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below"),
+    list(type = "line", x0 = 0, x1 = 0, y0 =  solid_half, y1 =  to_arm,
+         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below")
+  )
+
+  all_shapes <- c(cell_shapes, cross_shapes)
+
+  # Plotly annotations: subplot numbers
+  subplot_annotations <- lapply(seq_len(nrow(centers)), function(i) {
+    list(
+      x = centers$cx[i],
+      y = centers$cy[i],
+      text = as.character(centers$label[i]),
+      showarrow = FALSE,
+      font = list(size = 12, color = "gray35"),
+      xref = "x",
+      yref = "y"
+    )
+  })
+
+  # Plotly annotations: N/S/L/O labels
+  arm_annotations <- lapply(seq_len(nrow(arm_labels)), function(i) {
+    list(
+      x = arm_labels$lx[i],
+      y = arm_labels$ly[i],
+      text = arm_labels$lab[i],
+      showarrow = FALSE,
+      font = list(size = 22, color = "black"),
+      xref = "x",
+      yref = "y"
+    )
+  })
+
+  # Plot title annotations positioned like the static figure
+  title_annotations <- list(
+    list(
+      x = gx_min + left_inset,
+      y = gy_max + gap_title + gap_sub,
+      text = paste0("<b>", tr["collection_balance"], ":</b> ", plot_name),
+      showarrow = FALSE,
+      xanchor = "left",
+      yanchor = "top",
+      font = list(size = 18, color = "black"),
+      xref = "x",
+      yref = "y"
+    ),
+    list(
+      x = gx_min + left_inset,
+      y = gy_max + gap_title,
+      text = paste0("<b>", tr["plot_code"], ":</b> ", ifelse(is.null(plot_code), "", plot_code)),
+      showarrow = FALSE,
+      xanchor = "left",
+      yanchor = "top",
+      font = list(size = 13, color = "black"),
+      xref = "x",
+      yref = "y"
+    )
+  )
+
+  # Optional scale annotations, matching the mini-legend spirit
+  dashed_len <- max(to_arm - solid_half, 0)
+  sx <- gx_max - 130
+  sy <- gy_min + 10
+
+  scale_shapes <- list(
+    list(type = "line", x0 = sx, x1 = sx + dashed_len, y0 = sy, y1 = sy,
+         line = list(color = "gray50", width = 1, dash = "dot")),
+    list(type = "line", x0 = sx, x1 = sx + 20, y0 = sy - 5, y1 = sy - 5,
+         line = list(color = "gray35", width = 1.2))
+  )
+
+  scale_annotations <- list(
+    list(
+      x = sx + dashed_len / 2,
+      y = sy - 1.6,
+      text = "40 m",
+      showarrow = FALSE,
+      xanchor = "center",
+      yanchor = "top",
+      font = list(size = 11, color = "gray30"),
+      xref = "x",
+      yref = "y"
+    ),
+    list(
+      x = sx + 10,
+      y = sy - 6.6,
+      text = "20 m",
+      showarrow = FALSE,
+      xanchor = "center",
+      yanchor = "top",
+      font = list(size = 11, color = "gray30"),
+      xref = "x",
+      yref = "y"
+    )
+  )
+
+  all_shapes <- c(all_shapes, scale_shapes)
+  all_annotations <- c(subplot_annotations, arm_annotations, title_annotations, scale_annotations)
+
+  p <- plotly::plot_ly(
+    x = plot_df$plot_x,
+    y = plot_df$plot_y,
+    type = "scatter",
+    mode = "markers+text",
+    height = 950,
+    width = 1100,
+    marker = list(
+      color = point_colors,
+      size = sizes,
+      line = list(color = "black", width = 0.5),
+      symbol = "circle"
+    ),
+    text = as.character(plot_df$`New Tag No`),
+    textposition = "middle center",
+    textfont = list(size = 7, color = "black"),
+    hovertext = hover_text,
+    hoverinfo = "text",
+    customdata = tag_ids,
+    showlegend = FALSE
+  ) %>%
+    plotly::layout(
+      xaxis = list(
+        title = "",
+        range = c(gx_min, gx_max),
+        scaleanchor = "y",
+        scaleratio = 1,
+        showgrid = FALSE,
+        zeroline = FALSE,
+        showticklabels = FALSE
+      ),
+      yaxis = list(
+        title = "",
+        range = c(gy_min, y_max_ext),
+        showgrid = FALSE,
+        zeroline = FALSE,
+        showticklabels = FALSE
+      ),
+      shapes = all_shapes,
+      annotations = all_annotations,
+      plot_bgcolor = "white",
+      paper_bgcolor = "white",
+      margin = list(l = 20, r = 20, t = 20, b = 20),
+      autosize = FALSE
+    ) %>%
+    plotly::config(
+      responsive = TRUE,
+      displayModeBar = TRUE,
+      scrollZoom = TRUE,
+      doubleClick = "reset",
+      displaylogo = FALSE,
+      toImageButtonOptions = list(format = "png", scale = 2)
+    ) %>%
+    htmlwidgets::onRender(
+      "function(el) {
+         el.on('plotly_click', function(eventData) {
+           if (!eventData.points || eventData.points.length === 0) return;
+           var tag = eventData.points[0].customdata;
+           if (!tag) return;
+           var anchor = document.getElementById('checklist-tag-' + tag);
+           if (anchor) {
+             anchor.scrollIntoView({behavior: 'smooth', block: 'center'});
+           }
+         });
+       }"
+    )
+
+  p
+}
+
+.build_monitora_subplot_plot_interactive <- function(sp_data,
+                                                     subplot_size = 10,
+                                                     highlight_palms,
+                                                     language = "en") {
+  if (is.null(sp_data) || !nrow(sp_data)) {
+    return(NULL)
+  }
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  use_x10 <- all(c("x10", "y10") %in% names(sp_data))
+  x_col <- if (use_x10) "x10" else "X"
+  y_col <- if (use_x10) "y10" else "Y"
+  size_limit <- if (use_x10) 10 else subplot_size
+
+  if (!all(c(x_col, y_col, "New Tag No", "D") %in% names(sp_data))) {
+    return(NULL)
+  }
+
+  pt_status <- as.character(sp_data$Status)
+  pt_colors <- dplyr::case_when(
+    grepl("Collected|Coletados|Collectés|已采集|Pâri sonswa", pt_status) ~ "gray80",
+    grepl("Palms|Palmeiras|Palmiers|棕榈科|Kwatis", pt_status) ~ "gold",
+    TRUE ~ "#EF4444"
+  )
+
+  diams <- suppressWarnings(as.numeric(sp_data$diameter))
+  diams[!is.finite(diams)] <- 0
+  pt_sizes <- pmax(4, sqrt(diams) * 3.5)
+
+  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(sp_data$`New Tag No`)))
+
+  status_label <- dplyr::case_when(
+    highlight_palms & sp_data$Family == "Arecaceae" ~ tr["palms"],
+    !is.na(sp_data$Collected) & sp_data$Collected != "" ~ tr["collected"],
+    TRUE ~ tr["uncollected"]
+  )
+  hover_text <- paste0(
+    "<b>", tr["hover_tag"], ":", "</b> ", sp_data$`New Tag No`, "<br>",
+    "<b>", tr["hover_species"], ":", "</b> ", sp_data$`Original determination`, "<br>",
+    "<b>", tr["hover_dbh"], ":", "</b> ", round(sp_data$D/10, 1), " cm<br>",
+    "<b>", tr["status"], ":", "</b> ", status_label
+  )
+
+  plotly::plot_ly(
+    x = sp_data[[x_col]],
+    y = sp_data[[y_col]],
+    type = "scatter",
+    mode = "markers+text",
+    marker = list(
+      color = pt_colors,
+      size = pt_sizes,
+      line = list(color = "black", width = 0.8),
+      symbol = "circle"
+    ),
+    text = as.character(sp_data$`New Tag No`),
+    textposition = "middle center",
+    textfont = list(size = 8, color = "black"),
+    hovertext = hover_text,
+    hoverinfo = "text",
+    customdata = tag_ids,
+    showlegend = FALSE
+  ) %>%
+    plotly::layout(
+      xaxis = list(
+        title = "X (m)",
+        range = c(-0.5, size_limit + 0.5),
+        scaleanchor = "y",
+        scaleratio = 1,
+        showgrid = TRUE,
+        gridcolor = "gray90",
+        zeroline = FALSE
+      ),
+      yaxis = list(
+        title = "Y (m)",
+        range = c(-0.5, size_limit + 0.5),
+        showgrid = TRUE,
+        gridcolor = "gray90",
+        zeroline = FALSE
+      ),
+      shapes = list(list(
+        type = "rect",
+        x0 = 0, x1 = size_limit, y0 = 0, y1 = size_limit,
+        line = list(color = "darkolivegreen", width = 2),
+        fillcolor = "rgba(0,0,0,0)",
+        layer = "below"
+      )),
+      plot_bgcolor = "white",
+      paper_bgcolor = "white",
+      margin = list(l = 30, r = 10, t = 30, b = 30)
+    ) %>%
+    plotly::config(
+      responsive = TRUE,
+      displaylogo = FALSE
+    ) %>%
+    htmlwidgets::onRender(
+      "function(el) {
+         el.on('plotly_click', function(d) {
+           if (!d.points || !d.points.length) return;
+           var t = d.points[0].customdata;
+           if (!t) return;
+           var a = document.getElementById('checklist-tag-' + t);
+           if (a) a.scrollIntoView({behavior: 'smooth', block: 'center'});
+         });
+       }"
+    )
+}
+
+
+.build_uncollected_priority_plot_interactive <- function(fp_coords,
+                                                         priority_obj,
+                                                         subplot_size,
+                                                         plot_width_m,
+                                                         plot_length_m,
+                                                         plot_name,
+                                                         plot_code,
+                                                         language = "en") {
+
+  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
+
+  n_rows <- floor(plot_length_m / subplot_size)
+  n_cols <- floor(plot_width_m / subplot_size)
+
+  subplot_grid <- expand.grid(
+    col = seq_len(n_cols) - 1L,
+    row = seq_len(n_rows) - 1L
+  ) %>%
+    tibble::as_tibble() %>%
+    dplyr::mutate(
+      T1 = as.character(col * n_rows + row + 1L),
+      xmin = col * subplot_size,
+      xmax = xmin + subplot_size,
+      ymin = dplyr::if_else(
+        col %% 2 == 0,
+        row * subplot_size,
+        (n_rows - row - 1L) * subplot_size
+      ),
+      ymax = ymin + subplot_size
+    )
+
+  selected_tbl <- priority_obj$priority_table %>%
+    dplyr::select(subplot, visit_order, n_new_species)
+
+  subplot_grid <- subplot_grid %>%
+    dplyr::left_join(selected_tbl, by = c("T1" = "subplot")) %>%
+    dplyr::mutate(
+      selected = !is.na(visit_order),
+      fill_color = dplyr::if_else(selected, "rgba(120,120,120,0.7)", "rgba(235,235,235,1)")
+    )
+
+  uncollected_pts <- fp_coords %>%
+    dplyr::mutate(
+      Family = trimws(as.character(Family)),
+      Collected = trimws(as.character(Collected)),
+      diameter = suppressWarnings(as.numeric(diameter))
+    ) %>%
+    dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae")
+
+  shapes <- c(
+    lapply(seq_len(nrow(subplot_grid)), function(i) {
+      list(
+        type = "rect",
+        x0 = subplot_grid$xmin[i],
+        x1 = subplot_grid$xmax[i],
+        y0 = subplot_grid$ymin[i],
+        y1 = subplot_grid$ymax[i],
+        line = list(
+          color = if (isTRUE(subplot_grid$selected[i])) "black" else "white",
+          width = if (isTRUE(subplot_grid$selected[i])) 1.3 else 0.5
+        ),
+        fillcolor = subplot_grid$fill_color[i],
+        layer = "below"
+      )
+    })
+  )
+
+  annotations <- c(
+    lapply(seq_len(nrow(subplot_grid)), function(i) {
+      txt <- subplot_grid$T1[i]
+      list(
+        x = (subplot_grid$xmin[i] + subplot_grid$xmax[i]) / 2,
+        y = (subplot_grid$ymin[i] + subplot_grid$ymax[i]) / 2,
+        text = txt,
+        showarrow = FALSE,
+        font = list(
+          size = if (isTRUE(subplot_grid$selected[i])) 11 else 9,
+          color = if (isTRUE(subplot_grid$selected[i])) "black" else "gray55"
+        ),
+        xref = "x",
+        yref = "y"
+      )
+    })
+  )
+
+  hover_text <- paste0(
+    "<b>", tr["hover_tag"], ":</b> ", uncollected_pts$`New Tag No`, "<br>",
+    "<b>", tr["hover_species"], ":</b> ", uncollected_pts$`Original determination`, "<br>",
+    "<b>", tr["subplot"], ":</b> ", uncollected_pts$T1, "<br>",
+    "<b>", tr["hover_dbh"], ":</b> ", round(suppressWarnings(as.numeric(uncollected_pts$D)) / 10, 1), " cm"
+  )
+
+  sizes <- uncollected_pts$diameter
+  sizes[!is.finite(sizes)] <- 0
+  sizes <- pmax(6, 2 + sizes * 3)
+
+  plotly::plot_ly(
+    x = uncollected_pts$global_x,
+    y = uncollected_pts$global_y,
+    type = "scatter",
+    mode = "markers+text",
+    marker = list(
+      color = "red",
+      size = sizes,
+      line = list(color = "black", width = 0.5),
+      symbol = "circle"
+    ),
+    text = as.character(uncollected_pts$`New Tag No`),
+    textposition = "middle center",
+    textfont = list(size = 7, color = "black"),
+    hovertext = hover_text,
+    hoverinfo = "text",
+    showlegend = FALSE
+  ) %>%
+    plotly::layout(
+      title = list(
+        text = paste0(
+          "<b>", tr["priority_subplots"], ": ", plot_name, "</b><br>",
+          "<sup>", tr["plot_code"], ": ", plot_code, "</sup>"
+        ),
+        x = 0.5
+      ),
+      xaxis = list(
+        title = tr["x_m"],
+        range = c(0, plot_width_m),
+        tickmode = "array",
+        tickvals = seq(0, plot_width_m, by = subplot_size),
+        ticktext = as.character(seq(0, plot_width_m, by = subplot_size)),
+        scaleanchor = "y",
+        scaleratio = 1,
+        showgrid = FALSE,
+        zeroline = FALSE
+      ),
+      yaxis = list(
+        title = tr["y_m"],
+        range = c(0, plot_length_m),
+        tickmode = "array",
+        tickvals = seq(0, plot_length_m, by = subplot_size),
+        ticktext = as.character(seq(0, plot_length_m, by = subplot_size)),
+        showgrid = FALSE,
+        zeroline = FALSE
+      ),
+      shapes = shapes,
+      annotations = annotations,
+      plot_bgcolor = "white",
+      paper_bgcolor = "white",
+      margin = list(l = 60, r = 40, t = 80, b = 60)
+    ) %>%
+    plotly::config(
+      responsive = TRUE,
+      displayModeBar = TRUE,
+      scrollZoom = TRUE,
+      displaylogo = FALSE,
+      toImageButtonOptions = list(format = "png", scale = 2)
+    )
+}
+
+# Get percentual values ####
+.collection_percentual <- function(fp_sheet, dir = getwd(),
+                                   plot_name = "",
+                                   plot_code = "",
+                                   plot_census_no_fp = "",
+                                   team = "",
+                                   plot_width_m,
+                                   plot_length_m,
+                                   subplot_size = 10) {
+  if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
+
+  output_file <- file.path(dir, "collection_balance.xlsx")
+
+  fp_sheet <- fp_sheet %>%
+    dplyr::mutate(
+      Family = trimws(as.character(Family)),
+      Family = dplyr::if_else(is.na(Family) | Family == "", "Indet", Family),
+      Collected = as.character(Collected),
+      `New Tag No` = trimws(as.character(`New Tag No`)),
+      T1 = as.character(T1)
+    )
+
+  n_cols <- floor(plot_width_m / subplot_size)
+  n_rows <- floor(plot_length_m / subplot_size)
+  total_subplots <- n_cols * n_rows
+  all_subplots <- tibble::tibble(subplot = as.character(seq_len(total_subplots)))
+
+  resume <- fp_sheet %>%
+    dplyr::group_by(subplot = as.character(T1)) %>%
+    dplyr::summarise(
+      total_individuals = dplyr::n(),
+      total_non_arecaceae = sum(Family != "Arecaceae", na.rm = TRUE),
+      collected = sum(!is.na(Collected) & Collected != "", na.rm = TRUE),
+      collected_non_arecaceae = sum(!is.na(Collected) & Collected != "" & Family != "Arecaceae", na.rm = TRUE),
+      uncollected_non_arecaceae = sum((is.na(Collected) | Collected == "") & Family != "Arecaceae", na.rm = TRUE),
+      arecaceae_count = sum(Family == "Arecaceae", na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  resume <- all_subplots %>%
+    dplyr::left_join(resume, by = "subplot") %>%
+    tidyr::replace_na(list(
+      total_individuals = 0,
+      total_non_arecaceae = 0,
+      collected = 0,
+      collected_non_arecaceae = 0,
+      uncollected_non_arecaceae = 0,
+      arecaceae_count = 0
+    )) %>%
+    dplyr::mutate(
+      collected_percentual = dplyr::if_else(
+        total_individuals > 0,
+        round(100 * collected / total_individuals, 1),
+        NA_real_
+      ),
+      collected_percentual_without_arecaceae = dplyr::if_else(
+        total_non_arecaceae > 0,
+        round(100 * collected_non_arecaceae / total_non_arecaceae, 1),
+        NA_real_
+      )
+    )
+
+  resume$subplot_num <- suppressWarnings(as.numeric(resume$subplot))
+  resume <- resume %>%
+    dplyr::arrange(is.na(subplot_num), subplot_num, subplot) %>%
+    dplyr::select(-subplot_num)
+
+  total <- resume %>%
+    dplyr::summarise(
+      subplot = "TOTAL",
+      total_individuals = sum(total_individuals, na.rm = TRUE),
+      total_non_arecaceae = sum(total_non_arecaceae, na.rm = TRUE),
+      collected = sum(collected, na.rm = TRUE),
+      collected_non_arecaceae = sum(collected_non_arecaceae, na.rm = TRUE),
+      uncollected_non_arecaceae = sum(uncollected_non_arecaceae, na.rm = TRUE),
+      arecaceae_count = sum(arecaceae_count, na.rm = TRUE)
+    ) %>%
+    dplyr::mutate(
+      collected_percentual = dplyr::if_else(
+        total_individuals > 0,
+        round(100 * collected / total_individuals, 1),
+        NA_real_
+      ),
+      collected_percentual_without_arecaceae = dplyr::if_else(
+        total_non_arecaceae > 0,
+        round(100 * collected_non_arecaceae / total_non_arecaceae, 1),
+        NA_real_
+      )
+    )
+
+  final_resume <- dplyr::bind_rows(resume, total)
+
+  uncollected_df <- fp_sheet %>%
+    dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae") %>%
+    dplyr::group_by(subplot = as.character(T1)) %>%
+    dplyr::summarise(
+      n_uncollected = n(),
+      tagno_uncollected = .collapse_sorted_tags(`New Tag No`),
+      .groups = "drop"
+    )
+
+  uncollected_df$subplot_num <- suppressWarnings(as.numeric(uncollected_df$subplot))
+  uncollected_df <- uncollected_df %>%
+    dplyr::arrange(is.na(subplot_num), subplot_num, subplot) %>%
+    dplyr::select(-subplot_num)
+
+  total_uncollected <- uncollected_df %>%
+    dplyr::summarise(
+      subplot = "TOTAL",
+      n_uncollected = sum(n_uncollected, na.rm = TRUE),
+      tagno_uncollected = .collapse_sorted_tags(unlist(strsplit(paste(tagno_uncollected, collapse = "|"), "\\|")))
+    )
+
+  final_uncollected <- dplyr::bind_rows(uncollected_df, total_uncollected)
+
+  collected_df <- fp_sheet %>%
+    dplyr::filter(!is.na(Collected) & Collected != "") %>%
+    dplyr::group_by(subplot = as.character(T1)) %>%
+    dplyr::summarise(
+      n_collected = n(),
+      tagno_collected = .collapse_sorted_tags(`New Tag No`),
+      .groups = "drop"
+    )
+
+  collected_df$subplot_num <- suppressWarnings(as.numeric(collected_df$subplot))
+  collected_df <- collected_df %>%
+    dplyr::arrange(is.na(subplot_num), subplot_num, subplot) %>%
+    dplyr::select(-subplot_num)
+
+  total_collected <- collected_df %>%
+    dplyr::summarise(
+      subplot = "TOTAL",
+      n_collected = sum(n_collected, na.rm = TRUE),
+      tagno_collected = .collapse_sorted_tags(unlist(strsplit(paste(tagno_collected, collapse = "|"), "\\|")))
+    )
+
+  final_collected <- dplyr::bind_rows(collected_df, total_collected)
+
+  wb <- openxlsx::createWorkbook()
+
+  header_string <- paste(
+    "Plot Name:", plot_name,
+    "| Plot Code:", plot_code,
+    "| Census No:", plot_census_no_fp,
+    "| Team:", team
+  )
+
+  openxlsx::addWorksheet(wb, "COLLECTION_PERCENTUAL")
+  openxlsx::writeData(wb, "COLLECTION_PERCENTUAL", header_string, startRow = 1, colNames = FALSE)
+  openxlsx::writeData(wb, "COLLECTION_PERCENTUAL", final_resume, startRow = 3)
+
+  openxlsx::addWorksheet(wb, "NOT_COLLECTED")
+  openxlsx::writeData(wb, "NOT_COLLECTED", header_string, startRow = 1, colNames = FALSE)
+  openxlsx::writeData(wb, "NOT_COLLECTED", final_uncollected, startRow = 3)
+
+  openxlsx::addWorksheet(wb, "COLLECTED")
+  openxlsx::writeData(wb, "COLLECTED", header_string, startRow = 1, colNames = FALSE)
+  openxlsx::writeData(wb, "COLLECTED", final_collected, startRow = 3)
+
+  color <- grDevices::colorRampPalette(c("red", "yellow", "green"))(101)
+
+  for (i in seq_len(nrow(resume))) {
+    for (col_name in c("collected_percentual", "collected_percentual_without_arecaceae")) {
+      valor <- final_resume[[col_name]][i]
+      if (!is.na(valor)) {
+        cor_hex <- color[pmax(1, pmin(101, round(valor) + 1))]
+        style <- openxlsx::createStyle(
+          fgFill = cor_hex,
+          halign = "CENTER",
+          textDecoration = "bold",
+          border = "TopBottomLeftRight"
+        )
+        openxlsx::addStyle(
+          wb,
+          sheet = "COLLECTION_PERCENTUAL",
+          style = style,
+          rows = i + 3,
+          cols = which(names(final_resume) == col_name),
+          gridExpand = FALSE,
+          stack = TRUE
+        )
+      }
+    }
+  }
+
+  openxlsx::saveWorkbook(wb, file = output_file, overwrite = TRUE)
+
+  invisible(output_file)
+}
+
+
+.render_plot_report <- function(rmd_path,
+                                output_path,
+                                output_name,
+                                params,
+                                format = c("pdf", "html"),
+                                latex_engine = "pdflatex") {
+
+  format <- match.arg(format)
+
+  if (!dir.exists(output_path)) {
+    dir.create(output_path, recursive = TRUE)
+  }
+
+  final_out <- if (grepl("[/\\\\]", output_name)) {
+    output_name
+  } else {
+    file.path(output_path, output_name)
+  }
+
+  render_env <- new.env(parent = globalenv())
+
+  if (identical(format, "html")) {
+    rmarkdown::render(
+      input = rmd_path,
+      output_file = basename(final_out),
+      output_dir = dirname(final_out),
+      params = params,
+      envir = render_env,
+      clean = TRUE,
+      output_format = rmarkdown::html_document(
+        toc = TRUE,
+        toc_depth = 2,
+        number_sections = TRUE,
+        self_contained = TRUE
+      )
+    )
+
+    message("Full HTML report saved to: ", final_out)
+    return(invisible(final_out))
+  }
+
+  wd <- getwd()
+  old_logs <- list.files(
+    path = wd,
+    pattern = "^file[0-9a-f]+\\.log$",
+    full.names = TRUE
+  )
+
+  temp_pdf <- tempfile(fileext = ".pdf")
+
+  extra_deps <- NULL
+  if (identical(latex_engine, "xelatex")) {
+    extra_deps <- rmarkdown::latex_dependency("ctex", options = "fontset=fandol")
+  }
+
+  rmarkdown::render(
+    input = rmd_path,
+    output_file = basename(temp_pdf),
+    output_dir = tempdir(),
+    params = params,
+    envir = render_env,
+    clean = FALSE,
+    output_format = rmarkdown::pdf_document(
+      keep_tex = TRUE,
+      latex_engine = latex_engine,
+      fig_caption = TRUE,
+      extra_dependencies = extra_deps
+    )
+  )
+
+  preamble_lines <- c(
+    "\\makeatletter",
+    "\\providecommand{\\vcenteredhbox}[1]{\\begingroup",
+    "  \\setbox0=\\hbox{#1}\\parbox{\\wd0}{\\box0}\\endgroup}",
+    "\\renewcommand{\\@dotsep}{4}",
+    "\\renewcommand{\\contentsname}{\\hspace*{-1cm}}",
+    "\\makeatother"
+  )
+
+  tex_candidates <- list.files(tempdir(), pattern = "\\.tex$", full.names = TRUE)
+  tex_file <- tex_candidates[which.max(file.info(tex_candidates)$mtime)]
+
+  if (file.exists(tex_file)) {
+    tex_lines <- readLines(tex_file, warn = FALSE)
+    insert_idx <- grep("\\\\begin\\{document\\}", tex_lines)[1]
+
+    if (!is.na(insert_idx)) {
+      new_tex_lines <- append(tex_lines, preamble_lines, after = insert_idx - 1)
+      writeLines(new_tex_lines, tex_file)
+    }
+
+    tinytex::latexmk(tex_file, engine = latex_engine)
+  }
+
+  built_pdf <- sub("\\.tex$", ".pdf", tex_file)
+
+  if (!file.exists(built_pdf)) {
+    stop("PDF was not generated from the temporary .tex file.", call. = FALSE)
+  }
+
+  file.copy(built_pdf, final_out, overwrite = TRUE)
+
+  new_logs <- list.files(
+    path = wd,
+    pattern = "^file[0-9a-f]+\\.log$",
+    full.names = TRUE
+  )
+  extra_logs <- setdiff(new_logs, old_logs)
+  if (length(extra_logs)) unlink(extra_logs, force = TRUE)
+
+  log_files <- list.files(
+    path = output_path,
+    pattern = "^file[0-9a-f]+\\.log$",
+    full.names = TRUE
+  )
+  if (length(log_files)) unlink(log_files, force = TRUE)
+
+  message("Full PDF report saved to: ", final_out)
+
+  invisible(final_out)
+}
+
+.detect_coordinate_mode <- function(df) {
+  has_local_xy <- .has_any(df, c("X")) && .has_any(df, c("Y"))
+  has_std_xy <- .has_any(df, c("Standardised X", "Standardized X")) &&
+    .has_any(df, c("Standardised Y", "Standardized Y"))
+
+  has_local_t1 <- .has_any(df, c("T1", "Sub Plot T1", "SubPlotT1"))
+  has_std_t1 <- .has_any(df, c("Standardised SubPlot T1", "Standardized SubPlot T1"))
+
+  local_score <- 0L
+  std_score <- 0L
+
+  if (has_local_xy && has_local_t1) {
+    local_t1 <- .best_numeric_vec(df, c("T1", "Sub Plot T1", "SubPlotT1"), default = NA_real_)
+    local_x  <- .best_numeric_vec(df, c("X"), default = NA_real_)
+    local_y  <- .best_numeric_vec(df, c("Y"), default = NA_real_)
+    local_score <- sum(is.finite(.parse_num(local_t1)) &
+                         is.finite(.parse_num(local_x)) &
+                         is.finite(.parse_num(local_y)))
+  }
+
+  if (has_std_xy && has_std_t1) {
+    std_t1 <- .best_numeric_vec(df, c("Standardised SubPlot T1", "Standardized SubPlot T1"), default = NA_real_)
+    std_x  <- .best_numeric_vec(df, c("Standardised X", "Standardized X"), default = NA_real_)
+    std_y  <- .best_numeric_vec(df, c("Standardised Y", "Standardized Y"), default = NA_real_)
+    std_score <- sum(is.finite(.parse_num(std_t1)) &
+                       is.finite(.parse_num(std_x)) &
+                       is.finite(.parse_num(std_y)))
+  }
+
+  if (local_score > 0 || std_score > 0) {
+    if (std_score > local_score) {
+      return("standardised")
+    } else {
+      return("local")
+    }
+  }
+
+  if (has_local_xy) {
+    return("local_xy_only")
+  }
+
+  "unknown"
+}
