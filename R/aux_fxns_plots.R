@@ -1359,27 +1359,13 @@
 }
 
 .norm <- function(x) {
-  x <- as.character(x)
-  x[is.na(x)] <- ""
-
-  x2 <- suppressWarnings(
-    iconv(
-      x,
-      from = "",
-      to = "ASCII//TRANSLIT",
-      sub = ""
-    )
-  )
-
-  bad <- is.na(x2) | !nzchar(x2)
-  x2[bad] <- x[bad]
-
-  x2 <- tolower(x2)
+  x <- .clean_chr(x)
+  x <- tolower(x)
 
   gsub(
     "[^a-z0-9]+",
     "",
-    x2
+    x
   )
 }
 
@@ -1472,10 +1458,8 @@
 }
 
 .station_norm_name <- function(v) {
-  v <- .clean_spaces(v)
-  v2 <- suppressWarnings(iconv(v, from = "", to = "ASCII//TRANSLIT", sub = ""))
-  v2[is.na(v2) | !nzchar(v2)] <- v[is.na(v2) | !nzchar(v2)]
-  tolower(v2)
+  v <- .clean_chr(v)
+  tolower(v)
 }
 
 .station_norm_num <- function(v) {
@@ -4857,4 +4841,5 @@ dict <- tibble::tibble(
       "Dens. rel. (%)", "Freq. rel. (%)", "VI"
     )
   )
-)
+  )
+
