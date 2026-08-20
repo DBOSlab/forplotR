@@ -1,4 +1,60 @@
 # tests/testthat/test-forplot_vouchers.R
+.make_fp_xlsx_for_forplot_vouchers <- function(path) {
+
+  skip_if_not_installed("openxlsx")
+
+  meta_colnames <- c(
+    "Plotcode: TEST",
+    "Plot Name: Demo",
+    "Date: 05/12/2025",
+    "Team: Alice, Bob"
+  )
+
+  header_row <- c(
+    "Family",
+    "Voucher",
+    "Collected",
+    "Original determination"
+  )
+
+  data_row <- c(
+    "Fabaceae",
+    "ABC1234",
+    "yes",
+    "Inga sp."
+  )
+
+  dat <- as.data.frame(
+    rbind(
+      header_row,
+      data_row
+    ),
+    stringsAsFactors = FALSE
+  )
+
+  names(dat) <- meta_colnames
+
+  wb <- openxlsx::createWorkbook()
+
+  openxlsx::addWorksheet(
+    wb,
+    "Sheet1"
+  )
+
+  openxlsx::writeData(
+    wb,
+    "Sheet1",
+    dat,
+    colNames = TRUE,
+    rowNames = FALSE
+  )
+
+  openxlsx::saveWorkbook(
+    wb,
+    path,
+    overwrite = TRUE
+  )
+}
 
 test_that("forplot_vouchers errors on missing fp_file_path", {
   expect_error(
@@ -69,7 +125,7 @@ test_that("forplot_vouchers moves photos from outdated genus folder and deletes 
   out_dir <- tempfile(pattern = "voucher_imgs_")
   dir.create(out_dir)
 
-  .make_fp_xlsx_for_mk_voucher_dirs(fp_path)
+  .make_fp_xlsx_for_forplot_vouchers(fp_path)
 
   old_dir <- file.path(out_dir, "Fabaceae", "Oldgenus", "ABC1234")
   dir.create(old_dir, recursive = TRUE)
@@ -98,7 +154,7 @@ test_that("forplot_vouchers preserves existing destination files and moves non-d
   out_dir <- tempfile(pattern = "voucher_imgs_")
   dir.create(out_dir)
 
-  .make_fp_xlsx_for_mk_voucher_dirs(fp_path)
+  .make_fp_xlsx_for_forplot_vouchers(fp_path)
 
   correct_dir <- file.path(out_dir, "Fabaceae", "Inga", "ABC1234")
   dir.create(correct_dir, recursive = TRUE)

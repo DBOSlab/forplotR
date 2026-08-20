@@ -862,25 +862,25 @@ forplot_sheets <- function(fp_file_path = NULL,
       # Portuguese version
       if (add_census_notes) {
         herb_sheet[[notes]][i] <- paste0(
-          "Árvore, ",
-          ifelse(d_i != "", paste0(d_i, "cm de diâmetro à altura do peito (DAP), "), ""),
+          "\u00c1rvore, ",
+          ifelse(d_i != "", paste0(d_i, "cm de di\u00e2metro \u00e0 altura do peito (DAP), "), ""),
           ifelse(description_flag != "", paste0(description_flag, ", "), ""),
           ifelse(census_note_i != "", paste0(census_note_i, ", "), ""),
           description_li,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
-          ifelse(tag_i != "", paste0("Indivíduo #", tag_i), ""),
+          ifelse(tag_i != "", paste0("Indiv\u00edduo #", tag_i), ""),
           ifelse(t1_i != "",
                  paste0(" na subparcela ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
                  "")
         )
       } else {
         herb_sheet[[notes]][i] <- paste0(
-          "Árvore, ",
-          ifelse(d_i != "", paste0(d_i, "cm de diâmetro à altura do peito (DAP), "), ""),
+          "\u00c1rvore, ",
+          ifelse(d_i != "", paste0(d_i, "cm de di\u00e2metro \u00e0 altura do peito (DAP), "), ""),
           ifelse(description_flag != "", paste0(description_flag, ", "), ""),
           description_li,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
-          ifelse(tag_i != "", paste0("Indivíduo #", tag_i), ""),
+          ifelse(tag_i != "", paste0("Indiv\u00edduo #", tag_i), ""),
           ifelse(t1_i != "",
                  paste0(" na subparcela ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
                  "")
@@ -892,8 +892,8 @@ forplot_sheets <- function(fp_file_path = NULL,
       # Spanish version
       if (add_census_notes) {
         herb_sheet[[notes]][i] <- paste0(
-          "Árbol, ",
-          ifelse(d_i != "", paste0(d_i, "cm de diámetro a la altura del pecho (DAP), "), ""),
+          "\u00c1rbol, ",
+          ifelse(d_i != "", paste0(d_i, "cm de di\u00e1metro a la altura del pecho (DAP), "), ""),
           ifelse(description_flag != "", paste0(description_flag, ", "), ""),
           ifelse(census_note_i != "", paste0(census_note_i, ", "), ""),
           description_li,
@@ -905,8 +905,8 @@ forplot_sheets <- function(fp_file_path = NULL,
         )
       } else {
         herb_sheet[[notes]][i] <- paste0(
-          "Árbol, ",
-          ifelse(d_i != "", paste0(d_i, "cm de diámetro a la altura del pecho (DAP), "), ""),
+          "\u00c1rbol, ",
+          ifelse(d_i != "", paste0(d_i, "cm de di\u00e1metro a la altura del pecho (DAP), "), ""),
           ifelse(description_flag != "", paste0(description_flag, ", "), ""),
           description_li,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),

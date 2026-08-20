@@ -685,9 +685,14 @@
     dplyr::mutate(
       `New Stem Grouping` = as.character(`New Stem Grouping`),
       `New Tag No` = as.character(`New Tag No`),
-      D = suppressWarnings(as.numeric(D)),
-      ExtraD = suppressWarnings(as.numeric(ExtraD))
+      D = suppressWarnings(as.numeric(D))
     )
+
+  if ("ExtraD" %in% names(df)) {
+    df$ExtraD <- suppressWarnings(
+      as.numeric(df$ExtraD)
+    )
+  }
 
   # Find groups with multiple stems (duplicate New Stem Grouping)
   stem_group_counts <- df %>%
@@ -761,10 +766,28 @@
 
     # Also check for ExtraD column if available
     if ("ExtraD" %in% names(group_rows)) {
-      all_extra_diameters <- group_rows$ExtraD[!is.na(group_rows$ExtraD)]
-      valid_extra_diameters <- all_extra_diameters[!is.na(all_extra_diameters) & all_extra_diameters >= min_diameter]
-      D_eq <- sqrt(sum(valid_extra_diameters^2))
-      main_row$ExtraD <- D_eq
+
+      all_extra_diameters <- group_rows$ExtraD[
+        !is.na(group_rows$ExtraD)
+      ]
+
+      valid_extra_diameters <- all_extra_diameters[
+        is.finite(all_extra_diameters) &
+          all_extra_diameters >= min_diameter
+      ]
+
+      if (length(valid_extra_diameters) > 0L) {
+
+        extra_d_eq <- sqrt(
+          sum(valid_extra_diameters^2)
+        )
+
+        main_row$ExtraD <- extra_d_eq
+
+      } else {
+
+        main_row$ExtraD <- NA_real_
+      }
     }
 
     # Store the updated row and mark which tags to keep
@@ -835,19 +858,19 @@
     if ("Subunidades" %in% nm) "Subunidades" else
       .find_best_col(df, c(
         "subunidade", "subunidades", "sub_unidade", "sub_unidades",
-        "orientacao", "orientação", "unidade", "ul"
+        "orientacao", "orienta\u00e7\u00e3o", "unidade", "ul"
       ))
 
   col_nparcela <- if ("N_parcela" %in% nm) "N_parcela" else
     .find_best_col(df, c(
-      "n_parcela", "nparcela", "numero_parcela", "número_parcela",
+      "n_parcela", "nparcela", "numero_parcela", "n\u00famero_parcela",
       "parcela", "subplot", "subparcela", "t2"
     ))
 
   col_tag <- if ("N_arvore" %in% nm) "N_arvore" else
     .find_best_col(df, c(
-      "n_arvore", "n árvore", "numero_arvore", "número_arvore",
-      "narvore", "arvore", "árvore", "tag", "newtag", "numarvore"
+      "n_arvore", "n \u00e1rvore", "numero_arvore", "n\u00famero_arvore",
+      "narvore", "arvore", "\u00e1rvore", "tag", "newtag", "numarvore"
     ))
 
   col_coletores <- if ("nome_coletores" %in% nm) "nome_coletores" else
@@ -858,34 +881,34 @@
       .find_best_col(df, c("nomeuc", "nome_uc", "uc", "unidadeconservacao", "unidade_conservacao", "cduc"))
 
   col_estacao <- if ("Nome_estacao" %in% nm) "Nome_estacao" else
-    .find_best_col(df, c("nome_estacao", "nome estação", "nome_estação", "estacao", "estação", "nomeestacao"))
+    .find_best_col(df, c("nome_estacao", "nome esta\u00e7\u00e3o", "nome_esta\u00e7\u00e3o", "estacao", "esta\u00e7\u00e3o", "nomeestacao"))
 
   col_estacao_n <- if ("N_estacao" %in% nm) "N_estacao" else
-    .find_best_col(df, c("n_estacao", "nestacao", "num_estacao", "numero_estacao", "número_estacao", "nºestacao", "n°estacao"))
+    .find_best_col(df, c("n_estacao", "nestacao", "num_estacao", "numero_estacao", "n\u00famero_estacao", "n\u00baestacao", "n\u00b0estacao"))
 
-  col_familia <- if ("Família" %in% nm) "Família" else
+  col_familia <- if ("Fam\u00edlia" %in% nm) "Fam\u00edlia" else
     if ("Familia" %in% nm) "Familia" else
-      .find_best_col(df, c("familia", "família", "family"))
+      .find_best_col(df, c("familia", "fam\u00edlia", "family"))
 
-  col_genero <- if ("Gênero" %in% nm) "Gênero" else
+  col_genero <- if ("G\u00eanero" %in% nm) "G\u00eanero" else
     if ("Genero" %in% nm) "Genero" else
-      .find_best_col(df, c("genero", "gênero", "genus"))
+      .find_best_col(df, c("genero", "g\u00eanero", "genus"))
 
-  col_especie <- if ("Espécie" %in% nm) "Espécie" else
+  col_especie <- if ("Esp\u00e9cie" %in% nm) "Esp\u00e9cie" else
     if ("Especie" %in% nm) "Especie" else
-      .find_best_col(df, c("especie", "espécie", "species", "sp"))
+      .find_best_col(df, c("especie", "esp\u00e9cie", "species", "sp"))
 
   col_nomecomum <- if ("Nome comum" %in% nm) "Nome comum" else
     .find_best_col(df, c("nome comum", "nome_comum", "nomecomum", "popular", "morphospecies"))
 
   col_coletado <- if ("individuo coletado" %in% nm) "individuo coletado" else
     if ("individuo coletado ?" %in% nm) "individuo coletado ?" else
-      if ("indivíduo coletado" %in% nm) "indivíduo coletado" else
-        if ("indivíduo coletado ?" %in% nm) "indivíduo coletado ?" else
+      if ("indiv\u00edduo coletado" %in% nm) "indiv\u00edduo coletado" else
+        if ("indiv\u00edduo coletado ?" %in% nm) "indiv\u00edduo coletado ?" else
           .find_best_col(df, c(
             "individuo coletado", "individuo coletado ?",
-            "indivíduo coletado", "indivíduo coletado ?",
-            "individuo_coletado", "indivíduo_coletado",
+            "indiv\u00edduo coletado", "indiv\u00edduo coletado ?",
+            "individuo_coletado", "indiv\u00edduo_coletado",
             "coletado", "collected"
           ))
 
@@ -900,11 +923,11 @@
     ))
   }
 
-  col_voucher_n <- if ("voucher/número" %in% nm) "voucher/número" else
+  col_voucher_n <- if ("voucher/n\u00famero" %in% nm) "voucher/n\u00famero" else
     if ("voucher/numero" %in% nm) "voucher/numero" else
       .find_best_col(df, c(
-        "voucher/número", "voucher/numero", "voucher_numero", "voucher_número",
-        "vouchernumero", "voucher_n", "numero voucher", "número voucher",
+        "voucher/n\u00famero", "voucher/numero", "voucher_numero", "voucher_n\u00famero",
+        "vouchernumero", "voucher_n", "numero voucher", "n\u00famero voucher",
         "voucher number"
       ))
 
@@ -928,23 +951,23 @@
 
   col_cap <- if ("cap_tot" %in% nm) "cap_tot" else
     if ("circ total" %in% nm) "circ total" else
-      .find_best_col(df, c("cap_tot", "captot", "cap total", "cap_total", "cap", "circ total", "circunferencia", "circunferência"))
+      .find_best_col(df, c("cap_tot", "captot", "cap total", "cap_total", "cap", "circ total", "circunferencia", "circunfer\u00eancia"))
 
   col_ano <- if ("Ano" %in% nm) "Ano" else
     if ("Data" %in% nm) "Data" else
       .find_best_col(df, c("ano", "censo", "year", "data", "date"))
 
   col_dead <- if ("arvore_morta" %in% nm) "arvore_morta" else
-    if ("árvore_morta" %in% nm) "árvore_morta" else
-      .find_best_col(df, c("arvore_morta", "árvore_morta", "arvore morta", "morta", "dead"))
+    if ("\u00e1rvore_morta" %in% nm) "\u00e1rvore_morta" else
+      .find_best_col(df, c("arvore_morta", "\u00e1rvore_morta", "arvore morta", "morta", "dead"))
 
-  col_obs <- if ("observação" %in% nm) "observação" else
+  col_obs <- if ("observa\u00e7\u00e3o" %in% nm) "observa\u00e7\u00e3o" else
     if ("observacao" %in% nm) "observacao" else
-      .find_best_col(df, c("observação", "observacao", "obs", "census notes", "comentarios", "comentários"))
+      .find_best_col(df, c("observa\u00e7\u00e3o", "observacao", "obs", "census notes", "comentarios", "coment\u00e1rios"))
 
   col_basal_area <- if ("AB" %in% nm) "AB" else
     if ("ABcap" %in% nm) "ABcap" else
-      .find_best_col(df, c("ab", "abcap", "basal area", "area basal", "área basal"))
+      .find_best_col(df, c("ab", "abcap", "basal area", "area basal", "\u00e1rea basal"))
 
   col_pom <- if ("POM(m)" %in% nm) "POM(m)" else
     if ("POM" %in% nm) "POM" else
@@ -1268,9 +1291,26 @@
 .norm <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
-  x2 <- suppressWarnings(iconv(x, from = "", to = "ASCII//TRANSLIT", sub = ""))
-  x2[is.na(x2) | !nzchar(x2)] <- x[is.na(x2) | !nzchar(x2)]
-  tolower(gsub("[^a-z0-9]+", "", x2))
+
+  x2 <- suppressWarnings(
+    iconv(
+      x,
+      from = "",
+      to = "ASCII//TRANSLIT",
+      sub = ""
+    )
+  )
+
+  bad <- is.na(x2) | !nzchar(x2)
+  x2[bad] <- x[bad]
+
+  x2 <- tolower(x2)
+
+  gsub(
+    "[^a-z0-9]+",
+    "",
+    x2
+  )
 }
 
 .find_best_col <- function(df, aliases) {
@@ -1396,6 +1436,223 @@
 }
 
 
+
+#' Resolve rectangular plot geometry from area and subplot size
+#'
+#' @param plot_size Plot area in hectares.
+#' @param subplot_size Side length of a square subplot in meters.
+#' @param plot_width_m Optional plot width in meters.
+#' @param plot_length_m Optional plot length in meters.
+#' @param auto_message Logical; if TRUE, report automatically inferred dimensions.
+#'
+#' @return A named list with resolved plot dimensions and grid properties.
+#'
+#' @keywords internal
+#' @noRd
+.resolve_plot_geometry <- function(plot_size,
+                                   subplot_size,
+                                   plot_width_m = NULL,
+                                   plot_length_m = NULL,
+                                   auto_message = FALSE) {
+
+  .validate_plot_size(plot_size)
+  .validate_subplot_size(subplot_size)
+
+  check_dim <- function(x, nm) {
+    if (is.null(x)) return(NULL)
+    ok <- is.numeric(x) && length(x) == 1L && is.finite(x) && x > 0
+    if (!ok) {
+      stop(sprintf("`%s` must be NULL or a single positive numeric value.", nm),
+           call. = FALSE)
+    }
+    as.numeric(x)
+  }
+
+  plot_width_m <- check_dim(plot_width_m, "plot_width_m")
+  plot_length_m <- check_dim(plot_length_m, "plot_length_m")
+
+  area_m2 <- as.numeric(plot_size) * 10000
+  subplot_area_m2 <- as.numeric(subplot_size)^2
+  tol <- max(1e-7, area_m2 * 1e-10)
+
+  # If neither dimension is supplied, infer a compact rectangular grid.
+  if (is.null(plot_width_m) && is.null(plot_length_m)) {
+    n_exact <- area_m2 / subplot_area_m2
+
+    if (!isTRUE(all.equal(n_exact, round(n_exact), tolerance = 1e-8))) {
+      stop(
+        paste0(
+          "`plot_size` and `subplot_size` do not form an integer number of square subplots. ",
+          "Supply compatible values, or provide a plot geometry whose width and length ",
+          "are exact multiples of `subplot_size`."
+        ),
+        call. = FALSE
+      )
+    }
+
+    n_subplots <- as.integer(round(n_exact))
+
+    # Choose the factor pair nearest a square to avoid very elongated automatic layouts.
+    d <- seq_len(max(1L, floor(sqrt(n_subplots))))
+    d <- d[n_subplots %% d == 0L]
+    n_cols <- max(d)
+    n_rows <- as.integer(n_subplots / n_cols)
+
+    plot_width_m <- n_cols * subplot_size
+    plot_length_m <- n_rows * subplot_size
+
+    if (isTRUE(auto_message)) {
+      message(
+        "Auto-resolved plot geometry: ",
+        format(plot_width_m, trim = TRUE), " x ",
+        format(plot_length_m, trim = TRUE), " m (",
+        n_cols, " x ", n_rows, " subplots)."
+      )
+    }
+  } else {
+    if (is.null(plot_width_m)) {
+      plot_width_m <- area_m2 / plot_length_m
+    }
+    if (is.null(plot_length_m)) {
+      plot_length_m <- area_m2 / plot_width_m
+    }
+
+    if (abs(plot_width_m * plot_length_m - area_m2) > tol) {
+      stop(
+        "`plot_width_m * plot_length_m` must match the area implied by `plot_size`.",
+        call. = FALSE
+      )
+    }
+
+    n_cols_exact <- plot_width_m / subplot_size
+    n_rows_exact <- plot_length_m / subplot_size
+
+    if (!isTRUE(all.equal(n_cols_exact, round(n_cols_exact), tolerance = 1e-8)) ||
+        !isTRUE(all.equal(n_rows_exact, round(n_rows_exact), tolerance = 1e-8))) {
+      stop(
+        "`plot_width_m` and `plot_length_m` must be exact multiples of `subplot_size`.",
+        call. = FALSE
+      )
+    }
+
+    n_cols <- as.integer(round(n_cols_exact))
+    n_rows <- as.integer(round(n_rows_exact))
+    n_subplots <- n_cols * n_rows
+  }
+
+  list(
+    area_m2 = area_m2,
+    plot_size_ha = area_m2 / 10000,
+    subplot_size = as.numeric(subplot_size),
+    subplot_area_m2 = subplot_area_m2,
+    plot_width_m = as.numeric(plot_width_m),
+    plot_length_m = as.numeric(plot_length_m),
+    n_cols = as.integer(n_cols),
+    n_rows = as.integer(n_rows),
+    n_subplots = as.integer(n_subplots),
+    max_x = as.numeric(plot_width_m),
+    max_y = as.numeric(plot_length_m),
+    aspect = as.numeric(plot_width_m / plot_length_m)
+  )
+}
+
+
+#' Validate local X/Y coordinates against subplot dimensions
+#'
+#' @param df Data frame containing X and Y.
+#' @param subplot_size Side length of the subplot in meters.
+#' @param tolerance Numeric tolerance in meters.
+#'
+#' @return Invisibly TRUE.
+#'
+#' @keywords internal
+#' @noRd
+.validate_local_xy <- function(df, subplot_size, tolerance = 1e-7) {
+  if (!all(c("X", "Y") %in% names(df))) {
+    stop("Local coordinate validation requires `X` and `Y` columns.", call. = FALSE)
+  }
+
+  x <- suppressWarnings(as.numeric(df$X))
+  y <- suppressWarnings(as.numeric(df$Y))
+
+  bad <- is.finite(x) & is.finite(y) &
+    (x < -tolerance | y < -tolerance |
+       x > subplot_size + tolerance | y > subplot_size + tolerance)
+
+  if (any(bad)) {
+    idx <- which(bad)
+    sample_idx <- utils::head(idx, 5L)
+    details <- paste0(
+      "row ", sample_idx,
+      " (X=", format(x[sample_idx], trim = TRUE),
+      ", Y=", format(y[sample_idx], trim = TRUE), ")"
+    )
+
+    stop(
+      paste0(
+        "Local X/Y coordinates must fall between 0 and `subplot_size` (",
+        format(subplot_size, trim = TRUE), " m). Invalid examples: ",
+        paste(details, collapse = "; "), "."
+      ),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+#' Choose a static export size that preserves plot aspect ratio
+#'
+#' @param plot_width_m Plot width in meters.
+#' @param plot_length_m Plot length in meters.
+#' @param max_width_in Maximum output width in inches.
+#' @param max_height_in Maximum output height in inches.
+#' @param min_width_in Minimum useful output width in inches.
+#' @param min_height_in Minimum useful output height in inches.
+#'
+#' @return Named list with width and height in inches.
+#'
+#' @keywords internal
+#' @noRd
+.plot_export_size <- function(plot_width_m,
+                              plot_length_m,
+                              max_width_in = 12,
+                              max_height_in = 8,
+                              min_width_in = 4,
+                              min_height_in = 4) {
+  aspect <- plot_width_m / plot_length_m
+
+  width <- max_width_in
+  height <- width / aspect
+
+  if (height > max_height_in) {
+    height <- max_height_in
+    width <- height * aspect
+  }
+
+  width <- max(min_width_in, min(max_width_in, width))
+  height <- max(min_height_in, min(max_height_in, height))
+
+  list(width = width, height = height)
+}
+
+
+#' Scale symbolic map elements for large plot extents
+#'
+#' @param plot_width_m Plot width in meters.
+#' @param plot_length_m Plot length in meters.
+#'
+#' @return Numeric scale factor between 0.25 and 1.
+#'
+#' @keywords internal
+#' @noRd
+.plot_symbol_scale <- function(plot_width_m, plot_length_m) {
+  linear_extent <- sqrt(plot_width_m * plot_length_m)
+  max(0.25, min(1, 100 / linear_extent))
+}
+
+
 #' Compute global coordinates for serpentine ForestPlots layouts
 #'
 #' @param fp_clean Canonical field-sheet data frame.
@@ -1410,21 +1667,51 @@
                                         subplot_size,
                                         plot_width_m,
                                         plot_length_m) {
-  n_rows <- floor(plot_length_m / subplot_size)
-  n_cols <- floor(plot_width_m / subplot_size)
+  n_rows_exact <- plot_length_m / subplot_size
+  n_cols_exact <- plot_width_m / subplot_size
 
-  if (n_rows <= 0 || n_cols <= 0) {
+  if (!isTRUE(all.equal(n_rows_exact, round(n_rows_exact), tolerance = 1e-8)) ||
+      !isTRUE(all.equal(n_cols_exact, round(n_cols_exact), tolerance = 1e-8))) {
+    stop(
+      "`plot_width_m` and `plot_length_m` must be exact multiples of `subplot_size`.",
+      call. = FALSE
+    )
+  }
+
+  n_rows <- as.integer(round(n_rows_exact))
+  n_cols <- as.integer(round(n_cols_exact))
+
+  if (n_rows <= 0L || n_cols <= 0L) {
     stop("Invalid plot dimensions relative to `subplot_size`.", call. = FALSE)
   }
 
-  max_x <- n_cols * subplot_size
-  max_y <- n_rows * subplot_size
-
-  fp_clean %>%
+  out <- fp_clean %>%
     dplyr::mutate(
       T1 = suppressWarnings(as.numeric(T1)),
       X = suppressWarnings(as.numeric(X)),
-      Y = suppressWarnings(as.numeric(Y)),
+      Y = suppressWarnings(as.numeric(Y))
+    )
+
+  .validate_local_xy(out, subplot_size = subplot_size)
+
+  total_subplots <- n_rows * n_cols
+  bad_t1 <- !is.finite(out$T1) | out$T1 < 1 | out$T1 > total_subplots
+
+  if (any(bad_t1)) {
+    bad_vals <- unique(out$T1[bad_t1])
+    bad_vals <- bad_vals[seq_len(min(length(bad_vals), 5L))]
+    stop(
+      paste0(
+        "`T1` contains subplot IDs outside the resolved plot grid (1-",
+        total_subplots, "). Invalid example(s): ",
+        paste(bad_vals, collapse = ", "), "."
+      ),
+      call. = FALSE
+    )
+  }
+
+  out %>%
+    dplyr::mutate(
       col = floor((T1 - 1) / n_rows),
       row = (T1 - 1) %% n_rows,
       global_x = col * subplot_size + X,
@@ -1432,13 +1719,9 @@
         col %% 2 == 0,
         row * subplot_size + Y,
         (n_rows - row - 1) * subplot_size + Y
-      )
-    ) %>%
-    dplyr::filter(
-      global_x >= 0,
-      global_y >= 0,
-      global_x <= max_x,
-      global_y <= max_y
+      ),
+      draw_x = global_x,
+      draw_y = global_y
     )
 }
 
@@ -2620,7 +2903,7 @@
     "}",
     "```",
     "",
-    "```{r general-plot-pdf, echo=FALSE, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",
+    "```{r general-plot-pdf, echo=FALSE, fig.width=12, fig.height=8, out.width='\\\\textwidth', out.height='0.72\\\\textheight', out.extra='keepaspectratio', fig.align='center'}",
     "if (knitr::is_latex_output() && !is.null(params$main_plot)) {",
     "  print(params$main_plot)",
     "}",
@@ -2645,7 +2928,7 @@
     "}",
     "```",
     "",
-    "```{r collected-only-pdf, echo=FALSE, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",
+    "```{r collected-only-pdf, echo=FALSE, fig.width=12, fig.height=8, out.width='\\\\textwidth', out.height='0.72\\\\textheight', out.extra='keepaspectratio', fig.align='center'}",
     "if (knitr::is_latex_output() && !is.null(params$collected_plot)) {",
     "  print(params$collected_plot)",
     "}",
@@ -2670,7 +2953,7 @@
     "}",
     "```",
     "",
-    "```{r uncollected-pdf, echo=FALSE, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",
+    "```{r uncollected-pdf, echo=FALSE, fig.width=12, fig.height=8, out.width='\\\\textwidth', out.height='0.72\\\\textheight', out.extra='keepaspectratio', fig.align='center'}",
     "if (knitr::is_latex_output() && !is.null(params$uncollected_plot)) {",
     "  print(params$uncollected_plot)",
     "}",
@@ -2695,7 +2978,7 @@
     "}",
     "```",
     "",
-    "```{r uncollected-palm-pdf, echo=FALSE, fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",
+    "```{r uncollected-palm-pdf, echo=FALSE, fig.width=12, fig.height=8, out.width='\\\\textwidth', out.height='0.72\\\\textheight', out.extra='keepaspectratio', fig.align='center'}",
     "if (knitr::is_latex_output() && !is.null(params$uncollected_palm_plot)) {",
     "  print(params$uncollected_palm_plot)",
     "}",
@@ -2721,8 +3004,8 @@
     "  'pt' = 'Subparcelas',",
     "  'es' = 'Subparcelas',",
     "  'fr' = 'Sous-parcelles',",
-    "  'ma' = '子样地',",
-    "  'pa' = 'Rêtâ kukâra krepãã sââ',",
+    "  'ma' = '\u5b50\u6837\u5730',",
+    "  'pa' = 'R\u00eat\u00e2 kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2',",
     "  'Subplots'",
     ")",
     "",
@@ -2740,8 +3023,8 @@
     "  'pt' = 'Subparcela ',",
     "  'es' = 'Subparcela ',",
     "  'fr' = 'Sous-parcelle ',",
-    "  'ma' = '子样地 ',",
-    "  'pa' = 'Rêtâ kukâra krepãã sââ ',",
+    "  'ma' = '\u5b50\u6837\u5730 ',",
+    "  'pa' = 'R\u00eat\u00e2 kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 ',",
     "  'Subplot '",
     ")",
     "",
@@ -2882,7 +3165,7 @@
     "}",
     "```",
     "",
-    "```{r priority-route-pdf, echo=FALSE, eval=knitr::is_latex_output(), fig.width=12, fig.height=12, out.width='\\\\textwidth', fig.align='center'}",
+    "```{r priority-route-pdf, echo=FALSE, eval=knitr::is_latex_output(), fig.width=12, fig.height=8, out.width='\\\\textwidth', out.height='0.72\\\\textheight', out.extra='keepaspectratio', fig.align='center'}",
     "if (!is.null(params$priority_uncollected_plot)) {",
     "  print(params$priority_uncollected_plot)",
     "}",
@@ -3096,7 +3379,8 @@
 .harmonize_plot_input <- function(fp_file_path,
                                   input_type,
                                   station_name = NULL,
-                                  verbose = TRUE) {
+                                  verbose = TRUE,
+                                  require_spatial = TRUE) {
 
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(
@@ -3256,12 +3540,32 @@
     }
   )
 
-  needed_cols <- c(
-    "New Tag No", "T1", "X", "Y", "D",
-    "Family", "Original determination", "Voucher", "Collected"
+  core_cols <- c(
+    "Family",
+    "Original determination",
+    "Voucher",
+    "Collected"
   )
 
-  missing_cols <- setdiff(needed_cols, names(out$fp_sheet))
+  spatial_cols <- c(
+    "New Tag No",
+    "T1",
+    "X",
+    "Y",
+    "D"
+  )
+
+  needed_cols <- if (isTRUE(require_spatial)) {
+    c(spatial_cols, core_cols)
+  } else {
+    core_cols
+  }
+
+  missing_cols <- setdiff(
+    needed_cols,
+    names(out$fp_sheet)
+  )
+
   if (length(missing_cols)) {
     stop(
       "The harmonized input is missing required columns: ",
@@ -3808,7 +4112,7 @@
 #' # "Status"
 #'
 #' lab$species_tbl
-#' # c("Espécie", "Família", "Abundância", "Subparcelas",
+#' # c("Esp\u00e9cie", "Fam\u00edlia", "Abund\u00e2ncia", "Subparcelas",
 #' #   "Dens. rel. (%)", "Freq. rel. (%)", "VI")
 #' }
 .get_lab <- function(language = "en", dict = dict) {
@@ -3887,7 +4191,7 @@
 #' @examples
 #' \dontrun{
 #' keys <- c("plot_name", "plot_code", "team")
-#' .tr_dict_vec(keys, "pt")  # Returns: "Nome da Parcela", "Código da Parcela", "Equipe"
+#' .tr_dict_vec(keys, "pt")  # Returns: "Nome da Parcela", "C\u00f3digo da Parcela", "Equipe"
 #' }
 .tr_dict_vec <- function(keys, language = "en", dict = get("dict", envir = parent.frame())) {
   sapply(keys, function(k) .tr_dict(k, language, dict), USE.NAMES = FALSE)
@@ -4273,7 +4577,7 @@ dict <- tibble::tibble(
     "Indice de Sous-parcelle",
     "Sous-parcelles",
     "Sous-parcelle ",
-    "Liste d’esp\u00e8ce",
+    "Liste d\u2019esp\u00e8ce",
     "Sous-parcelles Individuelles",
     "Statut",
     "DHP (cm)",

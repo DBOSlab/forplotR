@@ -118,7 +118,8 @@ forplot_vouchers <- function(fp_file_path = NULL,
     fp_file_path = fp_file_path,
     input_type = input_type,
     station_name = station_name,
-    verbose = verbose
+    verbose = verbose,
+    require_spatial = FALSE
   )
 
   fp_sheet <- fp_loaded$fp_sheet
@@ -378,7 +379,7 @@ forplot_vouchers <- function(fp_file_path = NULL,
 
   z %in% c(
     "nao",
-    "não",
+    "n\u00e3o",
     "no",
     "n",
     "false",
@@ -386,8 +387,8 @@ forplot_vouchers <- function(fp_file_path = NULL,
     "not collected",
     "nao coletado",
     "nao coletada",
-    "não coletado",
-    "não coletada"
+    "n\u00e3o coletado",
+    "n\u00e3o coletada"
   )
 }
 

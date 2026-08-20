@@ -152,8 +152,6 @@
 #'   that were not found in the selected herbarium.}
 #' }
 #'
-#' @seealso \code{\link{jabot_crossdet}}
-#'
 #' @examples
 #' \dontrun{
 #' library(forplotR)
@@ -953,7 +951,10 @@ forplot_crossdet <- function(fp_file_path,
   inv_primary <- inv_ok[, c("Voucher", "inventory_family", "inventory_species", "inventory_det_canon",
                             "collector_raw", "number_raw", "primary_key"), drop = FALSE]
   names(inv_primary)[names(inv_primary) == "primary_key"] <- "match_key"
-  inv_primary$key_type <- "primary"
+  inv_primary$key_type <- rep(
+    "primary",
+    nrow(inv_primary)
+  )
 
   inv_fallback <- inv_ok[
     inv_ok$voucher_is_numeric_only | is.na(inv_ok$collector_raw) | !nzchar(trimws(inv_ok$collector_raw)),
@@ -962,8 +963,10 @@ forplot_crossdet <- function(fp_file_path,
     drop = FALSE
   ]
   names(inv_fallback)[names(inv_fallback) == "fallback_key"] <- "match_key"
-  inv_fallback$key_type <- "fallback"
-
+  inv_fallback$key_type <- rep(
+    "fallback",
+    nrow(inv_fallback)
+  )
   inv_keys <- rbind(inv_primary, inv_fallback)
   inv_keys <- inv_keys[!is.na(inv_keys$match_key) & nzchar(inv_keys$match_key), , drop = FALSE]
   inv_keys <- unique(inv_keys)

@@ -10,7 +10,7 @@ forplot_balance(
   input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
   plot_size = 1,
   subplot_size = 10,
-  plot_width_m = 100,
+  plot_width_m = NULL,
   plot_length_m = NULL,
   highlight_palms = TRUE,
   station_name = NULL,

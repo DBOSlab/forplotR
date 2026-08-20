@@ -178,7 +178,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
                             plot_size = 1,
                             subplot_size = 10,
-                            plot_width_m = 100,
+                            plot_width_m = NULL,
                             plot_length_m = NULL,
                             highlight_palms = TRUE,
                             station_name = NULL,
@@ -210,48 +210,19 @@ forplot_balance <- function(fp_file_path = NULL,
     stop("`write_xlsx` must be TRUE or FALSE.", call. = FALSE)
   }
 
+  plot_geometry <- NULL
+
   if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
-    .validate_plot_size(plot_size)
+    plot_geometry <- .resolve_plot_geometry(
+      plot_size = plot_size,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
+      auto_message = isTRUE(verbose)
+    )
 
-    plot_area_m2 <- plot_size * 10000
-
-    if (!is.null(plot_width_m)) {
-      if (!is.numeric(plot_width_m) || length(plot_width_m) != 1 || is.na(plot_width_m) || plot_width_m <= 0) {
-        stop("`plot_width_m` must be a single positive numeric value.", call. = FALSE)
-      }
-    }
-
-    if (!is.null(plot_length_m)) {
-      if (!is.numeric(plot_length_m) || length(plot_length_m) != 1 || is.na(plot_length_m) || plot_length_m <= 0) {
-        stop("`plot_length_m` must be a single positive numeric value.", call. = FALSE)
-      }
-    }
-
-    if (is.null(plot_width_m) && is.null(plot_length_m)) {
-      plot_width_m <- 100
-    }
-
-    if (is.null(plot_length_m)) {
-      plot_length_m <- plot_area_m2 / plot_width_m
-    }
-
-    if (is.null(plot_width_m)) {
-      plot_width_m <- plot_area_m2 / plot_length_m
-    }
-
-    if (abs((plot_width_m * plot_length_m) - plot_area_m2) > 1e-6) {
-      stop(
-        "`plot_width_m * plot_length_m` must match the area implied by `plot_size`.",
-        call. = FALSE
-      )
-    }
-
-    if ((plot_width_m %% subplot_size) != 0 || (plot_length_m %% subplot_size) != 0) {
-      stop(
-        "`plot_width_m` and `plot_length_m` must be exact multiples of `subplot_size`.",
-        call. = FALSE
-      )
-    }
+    plot_width_m <- plot_geometry$plot_width_m
+    plot_length_m <- plot_geometry$plot_length_m
   } else {
     plot_width_m <- NULL
     plot_length_m <- NULL
@@ -353,7 +324,7 @@ forplot_balance <- function(fp_file_path = NULL,
     n_complete_xy <- sum(is.finite(fp_clean$X) & is.finite(fp_clean$Y))
 
     cor_xy <- if (n_complete_xy >= 2) {
-      suppressWarnings(cor(fp_clean$X, fp_clean$Y, use = "complete.obs"))
+      suppressWarnings(stats::cor(fp_clean$X, fp_clean$Y, use = "complete.obs"))
     } else {
       NA_real_
     }
@@ -499,17 +470,29 @@ forplot_balance <- function(fp_file_path = NULL,
   if (verbose) {
     message("Saving PNG maps...")
   }
+
+  export_size <- if (!is.null(plot_geometry)) {
+    .plot_export_size(
+      plot_width_m = plot_geometry$plot_width_m,
+      plot_length_m = plot_geometry$plot_length_m,
+      max_width_in = 12,
+      max_height_in = 8
+    )
+  } else {
+    list(width = 12, height = 8)
+  }
+
   ggplot2::ggsave(
     filename = file.path(foldername, paste0(filename, "_general.png")),
     plot = base_plot_static,
-    width = 14, height = 11, units = "in", dpi = 300
+    width = export_size$width, height = export_size$height, units = "in", dpi = 300
   )
 
   if (!is.null(collected_plot)) {
     ggplot2::ggsave(
       filename = file.path(foldername, paste0(filename, "_collected.png")),
       plot = collected_plot,
-      width = 14, height = 11, units = "in", dpi = 300
+      width = export_size$width, height = export_size$height, units = "in", dpi = 300
     )
   }
 
@@ -517,7 +500,7 @@ forplot_balance <- function(fp_file_path = NULL,
     ggplot2::ggsave(
       filename = file.path(foldername, paste0(filename, "_uncollected.png")),
       plot = uncollected_plot,
-      width = 14, height = 11, units = "in", dpi = 300
+      width = export_size$width, height = export_size$height, units = "in", dpi = 300
     )
   }
 
@@ -525,7 +508,7 @@ forplot_balance <- function(fp_file_path = NULL,
     ggplot2::ggsave(
       filename = file.path(foldername, paste0(filename, "_uncollected_palms.png")),
       plot = palms_plot,
-      width = 14, height = 11, units = "in", dpi = 300
+      width = export_size$width, height = export_size$height, units = "in", dpi = 300
     )
   }
 
@@ -571,7 +554,7 @@ forplot_balance <- function(fp_file_path = NULL,
       ggplot2::ggsave(
         filename = priority_plot_file,
         plot = priority_plot,
-        width = 14, height = 11, units = "in", dpi = 300
+        width = export_size$width, height = export_size$height, units = "in", dpi = 300
       )
     }
   }
@@ -646,7 +629,7 @@ forplot_balance <- function(fp_file_path = NULL,
           guide = "legend"
         ) +
         ggplot2::labs(
-          title = paste(tr["subunit"], sub, "—", tr["subplot"], t2),
+          title = paste(tr["subunit"], sub, "\u2014", tr["subplot"], t2),
           subtitle = paste(tr["plot_name"], plot_name, "|", tr["plot_code"], plot_code),
           x = tr["local_x_m"],
           y = tr["local_y_m"]
@@ -834,6 +817,7 @@ forplot_balance <- function(fp_file_path = NULL,
     interactive_main_plot = base_plot_interactive,
     subplots_list = subplot_plots,
     subplot_size = subplot_size,
+    plot_geometry = plot_geometry,
     stats = list(
       total = total_specimens,
       collected = collected_count,
@@ -1160,14 +1144,18 @@ forplot_balance <- function(fp_file_path = NULL,
   tick_vals_x <- seq(0, max_x, by = subplot_size)
   tick_vals_y <- seq(0, max_y, by = subplot_size)
 
+  plotly_height <- max(
+    550,
+    min(950, round(760 * (max_y / max_x)))
+  )
+
   # Build the plotly scatter
   p <- plotly::plot_ly(
     x = fp_coords$global_x,
     y = fp_coords$global_y,
     type = "scatter",
     mode = "markers+text",
-    height = 1000,  # Increased from 850 to 1000
-    width = 1200,  # Add explicit width
+    height = plotly_height,
     marker = list(color = point_colors, size = sizes,
                   line = list(color = "black", width = 0.5),
                   symbol = "circle"),
@@ -1212,7 +1200,7 @@ forplot_balance <- function(fp_file_path = NULL,
       plot_bgcolor = "white",
       paper_bgcolor = "white",
       margin = list(l = 60, r = 60, t = 80, b = 60),  # Increased margins
-      autosize = FALSE  # Change to FALSE for fixed dimensions
+      autosize = TRUE
     ) %>%
     plotly::config(responsive = TRUE,
                    displayModeBar = TRUE,
@@ -1259,6 +1247,7 @@ forplot_balance <- function(fp_file_path = NULL,
 
   max_x <- floor(plot_width_m / subplot_size) * subplot_size
   max_y <- floor(plot_length_m / subplot_size) * subplot_size
+  symbol_scale <- .plot_symbol_scale(plot_width_m, plot_length_m)
 
   base_plot <- ggplot2::ggplot(fp_coords, ggplot2::aes(x = global_x, y = global_y)) +
     ggplot2::geom_vline(
@@ -1281,7 +1270,7 @@ forplot_balance <- function(fp_file_path = NULL,
       data = subplot_labels,
       ggplot2::aes(x = center_x, y = center_y, label = T1),
       color = "gray",
-      size = 2,
+      size = max(0.7, 2 * symbol_scale),
       fontface = "bold",
       inherit.aes = FALSE
     ) +
@@ -1306,7 +1295,7 @@ forplot_balance <- function(fp_file_path = NULL,
       ggplot2::aes(label = `New Tag No`),
       vjust = 0.5,
       hjust = 0.5,
-      size = 0.6
+      size = max(0.2, 0.6 * symbol_scale)
     ) +
     ggplot2::scale_x_continuous(
       limits = c(0, max_x),
@@ -1321,7 +1310,7 @@ forplot_balance <- function(fp_file_path = NULL,
       values = status_values,
       name = tr["status"]
     ) +
-    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") +
+    ggplot2::scale_size_continuous(range = c(max(0.8, 2 * symbol_scale), max(2, 6 * symbol_scale)), guide = "none") +
     ggplot2::labs(
       x = tr["x_m"],
       y = tr["y_m"],
@@ -1895,8 +1884,8 @@ forplot_balance <- function(fp_file_path = NULL,
 
   pt_status <- as.character(sp_data$Status)
   pt_colors <- dplyr::case_when(
-    grepl("Collected|Coletados|Collectés|已采集|Pâri sonswa", pt_status) ~ "gray80",
-    grepl("Palms|Palmeiras|Palmiers|棕榈科|Kwatis", pt_status) ~ "gold",
+    grepl("Collected|Coletados|Collect\u00e9s|\u5df2\u91c7\u96c6|P\u00e2ri sonswa", pt_status) ~ "gray80",
+    grepl("Palms|Palmeiras|Palmiers|\u68d5\u6988\u79d1|Kwatis", pt_status) ~ "gold",
     TRUE ~ "#EF4444"
   )
 

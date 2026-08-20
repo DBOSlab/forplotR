@@ -217,10 +217,31 @@ testthat::test_that("forplot_crossdet uses fallback scientific name normalizatio
 testthat::test_that("forplot_crossdet can use auto-download branch via mocked IPT helpers", {
   fp <- make_fake_excel()
   dl_root <- tempfile("jabot_dl_")
-  dir.create(dl_root, recursive = TRUE, showWarnings = FALSE)
-  dwca_dir <- file.path(dl_root, "dwca_jabot_RB_jbrj_rb")
-  dir.create(dwca_dir, recursive = TRUE, showWarnings = FALSE)
-  write_occurrence_txt(dwca_dir, fake_occurrence_df()[1, , drop = FALSE])
+
+  dir.create(
+    dl_root,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
+
+  source_occurrence <- file.path(
+    dl_root,
+    "occurrence.txt"
+  )
+
+  utils::write.table(
+    x = fake_occurrence_df()[1, , drop = FALSE],
+    file = source_occurrence,
+    sep = "\t",
+    row.names = FALSE,
+    col.names = TRUE,
+    quote = FALSE,
+    na = ""
+  )
+
+  testthat::expect_true(
+    file.exists(source_occurrence)
+  )
 
   cache_dir <- tempfile("cache_")
   dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
@@ -247,11 +268,49 @@ testthat::test_that("forplot_crossdet can use auto-download branch via mocked IP
         stringsAsFactors = FALSE
       )
     },
-    .download_dwca_one = function(info_row, dir, verbose = FALSE, force_refresh = FALSE) {
-      src <- file.path(dwca_dir, "occurrence.txt")
-      out_dir <- file.path(dir, "dwca_jabot_RB_jbrj_rb")
-      dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-      file.copy(src, file.path(out_dir, "occurrence.txt"), overwrite = TRUE)
+    .download_dwca_one = function(
+    info_row,
+    dir,
+    verbose = FALSE,
+    force_refresh = FALSE
+    ) {
+
+      out_dir <- file.path(
+        dir,
+        "dwca_jabot_RB_jbrj_rb"
+      )
+
+      dir.create(
+        out_dir,
+        recursive = TRUE,
+        showWarnings = FALSE
+      )
+
+      dest <- file.path(
+        out_dir,
+        "occurrence.txt"
+      )
+
+      copied <- file.copy(
+        from = source_occurrence,
+        to = dest,
+        overwrite = TRUE
+      )
+
+      if (!isTRUE(copied)) {
+        stop(
+          "Mock failed to copy occurrence.txt.",
+          call. = FALSE
+        )
+      }
+
+      if (!file.exists(dest)) {
+        stop(
+          "Mock destination occurrence.txt was not created.",
+          call. = FALSE
+        )
+      }
+
       out_dir
     },
     .package = "forplotR"

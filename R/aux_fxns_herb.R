@@ -450,9 +450,19 @@
     out$published_on <- dates[1]
   }
 
-  recs <- regmatches(txt, gregexpr("\\b[0-9][0-9,]*\\b", txt, perl = TRUE))[[1]]
-  if (length(recs)) {
-    out$records <- recs[1]
+  rec_match <- regexec(
+    "(?i)\\brecords?\\b[^0-9]*([0-9][0-9,]*)",
+    txt,
+    perl = TRUE
+  )
+
+  rec_hit <- regmatches(
+    txt,
+    rec_match
+  )[[1]]
+
+  if (length(rec_hit) >= 2L) {
+    out$records <- rec_hit[2]
   }
 
   out
@@ -1268,11 +1278,20 @@
     for (i in seq_len(nrow(jabot_res))) {
       rowi <- jabot_res[i, , drop = FALSE]
 
-      ok_load <- .load_resource_once(rowi, "jabot_download")
-      if (!ok_load) {
+      load_result <- .load_resource_once(
+        rowi = rowi,
+        dir_name = "jabot_download",
+        already_loaded = already_loaded,
+        con = con,
+        verbose = verbose,
+        force_refresh = force_refresh
+      )
+
+      already_loaded <- load_result$already_loaded
+
+      if (!isTRUE(load_result$ok)) {
         next
       }
-
       .duckdb_match_resource(
         con = con,
         herbarium = rowi$herbarium,
@@ -1298,7 +1317,9 @@
   jabot_resolved <- .resolve_links_from_index(
     index_df = idx_jabot,
     rows_to_check = which(unresolved),
-    source_label = "jabot"
+    source_label = "jabot",
+    fp_df = fp_df,
+    parsed = parsed
   )
 
   if (any(jabot_resolved$resolved)) {
@@ -1336,8 +1357,18 @@
         for (i in seq_len(nrow(reflora_res))) {
           rowi <- reflora_res[i, , drop = FALSE]
 
-          ok_load <- .load_resource_once(rowi, "reflora_download")
-          if (!ok_load) {
+          load_result <- .load_resource_once(
+            rowi = rowi,
+            dir_name = "reflora_download",
+            already_loaded = already_loaded,
+            con = con,
+            verbose = verbose,
+            force_refresh = force_refresh
+          )
+
+          already_loaded <- load_result$already_loaded
+
+          if (!isTRUE(load_result$ok)) {
             next
           }
 
@@ -1366,7 +1397,9 @@
       reflora_resolved <- .resolve_links_from_index(
         index_df = idx_reflora,
         rows_to_check = which(unresolved),
-        source_label = "reflora"
+        source_label = "reflora",
+        fp_df = fp_df,
+        parsed = parsed
       )
 
       if (any(reflora_resolved$resolved)) {
@@ -1380,11 +1413,29 @@
 }
 
 # Function to download and load one resource only once ####
-.load_resource_once <- function(rowi, dir_name) {
-  rid_key <- paste(rowi$herbarium, rowi$source, rowi$resource_id, sep = "::")
+.load_resource_once <- function(
+    rowi,
+    dir_name,
+    already_loaded,
+    con,
+    verbose = FALSE,
+    force_refresh = FALSE
+) {
+
+  rid_key <- paste(
+    rowi$herbarium,
+    rowi$source,
+    rowi$resource_id,
+    sep = "::"
+  )
 
   if (rid_key %in% already_loaded) {
-    return(TRUE)
+    return(
+      list(
+        ok = TRUE,
+        already_loaded = already_loaded
+      )
+    )
   }
 
   folder <- .download_dwca_one(
@@ -1395,10 +1446,18 @@
   )
 
   if (is.null(folder)) {
-    return(FALSE)
+    return(
+      list(
+        ok = FALSE,
+        already_loaded = already_loaded
+      )
+    )
   }
 
-  occ_path <- file.path(folder, "occurrence.txt")
+  occ_path <- file.path(
+    folder,
+    "occurrence.txt"
+  )
 
   ok_load <- .duckdb_load_occurrence(
     con = con,
@@ -1410,15 +1469,34 @@
   )
 
   if (isTRUE(ok_load)) {
-    already_loaded <<- c(already_loaded, rid_key)
-    return(TRUE)
+
+    already_loaded <- unique(
+      c(
+        already_loaded,
+        rid_key
+      )
+    )
+
+    return(
+      list(
+        ok = TRUE,
+        already_loaded = already_loaded
+      )
+    )
   }
 
-  FALSE
+  list(
+    ok = FALSE,
+    already_loaded = already_loaded
+  )
 }
 
 # Resolve links from an index table already stored in DuckDB ####
-.resolve_links_from_index <- function(index_df, rows_to_check, source_label) {
+.resolve_links_from_index <- function(index_df,
+                                      rows_to_check,
+                                      source_label,
+                                      fp_df,
+                                      parsed) {
   out_local <- rep(NA_character_, nrow(fp_df))
   resolved_local <- rep(FALSE, nrow(fp_df))
 

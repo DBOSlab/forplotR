@@ -66,6 +66,14 @@
 #'
 #' @param subplot_size Numeric scalar. Side length of each subplot in meters.
 #'
+#' @param plot_width_m Optional numeric scalar. Plot width in meters for
+#' non-MONITORA layouts. If omitted, dimensions are inferred from `plot_size`
+#' and `subplot_size`.
+#'
+#' @param plot_length_m Optional numeric scalar. Plot length in meters for
+#' non-MONITORA layouts. If one dimension is supplied, the other is derived
+#' from `plot_size`.
+#'
 #' @param voucher_imgs Character scalar or \code{NULL}. Directory containing
 #' voucher image subfolders. Subdirectories are assumed to be named after
 #' voucher IDs, each containing one or more image files to display in specimen
@@ -143,7 +151,7 @@
 #' )
 #' }
 #'
-#' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers
+#' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers fitBounds
 #' @importFrom leaflet addPolylines addLabelOnlyMarkers setView addControl
 #' @importFrom htmltools HTML tags htmlEscape
 #' @importFrom htmlwidgets onRender prependContent saveWidget
@@ -166,6 +174,8 @@ forplot_map <- function(fp_file_path = NULL,
                         vertex_coords = NULL,
                         plot_size = 1,
                         subplot_size = 10,
+                        plot_width_m = NULL,
+                        plot_length_m = NULL,
                         voucher_imgs = NULL,
                         filename = "plot_map",
                         station_name = NULL,
@@ -183,8 +193,28 @@ forplot_map <- function(fp_file_path = NULL,
   .validate_plot_size(plot_size)
   .validate_subplot_size(subplot_size)
 
+  plot_geometry <- NULL
+  if (input_type != "monitora") {
+    plot_geometry <- .resolve_plot_geometry(
+      plot_size = plot_size,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
+      auto_message = isTRUE(verbose)
+    )
+    plot_width_m <- plot_geometry$plot_width_m
+    plot_length_m <- plot_geometry$plot_length_m
+  }
+
   if (!is.character(fp_file_path) || length(fp_file_path) != 1L || !file.exists(fp_file_path)) {
     stop("The provided 'fp_file_path' does not exist.", call. = FALSE)
+  }
+
+  if (is.null(vertex_coords)) {
+    stop(
+      "`vertex_coords` must be provided.",
+      call. = FALSE
+    )
   }
 
   # Harmonize the plot input data type
@@ -238,10 +268,11 @@ forplot_map <- function(fp_file_path = NULL,
       stop("No valid points to plot: T1/X/Y could not be parsed from the input sheet.", call. = FALSE)
     }
 
-    fp_coords <- .compute_global_coordinates_generic(
+    fp_coords <- .compute_global_coordinates(
       fp_clean = fp_clean,
-      plot_size = plot_size,
-      subplot_size = subplot_size
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m
     )
   }
 
@@ -385,11 +416,9 @@ forplot_map <- function(fp_file_path = NULL,
       )
     }
 
-    total_area_m2 <- plot_size * 10000
-    subplot_area_m2 <- subplot_size * subplot_size
-    n_subplots <- as.integer(round(total_area_m2 / subplot_area_m2))
-    n_cols <- max(1L, as.integer(round(100 / subplot_size)))
-    n_rows <- ceiling(n_subplots / n_cols)
+    n_subplots <- plot_geometry$n_subplots
+    n_cols <- plot_geometry$n_cols
+    n_rows <- plot_geometry$n_rows
 
     subplot_index <- 1L
     for (row in 0:(n_rows - 1L)) {
@@ -504,14 +533,20 @@ forplot_map <- function(fp_file_path = NULL,
     "<b>Team:</b> ", team
   )
 
-  original_image_base <- here::here(voucher_imgs)
-  leaf_dirs <- list.dirs(original_image_base, recursive = TRUE, full.names = TRUE)
+  leaf_dirs <- character(0)
 
-  leaf_dirs <- leaf_dirs[!sapply(leaf_dirs, function(dir) {
-    any(file.info(list.dirs(dir, recursive = FALSE))$isdir)
-  })]
+  if (!is.null(voucher_imgs)) {
+    original_image_base <- here::here(voucher_imgs)
 
-  leaf_dirs <- sub(paste0(".*(", voucher_imgs, "/.*)"), "\\1", leaf_dirs)
+    if (dir.exists(original_image_base)) {
+      leaf_dirs <- list.dirs(original_image_base, recursive = TRUE, full.names = TRUE)
+
+      leaf_dirs <- leaf_dirs[!vapply(leaf_dirs, function(dir_path) {
+        child_dirs <- list.dirs(dir_path, recursive = FALSE, full.names = TRUE)
+        length(child_dirs) > 0L
+      }, logical(1))]
+    }
+  }
 
   handled <- character(0)
   fp_coords$popup <- as.character(fp_coords$popup)
@@ -833,9 +868,16 @@ function addFilterControl(el,x){
 </script>
 ")
 
-  initial_zoom <- 18
-  lat0 <- mean(vertex_coords$latitude)
-  lon0 <- mean(vertex_coords$longitude)
+  lat0 <- mean(vertex_coords$latitude, na.rm = TRUE)
+  lon0 <- mean(vertex_coords$longitude, na.rm = TRUE)
+
+  bounds_lat <- range(c(vertex_coords$latitude, fp_coords$Latitude), na.rm = TRUE)
+  bounds_lon <- range(c(vertex_coords$longitude, fp_coords$Longitude), na.rm = TRUE)
+
+  south <- bounds_lat[1]
+  north <- bounds_lat[2]
+  west <- bounds_lon[1]
+  east <- bounds_lon[2]
 
   map <- leaflet::leaflet(
     fp_coords,
@@ -846,8 +888,10 @@ function addFilterControl(el,x){
         icon = "fa-crosshairs",
         title = "Back to plot",
         onClick = leaflet::JS(
-          sprintf("function(btn, map){ map.setView([%f, %f], %d); }",
-                  lat0, lon0, initial_zoom)
+          sprintf(
+            "function(btn, map){ map.fitBounds([[%.8f, %.8f], [%.8f, %.8f]], {padding:[25,25]}); }",
+            south, west, north, east
+          )
         )
       )
     ) %>%
@@ -942,7 +986,12 @@ function addFilterControl(el,x){
       popup = ~popup,
       group = "Specimens"
     ) %>%
-    leaflet::setView(lng = lon0, lat = lat0, zoom = initial_zoom)
+    leaflet::fitBounds(
+      lng1 = west,
+      lat1 = south,
+      lng2 = east,
+      lat2 = north
+    )
 
   if (input_type == "monitora") {
     arm <- 100
@@ -1022,6 +1071,8 @@ function addFilterControl(el,x){
   output_path <- paste0(filename, ".html")
   message("Saving HTML map: '", output_path, "'")
   htmlwidgets::saveWidget(map, file = output_path, selfcontained = TRUE)
+
+  invisible(output_path)
 }
 
 .validate_plot_size <- function(plot_size) {
@@ -1040,37 +1091,6 @@ function addFilterControl(el,x){
   invisible(TRUE)
 }
 
-.compute_global_coordinates_generic <- function(fp_clean, plot_size, subplot_size) {
-  total_area_m2 <- plot_size * 10000
-  subplot_area_m2 <- subplot_size * subplot_size
-  n_subplots <- total_area_m2 / subplot_area_m2
-
-  if (!isTRUE(all.equal(n_subplots, round(n_subplots)))) {
-    stop(
-      "The combination of `plot_size` and `subplot_size` does not yield an integer number of subplots.",
-      call. = FALSE
-    )
-  }
-
-  n_subplots <- as.integer(round(n_subplots))
-  n_cols <- max(1L, as.integer(round(100 / subplot_size)))
-  n_rows <- ceiling(n_subplots / n_cols)
-
-  fp_clean %>%
-    dplyr::mutate(
-      col = floor((T1 - 1) / n_rows),
-      row = (T1 - 1) %% n_rows,
-      global_x = col * subplot_size + X,
-      global_y = dplyr::if_else(
-        col %% 2 == 0,
-        row * subplot_size + Y,
-        (n_rows - row - 1) * subplot_size + Y
-      ),
-      draw_x = global_x,
-      draw_y = global_y
-    )
-}
-
 .get_latlon <- function(x, y, p1, p2, p3, p4) {
   left <- geosphere::destPoint(p1, geosphere::bearing(p1, p2), y)
   right <- geosphere::destPoint(p3, geosphere::bearing(p3, p4), y)
@@ -1081,7 +1101,10 @@ function addFilterControl(el,x){
 .get_latlon_from_center <- function(x, y, center_lonlat) {
   p1 <- geosphere::destPoint(center_lonlat, ifelse(x >= 0, 90, 270), abs(x))
   p2 <- geosphere::destPoint(c(p1[1, "lon"], p1[1, "lat"]), ifelse(y >= 0, 0, 180), abs(y))
-  c(lat = p2[1, "lat"], lon = p2[1, "lon"])
+  c(
+    lat = unname(p2[1, "lat"]),
+    lon = unname(p2[1, "lon"])
+  )
 }
 
 .numify <- function(z) {

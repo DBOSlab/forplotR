@@ -10,6 +10,8 @@ forplot_map(
   vertex_coords = NULL,
   plot_size = 1,
   subplot_size = 10,
+  plot_width_m = NULL,
+  plot_length_m = NULL,
   voucher_imgs = NULL,
   filename = "plot_map",
   station_name = NULL,
@@ -41,6 +43,14 @@ named with \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.}
 non-MONITORA inputs.}
 
 \item{subplot_size}{Numeric scalar. Side length of each subplot in meters.}
+
+\item{plot_width_m}{Optional numeric scalar. Plot width in meters for
+non-MONITORA layouts. If omitted, dimensions are inferred from \code{plot_size}
+and \code{subplot_size}.}
+
+\item{plot_length_m}{Optional numeric scalar. Plot length in meters for
+non-MONITORA layouts. If one dimension is supplied, the other is derived
+from \code{plot_size}.}
 
 \item{voucher_imgs}{Character scalar or \code{NULL}. Directory containing
 voucher image subfolders. Subdirectories are assumed to be named after

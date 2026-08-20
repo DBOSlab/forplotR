@@ -156,6 +156,12 @@ for the selected herbarium and then proceed locally.
 }
 \examples{
 \dontrun{
+library(forplotR)
+library(openxlsx)
+
+data(RUS01)
+openxlsx::write.xlsx(RUS01, "RUS_plot.xlsx")
+
 out1 <- forplot_crossdet(
   fp_file_path = "RUS_plot.xlsx",
   input_type = "field_sheet",
@@ -163,6 +169,9 @@ out1 <- forplot_crossdet(
   collector_fallback = "G. Ottino",
   save = FALSE
 )
+
+data(TUM)
+openxlsx::write.xlsx(TUM, "monitora_station.xlsx")
 
 out2 <- forplot_crossdet(
   fp_file_path = "monitora_station.xlsx",
@@ -184,9 +193,6 @@ out3 <- forplot_crossdet(
 )
 }
 
-}
-\seealso{
-\code{\link{jabot_crossdet}}
 }
 \author{
 Giulia Ottino & Domingos Cardoso
