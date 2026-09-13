@@ -2565,6 +2565,7 @@
     "  priority_species_tbl: NULL",
     "  subplots_list: NULL",
     "  subplot_size: 70",
+    "  plot_geometry: NULL",
     "  stats: NULL",
     "  dashboard: NULL",
     "  tag_list: NULL",
