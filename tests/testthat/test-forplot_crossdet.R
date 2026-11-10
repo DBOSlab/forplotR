@@ -118,6 +118,11 @@ testthat::test_that("forplot_crossdet errors on missing input file", {
 testthat::test_that("forplot_crossdet errors when standardized inventory lacks required columns", {
   fp <- make_fake_excel()
 
+  # Local occurrence files keep this test offline (no JABOT/IPT download).
+  occ_dir <- tempfile("occdir_")
+  dir.create(occ_dir, recursive = TRUE, showWarnings = FALSE)
+  write_occurrence_txt(occ_dir, fake_occurrence_df())
+
   testthat::local_mocked_bindings(
     .arg_check_herbarium = function(x) invisible(TRUE),
     .fp_query_to_field_sheet_df = function(path, sheet = NULL) {
@@ -131,6 +136,7 @@ testthat::test_that("forplot_crossdet errors when standardized inventory lacks r
       fp_file_path = fp,
       input_type = "field_sheet",
       herbaria = "RB",
+      path = occ_dir,
       save = FALSE
     ),
     "missing required columns"

@@ -235,21 +235,23 @@
 # Check plot size when plotting forest balance ####
 
 .validate_plot_size <- function(plot_size) {
-  if (!is.numeric(plot_size) || length(plot_size) != 1 || is.na(plot_size) || plot_size <= 0) {
+  ok <- is.numeric(plot_size) && length(plot_size) == 1L && is.finite(plot_size) && plot_size > 0
+  if (!ok) {
     stop("`plot_size` must be a single positive numeric value in hectares.", call. = FALSE)
   }
+  invisible(TRUE)
 }
-
 
 #_______________________________________________________________________________
 # Check subplot size when plotting forest balance ####
 
 .validate_subplot_size <- function(subplot_size) {
-  if (!subplot_size %in% c(10, 20, 25)) {
-    stop("`subplot_size` must be one of: 10, 20, or 25 meters.", call. = FALSE)
+  ok <- is.numeric(subplot_size) && length(subplot_size) == 1L && is.finite(subplot_size) && subplot_size > 0
+  if (!ok) {
+    stop("`subplot_size` must be a single positive numeric value in meters.", call. = FALSE)
   }
+  invisible(TRUE)
 }
-
 
 #_______________________________________________________________________________
 # Validate herbarium codes ####
@@ -287,3 +289,147 @@
   invisible(TRUE)
 }
 
+#_______________________________________________________________________________
+# Column mapping for forplot_balance ####
+
+#' Registry of user-facing colname_* arguments and their canonical targets
+#'
+#' Keys starting with "." are not canonical columns; they are only used by
+#' the MONITORA reader (station filter and census year).
+#'
+#' @keywords internal
+#' @noRd
+.forplot_colname_registry <- function() {
+  c(
+    colname_tagno       = "New Tag No",
+    colname_stemgroup   = "New Stem Grouping",
+    colname_subplot     = "T1",
+    colname_subplot_t2  = "T2",
+    colname_x           = "X",
+    colname_y           = "Y",
+    colname_family      = "Family",
+    colname_species     = "Original determination",
+    colname_dbh         = "D",
+    colname_cap         = "CAP",
+    colname_voucher     = "Voucher",
+    colname_collected   = "Collected",
+    colname_station     = ".station",
+    colname_census_year = ".census_year"
+  )
+}
+
+
+#' Validate one colname_* argument
+#'
+#' @keywords internal
+#' @noRd
+.arg_check_colname <- function(x, arg) {
+  if (is.null(x)) return(invisible(TRUE))
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(trimws(x))) {
+    stop("`", arg, "` must be NULL or a single non-empty character string.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+
+#' Build the column map (canonical name -> user column name)
+#'
+#' @param ... colname_* arguments, named as in .forplot_colname_registry().
+#'
+#' @return Named character vector (names = canonical keys) with attribute
+#'   `arg_names` (canonical key -> argument name), or NULL if nothing mapped.
+#'
+#' @keywords internal
+#' @noRd
+.build_col_map <- function(...) {
+  args <- list(...)
+  reg <- .forplot_colname_registry()
+
+  unknown <- setdiff(names(args), names(reg))
+  if (length(unknown)) {
+    stop("Unknown column-mapping argument(s): ",
+         paste(unknown, collapse = ", "), call. = FALSE)
+  }
+
+  for (nm in names(args)) .arg_check_colname(args[[nm]], nm)
+
+  args <- args[!vapply(args, is.null, logical(1))]
+  if (!length(args)) return(NULL)
+
+  keys <- unname(reg[names(args)])
+  out <- stats::setNames(trimws(unlist(args, use.names = FALSE)), keys)
+  attr(out, "arg_names") <- stats::setNames(names(args), keys)
+  out
+}
+
+
+#' Resolve a user-supplied column name against a data frame
+#'
+#' Tries exact match, then trimmed match, then normalized match
+#' (case-, accent- and punctuation-insensitive).
+#'
+#' @keywords internal
+#' @noRd
+.resolve_user_col <- function(df, user_col, arg_name = NULL) {
+  nm <- names(df)
+
+  if (user_col %in% nm) return(user_col)
+
+  hit <- which(trimws(nm) == trimws(user_col))
+  if (length(hit) == 1L) return(nm[hit])
+
+  hit <- which(.norm_nm(nm) == .norm_nm(user_col))
+  if (length(hit) == 1L) return(nm[hit])
+
+  arg_txt <- if (!is.null(arg_name)) paste0(" (from `", arg_name, "`)") else ""
+
+  if (length(hit) > 1L) {
+    stop(sprintf("Column '%s'%s matches more than one input column: %s",
+                 user_col, arg_txt, paste(nm[hit], collapse = " | ")),
+         call. = FALSE)
+  }
+
+  stop(sprintf("Column '%s'%s was not found in the input data. Available columns: %s",
+               user_col, arg_txt, paste(nm, collapse = " | ")),
+       call. = FALSE)
+}
+
+
+#' Return the mapped column for a key, or a fallback when not mapped
+#'
+#' @keywords internal
+#' @noRd
+.mapped_col <- function(df, col_map, key, fallback = NA_character_) {
+  if (is.null(col_map) || !(key %in% names(col_map))) return(fallback)
+  arg_names <- attr(col_map, "arg_names")
+  .resolve_user_col(
+    df,
+    col_map[[key]],
+    if (!is.null(arg_names)) arg_names[[key]] else NULL
+  )
+}
+
+
+#' Copy user columns into their canonical names
+#'
+#' Values are snapshotted before assignment, so swaps (e.g. X <-> Y) and
+#' one source column feeding two targets both work.
+#'
+#' @keywords internal
+#' @noRd
+.apply_col_map <- function(df, col_map) {
+  if (is.null(col_map) || !length(col_map)) return(df)
+
+  keys <- names(col_map)
+  keys <- keys[!startsWith(keys, ".")]
+  if (!length(keys)) return(df)
+
+  src <- vapply(keys, function(k) .mapped_col(df, col_map, k), character(1))
+  vals <- lapply(src, function(s) df[[s]])
+
+  for (i in seq_along(keys)) {
+    df[[keys[i]]] <- vals[[i]]
+  }
+  df
+}

@@ -338,7 +338,7 @@
 #'
 #' @keywords internal
 #' @noRd
-.read_best_plot_sheet <- function(path, sheet = NULL) {
+.read_best_plot_sheet <- function(path, sheet = NULL, extra_headers = NULL) {
   if (!grepl("\\.xlsx?$", path, ignore.case = TRUE)) {
     stop("This helper expects an Excel workbook path.", call. = FALSE)
   }
@@ -387,6 +387,8 @@
       "Family", "Recommended Family", "Recommended Voucher Family",
       "D", "D1", "DBH", "CAP", "Basal Area"
     )
+
+    known_headers <- unique(c(known_headers, trimws(as.character(extra_headers))))
 
     scores <- vapply(seq_len(max_r), function(i) {
       row_i <- as.character(unlist(temp0[i, , drop = TRUE]))
@@ -467,7 +469,8 @@
 .fp_query_to_field_sheet_df <- function(path,
                                         sheet = NULL,
                                         plot_code = NULL,
-                                        split_plots = FALSE) {
+                                        split_plots = FALSE,
+                                        col_map = NULL) {
   if (!file.exists(path)) {
     stop("Input file does not exist.", call. = FALSE)
   }
@@ -479,9 +482,15 @@
     "Voucher","Silica","Collected","Census Notes","CAP","Basal Area"
   )
 
-  in_dat <- .read_best_plot_sheet(path, sheet = sheet)
+  in_dat <- .read_best_plot_sheet(path, sheet = sheet, extra_headers = unname(col_map))
   sheet_used <- attr(in_dat, "sheet_name")
   names(in_dat) <- trimws(names(in_dat))
+  in_dat <- .apply_col_map(in_dat, col_map)
+
+  # Mapped columns go first in every candidate list and override auto-detection
+  .is_mapped <- function(key) !is.null(col_map) && key %in% names(col_map)
+  .cands <- function(key, x) if (.is_mapped(key)) unique(c(key, x)) else x
+  .ov <- function(cur, key) if (.is_mapped(key)) key else cur
 
   plot_meta <- list(
     plot_code = .meta_value(in_dat, c("Plot Code", "PlotCode", "Plotcode")),
@@ -529,7 +538,8 @@
         path = path,
         sheet = sheet_used,
         plot_code = pc,
-        split_plots = FALSE
+        split_plots = FALSE,
+        col_map = col_map
       )
     }
     return(out_list)
@@ -570,6 +580,12 @@
   if (is.na(std_t1_col)) std_t1_col <- .pick_colname(in_dat, c("Standardised SubPlot T1", "Standardized SubPlot T1"))
   if (is.na(std_x_col))  std_x_col  <- .pick_colname(in_dat, c("Standardised X", "Standardized X"))
   if (is.na(std_y_col))  std_y_col  <- .pick_colname(in_dat, c("Standardised Y", "Standardized Y"))
+
+  tag_col        <- .ov(tag_col, "New Tag No")
+  stem_group_col <- .ov(stem_group_col, "New Stem Grouping")
+  t1_col         <- .ov(t1_col, "T1")
+  x_col          <- .ov(x_col, "X")
+  y_col          <- .ov(y_col, "Y")
 
   has_local <- !is.na(tag_col) && !is.na(t1_col) && !is.na(x_col) && !is.na(y_col)
   has_std   <- !is.na(tag_col) && !is.na(std_t1_col) && !is.na(std_x_col) && !is.na(std_y_col)
@@ -635,8 +651,8 @@
     )
   }
 
-  voucher_vals <- .get_col(in_dat, c("Voucher", "Voucher Code"))
-  collected_vals <- .get_col(in_dat, c("Collected", "Voucher Collected"))
+  voucher_vals <- .get_col(in_dat, .cands("Voucher", c("Voucher", "Voucher Code")))
+  collected_vals <- .get_col(in_dat, .cands("Collected", c("Collected", "Voucher Collected")))
 
   voucher_chr <- trimws(as.character(voucher_vals))
   collected_chr <- trimws(as.character(collected_vals))
@@ -654,15 +670,15 @@
     T2 = t2,
     X = x,
     Y = y,
-    Family = .get_col(in_dat, c("Recommended Voucher Family", "Recommended Family", "Family")),
-    `Original determination` = .get_col(in_dat, c(
+    Family = .get_col(in_dat, .cands("Family", c("Recommended Voucher Family", "Recommended Family", "Family"))),
+    `Original determination` = .get_col(in_dat, .cands("Original determination", c(
       "Recommended Voucher Species",
       "Recommended Species",
       "Original Identification",
       "Species"
-    )),
+    ))),
     Morphospecies = .get_col(in_dat, c("Morphospecies", "MorphoSpecies", "Morpho"), default = NA),
-    D = .get_col(in_dat, c("D", "D1", "DBH", "Dbh", "D0")),
+    D = .get_col(in_dat, .cands("D", c("D", "D1", "DBH", "Dbh", "D0"))),
     POM = .get_col(in_dat, c("POM", "POM0", "DPOMtMinus1")),
     ExtraD = .get_col(in_dat, c("Extra D", "ExtraD", "Extra D0")),
     ExtraPOM = .get_col(in_dat, c("Extra POM", "ExtraPOM", "Extra POM0")),
@@ -806,18 +822,20 @@
     # Filter valid diameters (>= minimum diameter)
     valid_diameters <- all_diameters[!is.na(all_diameters) & all_diameters >= min_diameter]
 
-    if (length(valid_diameters) <= 1) {
-      message("  Group ", group_id, ": Only ", length(valid_diameters),
-              " valid stems, no consolidation needed")
-      groups_to_keep <- c(groups_to_keep, group_rows$`New Tag No`)
-      next
+    # Every group becomes exactly one tree row. With one valid stem the
+    # equivalent diameter is that stem's diameter; with none, the largest
+    # recorded diameter is kept so the tree is not lost.
+    if (length(valid_diameters) >= 1L) {
+      D_eq <- sqrt(sum(valid_diameters^2))
+    } else if (length(all_diameters)) {
+      D_eq <- max(all_diameters)
+    } else {
+      D_eq <- NA_real_
     }
 
-    # Calculate equivalent diameter (sqrt sum of squares)
-    D_eq <- sqrt(sum(valid_diameters^2))
-
-    message("  Group ", group_id, ": ", length(valid_diameters),
-            " stems -> Equivalent diameter: ", round(D_eq, 1), " mm")
+    message("  Group ", group_id, ": ", nrow(group_rows), " stems (",
+            length(valid_diameters), " >= min_diameter) -> Equivalent diameter: ",
+            round(D_eq, 1), " mm")
 
     # Find the main stem row (where New Tag No matches the group's main tag)
     main_row_idx <- which(group_rows$`New Tag No` == main_tag)
@@ -899,7 +917,8 @@
 #' @noRd
 .monitora_to_field_sheet_df <- function(path,
                                         sheet = 1,
-                                        station_name = NULL) {
+                                        station_name = NULL,
+                                        col_map = NULL) {
   if (!file.exists(path)) {
     stop("The provided MONITORA file does not exist.", call. = FALSE)
   }
@@ -1046,6 +1065,23 @@
   col_altura <- if ("altura" %in% nm) "altura" else
     .find_best_col(df, c("altura", "height"))
 
+  # User-supplied column mapping takes priority over automatic detection
+  col_tag        <- .mapped_col(df, col_map, "New Tag No", col_tag)
+  col_subunidade <- .mapped_col(df, col_map, "T1", col_subunidade)
+  col_nparcela   <- .mapped_col(df, col_map, "T2", col_nparcela)
+  col_x          <- .mapped_col(df, col_map, "X", col_x)
+  col_y          <- .mapped_col(df, col_map, "Y", col_y)
+  col_familia    <- .mapped_col(df, col_map, "Family", col_familia)
+  col_coletado   <- .mapped_col(df, col_map, "Collected", col_coletado)
+  col_cap        <- .mapped_col(df, col_map, "CAP", col_cap)
+  col_estacao    <- .mapped_col(df, col_map, ".station", col_estacao)
+  col_ano        <- .mapped_col(df, col_map, ".census_year", col_ano)
+
+  # Single-column overrides for fields MONITORA normally builds from 2 columns
+  col_species_full <- .mapped_col(df, col_map, "Original determination")
+  col_voucher_full <- .mapped_col(df, col_map, "Voucher")
+  col_dbh_mm       <- .mapped_col(df, col_map, "D")
+
   if (is.na(col_tag) || is.na(col_subunidade) || is.na(col_nparcela)) {
     stop(
       paste0(
@@ -1162,6 +1198,11 @@
   voucher_vec[!nzchar(voucher_vec)] <- NA_character_
   voucher_collector_raw[!nzchar(voucher_collector_raw)] <- NA_character_
 
+  if (!is.na(col_voucher_full)) {
+    voucher_vec <- .clean_spaces(df_use[[col_voucher_full]])
+    voucher_vec[!nzchar(voucher_vec)] <- NA_character_
+  }
+
   gen <- if (!is.na(col_genero) && col_genero %in% names(df_use)) {
     .clean_spaces(df_use[[col_genero]])
   } else {
@@ -1228,6 +1269,11 @@
 
   od[is.na(od) | !nzchar(od)] <- "Indet indet"
 
+  if (!is.na(col_species_full)) {
+    od <- .clean_spaces(df_use[[col_species_full]])
+    od[!nzchar(od)] <- "Indet indet"
+  }
+
   morpho_vec <- if (!is.na(col_nomecomum) && col_nomecomum %in% names(df_use)) .clean_spaces(df_use[[col_nomecomum]]) else rep(NA_character_, nrow(df_use))
   morpho_vec[!nzchar(morpho_vec)] <- NA_character_
 
@@ -1241,7 +1287,7 @@
 
   is_collected <- collected_norm %in% c(
     "sim", "s", "yes", "y", "true", "1", "coletado", "coletada"
-  ) | nzchar(as.character(voucher_vec))
+  ) | (!is.na(voucher_vec) & nzchar(voucher_vec))
 
   collected_vec <- ifelse(is_collected, "Sim", NA_character_)
 
@@ -1250,6 +1296,10 @@
 
   cap_vec <- if (!is.na(col_cap) && col_cap %in% names(df_use)) .to_numeric(df_use[[col_cap]]) else rep(NA_real_, nrow(df_use))
   d_mm <- (cap_vec / pi) * 10
+
+  if (!is.na(col_dbh_mm)) {
+    d_mm <- .to_numeric(df_use[[col_dbh_mm]])
+  }
 
   pom_vec <- if (!is.na(col_pom) && col_pom %in% names(df_use)) .to_numeric(df_use[[col_pom]]) else rep(NA_real_, nrow(df_use))
   ba_vec <- if (!is.na(col_basal_area) && col_basal_area %in% names(df_use)) .to_numeric(df_use[[col_basal_area]]) else rep(NA_real_, nrow(df_use))
@@ -1323,7 +1373,14 @@
 
   if (!is.na(col_dead) && col_dead %in% names(df_all)) {
     v <- tolower(.clean_spaces(df_all[[col_dead]]))
-    dead_since_first <- sum(v %in% c("sim", "s", "yes", "y", "true", "1"), na.rm = TRUE)
+    is_dead <- v %in% c("sim", "s", "yes", "y", "true", "1")
+    # Count trees, not rows: a dead tree is repeated in every later census
+    if (!is.na(col_tag) && col_tag %in% names(df_all)) {
+      dead_tags <- .clean_spaces(df_all[[col_tag]][is_dead])
+      dead_since_first <- length(unique(dead_tags[nzchar(dead_tags)]))
+    } else {
+      dead_since_first <- sum(is_dead, na.rm = TRUE)
+    }
   }
 
   recruits_since_first <- NA_integer_
@@ -1338,21 +1395,16 @@
     recruits_since_first <- length(setdiff(tag_last, tag_first))
   }
 
-  try(assign("plot_name", plot_name, envir = parent.frame()), silent = TRUE)
-  try(assign("plot_code", plot_code, envir = parent.frame()), silent = TRUE)
-  try(assign("team", team_val, envir = parent.frame()), silent = TRUE)
-  try(assign("monitora_census_years", census_years, envir = parent.frame()), silent = TRUE)
-  try(assign("monitora_census_n", length(census_years), envir = parent.frame()), silent = TRUE)
-  try(assign("monitora_dead_since_first", dead_since_first, envir = parent.frame()), silent = TRUE)
-  try(assign("monitora_recruits_since_first", recruits_since_first, envir = parent.frame()), silent = TRUE)
-
   attr(out, "coord_mode") <- "local"
   attr(out, "sheet_name") <- sheet
   attr(out, "plot_meta") <- list(
     plot_name = plot_name,
     plot_code = plot_code,
     team = team_val,
-    census_years = census_years
+    census_years = census_years,
+    census_n = length(census_years),
+    dead_since_first = dead_since_first,
+    recruits_since_first = recruits_since_first
   )
 
   out
@@ -1424,14 +1476,38 @@
   trimws(x)
 }
 
-.to_numeric <- function(x) {
-  if (is.factor(x)) x <- as.character(x)
+#' Normalize decimal separators in numeric text
+#'
+#' "1.234,5" and "1,234.5" -> "1234.5"; "2,5" -> "2.5"; "2.125" stays "2.125".
+#'
+#' @keywords internal
+#' @noRd
+.normalize_decimal <- function(x) {
   x <- as.character(x)
   x[is.na(x)] <- ""
-  x <- .clean_spaces(x)
+  x <- gsub(intToUtf8(0x00A0), "", x, fixed = TRUE)
+  x <- gsub("[[:space:]]+", "", x)
+
+  last_pos <- function(ch) {
+    vapply(gregexpr(ch, x, fixed = TRUE), function(m) max(m), numeric(1))
+  }
+  comma <- last_pos(",")
+  dot <- last_pos(".")
+
+  both <- comma > 0 & dot > 0
+  comma_dec <- both & comma > dot
+  dot_dec <- both & dot > comma
+
+  x[comma_dec] <- gsub(".", "", x[comma_dec], fixed = TRUE)
+  x[dot_dec] <- gsub(",", "", x[dot_dec], fixed = TRUE)
+  gsub(",", ".", x, fixed = TRUE)
+}
+
+.to_numeric <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  x <- .clean_spaces(as.character(x))
   x <- sub("^([^;/|]+)[;/|].*$", "\\1", x, perl = TRUE)
-  x <- gsub("\\.(?=\\d{3}(\\D|$))", "", x, perl = TRUE)
-  x <- gsub(",", ".", x, fixed = TRUE)
+  x <- .normalize_decimal(x)
 
   pat <- "[-+]?(?:\\d+\\.?\\d*|\\d*\\.?\\d+)"
   has_num <- grepl(pat, x, perl = TRUE)
@@ -1902,7 +1978,8 @@
 #' @noRd
 .calculate_phytosociological_metrics <- function(fp_sheet,
                                                  plot_size_ha = 1,
-                                                 subplot_size_m = 10) {
+                                                 subplot_size_m = 10,
+                                                 n_subplots_sampled = NULL) {
   required_cols <- c("Family", "Original determination", "T1")
   miss <- setdiff(required_cols, names(fp_sheet))
   if (length(miss)) {
@@ -1940,7 +2017,47 @@
     ))
   }
 
-  n_subplots_total <- dplyr::n_distinct(df_clean$T1)
+  # Number of sampled subplots (denominator of absolute frequency). It must
+  # include subplots without any individual, so it comes from the plot design.
+  n_sampled <- n_subplots_sampled
+  if (is.null(n_sampled) || !is.finite(n_sampled) || n_sampled <= 0) {
+    n_sampled <- round(as.numeric(plot_size_ha) * 10000 / as.numeric(subplot_size_m)^2)
+  }
+  n_sampled <- max(n_sampled, dplyr::n_distinct(df_clean$T1), na.rm = TRUE)
+
+  # Basal area (m2) from D in mm
+  df_clean$basal_area_m2 <- ifelse(is.finite(df_clean$D) & df_clean$D > 0,
+                                   pi * (df_clean$D / 2000)^2, 0)
+  has_ba <- sum(df_clean$basal_area_m2) > 0
+
+  if (!has_ba) {
+    message("No valid diameters (D): relative dominance cannot be computed; ",
+            "importance value uses relative density and relative frequency only.")
+  }
+
+  # Phytosociological parameters (Mueller-Dombois & Ellenberg 1974):
+  #   RD  = 100 * n_i / N
+  #   AF  = 100 * subplots with the taxon / sampled subplots
+  #   RF  = 100 * AF_i / sum(AF)
+  #   RDo = 100 * BA_i / sum(BA)
+  #   IVI = RD + RF + RDo (sums to 300 over all taxa)
+  .add_phytosoc <- function(x) {
+    x %>%
+      dplyr::mutate(
+        absolute_frequency = 100 * n_subplots / n_sampled,
+        relative_density = 100 * abundance / sum(abundance),
+        relative_frequency = 100 * absolute_frequency / sum(absolute_frequency),
+        relative_dominance = if (has_ba) 100 * basal_area_m2 / sum(basal_area_m2) else NA_real_,
+        importance_value = relative_density + relative_frequency +
+          if (has_ba) relative_dominance else 0,
+        dplyr::across(
+          c(absolute_frequency, relative_density, relative_frequency,
+            relative_dominance, importance_value),
+          ~ round(.x, 2)
+        ),
+        basal_area_m2 = round(basal_area_m2, 4)
+      )
+  }
 
   species_stats <- df_clean %>%
     dplyr::group_by(species = Species) %>%
@@ -1948,14 +2065,11 @@
       family = dplyr::first(stats::na.omit(Family)),
       abundance = dplyr::n(),
       n_subplots = dplyr::n_distinct(T1),
+      basal_area_m2 = sum(basal_area_m2),
       .groups = "drop"
     ) %>%
-    dplyr::mutate(
-      relative_density = round(100 * abundance / sum(abundance), 2),
-      relative_frequency = round(100 * n_subplots / n_subplots_total, 2),
-      importance_value = round(relative_density + relative_frequency, 2)
-    ) %>%
-    dplyr::arrange(dplyr::desc(abundance), species)
+    .add_phytosoc() %>%
+    dplyr::arrange(dplyr::desc(importance_value), dplyr::desc(abundance), species)
 
   family_stats <- df_clean %>%
     dplyr::group_by(family = Family) %>%
@@ -1963,14 +2077,11 @@
       abundance = dplyr::n(),
       n_species = dplyr::n_distinct(Species),
       n_subplots = dplyr::n_distinct(T1),
+      basal_area_m2 = sum(basal_area_m2),
       .groups = "drop"
     ) %>%
-    dplyr::mutate(
-      relative_density = round(100 * abundance / sum(abundance), 2),
-      relative_frequency = round(100 * n_subplots / n_subplots_total, 2),
-      importance_value = round(relative_density + relative_frequency, 2)
-    ) %>%
-    dplyr::arrange(dplyr::desc(abundance), family)
+    .add_phytosoc() %>%
+    dplyr::arrange(dplyr::desc(importance_value), dplyr::desc(abundance), family)
 
   abundances <- species_stats$abundance
   proportions <- abundances / sum(abundances)
@@ -2038,10 +2149,19 @@
   distinct_species <- dplyr::n_distinct(df$Species[df$Species != ""])
   distinct_genera <- dplyr::n_distinct(sub(" .*", "", df$Species[df$Species != ""]))
 
+  # The sampling unit for frequency is the subplot. In MONITORA, T1 is the
+  # subunit (N/S/L/O) and T2 the subplot inside it, so combine both.
+  phyto_df <- df
+  if (identical(input_type, "monitora") && "T2" %in% names(phyto_df)) {
+    phyto_df$T1 <- paste0(phyto_df$T1, "-", phyto_df$T2)
+  }
+
   phytosoc <- .calculate_phytosociological_metrics(
-    fp_sheet = df,
+    fp_sheet = phyto_df,
     plot_size_ha = plot_size_ha,
-    subplot_size_m = subplot_size_m
+    subplot_size_m = subplot_size_m,
+    # MONITORA: 4 arms x 10 subplots of 10 x 10 m
+    n_subplots_sampled = if (identical(input_type, "monitora")) 40L else NULL
   )
 
   metrics_tbl <- tibble::tibble(
@@ -2835,9 +2955,17 @@
     "```{r meta-census, echo=FALSE, results='asis'}",
     "yrs <- params$metadata$census_years",
     "yrs <- yrs[is.finite(yrs)]",
-    "if (length(yrs) > 1) {",
+    "if (length(yrs) >= 1) {",
     "  cat(paste0('**Number of Census:** ', length(yrs), '\\n\\n'))",
     "  cat(paste0('**Dates of Census:** ', paste(yrs, collapse = ' | '), '\\n\\n'))",
+    "}",
+    "n_dead <- params$stats$dead_since_first",
+    "if (length(n_dead) == 1L && is.finite(n_dead)) {",
+    "  cat(paste0('**Dead trees since first census:** ', n_dead, '\\n\\n'))",
+    "}",
+    "n_rec <- params$stats$recruits_since_first",
+    "if (length(n_rec) == 1L && is.finite(n_rec)) {",
+    "  cat(paste0('**Recruits since first census:** ', n_rec, '\\n\\n'))",
     "}",
     "```",
     "",
@@ -3435,7 +3563,9 @@
                                   input_type,
                                   station_name = NULL,
                                   verbose = TRUE,
-                                  require_spatial = TRUE) {
+                                  require_spatial = TRUE,
+                                  col_map = NULL,
+                                  has_user_meta = FALSE) {
 
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(
@@ -3453,7 +3583,8 @@
     "monitora" = {
       raw <- .monitora_to_field_sheet_df(
         path = fp_file_path,
-        station_name = station_name
+        station_name = station_name,
+        col_map = col_map
       )
 
       meta <- attr(raw, "plot_meta")
@@ -3463,12 +3594,16 @@
         team = if (!is.null(meta$team)) meta$team else "",
         plot_name = if (!is.null(meta$plot_name)) meta$plot_name else "",
         plot_code = if (!is.null(meta$plot_code)) meta$plot_code else "",
-        census_no_fp = ""
+        census_no_fp = "",
+        census_years = meta$census_years,
+        census_n = meta$census_n,
+        dead_since_first = meta$dead_since_first,
+        recruits_since_first = meta$recruits_since_first
       )
     },
 
     "fp_query_sheet" = {
-      raw <- .fp_query_to_field_sheet_df(path = fp_file_path)
+      raw <- .fp_query_to_field_sheet_df(path = fp_file_path, col_map = col_map)
 
       meta <- attr(raw, "plot_meta")
 
@@ -3492,30 +3627,34 @@
       )
 
       raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
-      if (!("Collected" %in% names(raw))) {
-        raw$Collected <- NA_character_
-      }
 
       metadata_row <- .safe_char_row(raw)
 
       has_meta <- any(grepl("^\\s*(Plotcode:|Plot Code:|Plot Name:|Team:|PI:)",
                             metadata_row, ignore.case = TRUE))
 
-      if (!has_meta) {
+      if (!has_meta && !isTRUE(has_user_meta)) {
         stop(
-          "The field_sheet input must contain a metadata row, a header row, and at least one data row.",
+          "The field_sheet input has no metadata row (Plotcode:, Plot Name:, Team:). ",
+          "Add it to the sheet or supply `plot_name` and/or `plot_code`.",
           call. = FALSE
         )
       }
 
-      header_row_idx <- .find_field_header_row(raw)
+      header_row_idx <- .find_field_header_row(raw, extra_targets = unname(col_map))
 
       header <- raw[header_row_idx, ] |> unlist() |> as.character()
       header[is.na(header) | header == ""] <- paste0("NA_col_", seq_along(header))[is.na(header) | header == ""]
 
       raw <- raw[-seq_len(header_row_idx), , drop = FALSE]
-      colnames(raw) <- make.unique(header)
+      colnames(raw) <- make.unique(trimws(header))
       fp_sheet <- raw[, !is.na(colnames(raw)) & colnames(raw) != "", drop = FALSE]
+
+      fp_sheet <- .apply_col_map(fp_sheet, col_map)
+
+      if (!("Collected" %in% names(fp_sheet))) {
+        fp_sheet$Collected <- NA_character_
+      }
 
       list(
         fp_sheet = as.data.frame(fp_sheet, stringsAsFactors = FALSE, check.names = FALSE),
@@ -3548,7 +3687,19 @@
       }
 
       raw_data <- raw[-c(1, 2), , drop = FALSE]
-      names(raw_data) <- raw[2, ]
+
+      hdr <- as.character(unlist(raw[2, , drop = TRUE]))
+      empty_hdr <- is.na(hdr) | !nzchar(trimws(hdr))
+      hdr[empty_hdr] <- paste0("NA_col_", seq_along(hdr))[empty_hdr]
+      names(raw_data) <- make.unique(trimws(hdr))
+
+      # Mapped column when supplied, otherwise the fixed TI position
+      ti_col <- function(key, pos) {
+        cl <- .mapped_col(raw_data, col_map, key)
+        if (!is.na(cl)) return(raw_data[[cl]])
+        if (ncol(raw_data) >= pos) return(raw_data[[pos]])
+        rep(NA, nrow(raw_data))
+      }
 
       dest_cols <- .field_sheet_cols()
 
@@ -3558,19 +3709,22 @@
       )
       names(temp) <- dest_cols
 
-      temp$`New Tag No` <- as.character(raw_data[[1]])
-      temp$`New Stem Grouping` <- as.character(raw_data[[2]])
-      temp$T1 <- suppressWarnings(as.numeric(raw_data[[3]]))
-      temp$X <- suppressWarnings(as.numeric(raw_data[[4]]))
-      temp$Y <- suppressWarnings(as.numeric(raw_data[[5]]))
-      temp$Family <- as.character(raw_data[[6]])
+      temp$`New Tag No` <- as.character(ti_col("New Tag No", 1))
+      temp$`New Stem Grouping` <- as.character(ti_col("New Stem Grouping", 2))
+      temp$T1 <- suppressWarnings(as.numeric(ti_col("T1", 3)))
+      temp$X <- suppressWarnings(as.numeric(ti_col("X", 4)))
+      temp$Y <- suppressWarnings(as.numeric(ti_col("Y", 5)))
+      temp$Family <- as.character(ti_col("Family", 6))
 
-      temp$`Original determination` <- paste0(as.character(raw_data[[8]]),
-                                              " | ",
-                                              as.character(raw_data[[7]]))
+      sp_col <- .mapped_col(raw_data, col_map, "Original determination")
+      temp$`Original determination` <- if (!is.na(sp_col)) {
+        as.character(raw_data[[sp_col]])
+      } else {
+        paste0(as.character(raw_data[[8]]), " | ", as.character(raw_data[[7]]))
+      }
 
       temp$Morphospecies <- as.character(raw_data[[9]])
-      temp$D <- suppressWarnings(as.numeric(raw_data[[10]]))
+      temp$D <- suppressWarnings(as.numeric(ti_col("D", 10)))
       temp$POM <- suppressWarnings(as.numeric(raw_data[[11]]))
       temp$ExtraD <- NA_character_
       temp$ExtraPOM <- NA_character_
@@ -3579,9 +3733,9 @@
       temp$CI <- NA_character_
       temp$CF <- NA_character_
       temp$Height <- suppressWarnings(as.numeric(raw_data[[13]]))
-      temp$Voucher <- as.character(raw_data[[14]])
+      temp$Voucher <- as.character(ti_col("Voucher", 14))
       temp$Silica <- as.character(raw_data[[15]])
-      temp$Collected <- as.character(raw_data[[16]])
+      temp$Collected <- as.character(ti_col("Collected", 16))
       temp$`Census Notes` <- as.character(raw_data[[17]])
       temp$CAP <- suppressWarnings(as.numeric(raw_data[[20]]))
 
@@ -3622,9 +3776,13 @@
   )
 
   if (length(missing_cols)) {
+    reg <- .forplot_colname_registry()
+    hint <- paste0("`", names(reg)[match(missing_cols, reg)], "` (", missing_cols, ")")
     stop(
       "The harmonized input is missing required columns: ",
       paste(missing_cols, collapse = ", "),
+      ". If they exist under another name, map them with: ",
+      paste(hint, collapse = ", "), ".",
       call. = FALSE
     )
   }
@@ -3688,19 +3846,16 @@
 }
 
 .grab_meta_from_row <- function(metadata_row, key) {
-
   metadata_row <- gsub("\\s\\|\\s[^:]*:", ":", metadata_row)
 
   hit <- metadata_row[
     grepl(paste0("^", key, "[:]\\s*"), metadata_row, ignore.case = TRUE)
   ]
+
   if (length(hit)) {
-    sub(paste0("^", key, "[:]\\s*"), "", hit[1], ignore.case = TRUE)
+    trimws(sub(paste0("^", key, "[:]\\s*"), "", hit[1], ignore.case = TRUE))
   } else {
-    if (key %in% "Plot Name") {
-    } else {
-      "Unknown Plot"
-    }
+    ""
   }
 }
 

@@ -104,6 +104,30 @@
 #'
 #' @param filename Basename for generated output files, without extension.
 #'
+#' @param colname_tagno,colname_stemgroup,colname_subplot,colname_x,colname_y,colname_family,colname_species,colname_dbh,colname_voucher,colname_collected
+#' Optional column names in the input file to map to the internal schema,
+#' respectively: tree tag (\code{"New Tag No"}), stem group
+#' (\code{"New Stem Grouping"}), subplot (\code{"T1"}; for MONITORA, the
+#' subunit N/S/L/O), local X and Y coordinates (m), family, species
+#' (\code{"Original determination"}), diameter in mm (\code{"D"}), voucher,
+#' and collection status. Use them when your file uses different column names.
+#' The default \code{NULL} keeps automatic detection. Matching ignores case,
+#' accents, and punctuation. A supplied column always overrides automatic
+#' detection.
+#'
+#' @param colname_subplot_t2 MONITORA only. Column with the subplot number
+#' within the subunit (\code{"N_parcela"}).
+#'
+#' @param colname_cap MONITORA only. Column with circumference at breast height
+#' in cm, which is converted to diameter. Ignored if \code{colname_dbh} is
+#' supplied.
+#'
+#' @param colname_station MONITORA only. Column with the station name, used to
+#' filter by \code{station_name} and as the plot code.
+#'
+#' @param colname_census_year MONITORA only. Column with the census year or
+#' date. Only the most recent census is plotted.
+#'
 #' @return Invisibly returns a list with paths to generated outputs:
 #' \describe{
 #'   \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
@@ -168,10 +192,23 @@
 #'   input_type = "monitora",
 #'   station_name = c("Station1", "Station2")
 #' )
+#'
+#' # Field sheet with non-standard column names
+#' forplot_balance(
+#'   fp_file_path = "data/minha_parcela.xlsx",
+#'   input_type = "field_sheet",
+#'   colname_tagno = "Placa",
+#'   colname_subplot = "Subparcela",
+#'   colname_x = "Coord X",
+#'   colname_y = "Coord Y",
+#'   colname_family = "Familia",
+#'   colname_species = "Especie",
+#'   colname_dbh = "DAP_mm",
+#'   colname_collected = "Coletado"
+#' )
 #' }
 #'
 #' @export
-#'
 
 forplot_balance <- function(fp_file_path = NULL,
                             language = c("en", "pt", "es", "fr", "ma", "pa"),
@@ -191,12 +228,52 @@ forplot_balance <- function(fp_file_path = NULL,
                             write_xlsx = TRUE,
                             verbose = TRUE,
                             dir = "Results_map_plot",
-                            filename = "plot_specimen") {
+                            filename = "plot_specimen",
+                            colname_tagno = NULL,
+                            colname_stemgroup = NULL,
+                            colname_subplot = NULL,
+                            colname_subplot_t2 = NULL,
+                            colname_x = NULL,
+                            colname_y = NULL,
+                            colname_family = NULL,
+                            colname_species = NULL,
+                            colname_dbh = NULL,
+                            colname_cap = NULL,
+                            colname_voucher = NULL,
+                            colname_collected = NULL,
+                            colname_station = NULL,
+                            colname_census_year = NULL) {
 
   .validate_subplot_size(subplot_size)
 
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
+
+  col_map <- .build_col_map(
+    colname_tagno = colname_tagno,
+    colname_stemgroup = colname_stemgroup,
+    colname_subplot = colname_subplot,
+    colname_subplot_t2 = colname_subplot_t2,
+    colname_x = colname_x,
+    colname_y = colname_y,
+    colname_family = colname_family,
+    colname_species = colname_species,
+    colname_dbh = colname_dbh,
+    colname_cap = colname_cap,
+    colname_voucher = colname_voucher,
+    colname_collected = colname_collected,
+    colname_station = colname_station,
+    colname_census_year = colname_census_year
+  )
+
+  monitora_only <- c("T2", "CAP", ".station", ".census_year")
+  if (input_type != "monitora" && any(names(col_map) %in% monitora_only)) {
+    warning(
+      "`colname_subplot_t2`, `colname_cap`, `colname_station` and ",
+      "`colname_census_year` are only used when input_type = 'monitora'; ignored.",
+      call. = FALSE
+    )
+  }
 
   if (!is.logical(render_html) || length(render_html) != 1 || is.na(render_html)) {
     stop("`render_html` must be TRUE or FALSE.", call. = FALSE)
@@ -257,6 +334,7 @@ forplot_balance <- function(fp_file_path = NULL,
         station_name = st,
         plot_name = arg_plot_name,
         plot_code = arg_plot_code,
+        plot_census_no = arg_census_no_fp,
         team = arg_team,
         render_html = render_html,
         render_pdf = render_pdf,
@@ -264,7 +342,21 @@ forplot_balance <- function(fp_file_path = NULL,
         dir = dir,
         filename = paste0(filename, "_station_", st),
         language = language,
-        verbose = verbose
+        verbose = verbose,
+        colname_tagno = colname_tagno,
+        colname_stemgroup = colname_stemgroup,
+        colname_subplot = colname_subplot,
+        colname_subplot_t2 = colname_subplot_t2,
+        colname_x = colname_x,
+        colname_y = colname_y,
+        colname_family = colname_family,
+        colname_species = colname_species,
+        colname_dbh = colname_dbh,
+        colname_cap = colname_cap,
+        colname_voucher = colname_voucher,
+        colname_collected = colname_collected,
+        colname_station = colname_station,
+        colname_census_year = colname_census_year
       )
     }
     return(invisible(TRUE))
@@ -275,7 +367,9 @@ forplot_balance <- function(fp_file_path = NULL,
     fp_file_path = fp_file_path,
     input_type = input_type,
     station_name = station_name,
-    verbose = verbose
+    verbose = verbose,
+    col_map = col_map,
+    has_user_meta = .safe_nzchar(arg_plot_name) || .safe_nzchar(arg_plot_code)
   )
 
   fp_sheet  <- fp_loaded$fp_sheet
@@ -810,8 +904,8 @@ forplot_balance <- function(fp_file_path = NULL,
       plot_census_no_fp = plot_census_no_fp,
       plot_code = plot_code,
       team = team,
-      census_years = if (exists("monitora_census_years", inherits = TRUE)) get("monitora_census_years") else NULL,
-      census_n = if (exists("monitora_census_n", inherits = TRUE)) get("monitora_census_n") else NULL
+      census_years = fp_loaded$census_years,
+      census_n = fp_loaded$census_n
     ),
     main_plot = base_plot_static,
     interactive_main_plot = base_plot_interactive,
@@ -824,8 +918,8 @@ forplot_balance <- function(fp_file_path = NULL,
       uncollected = uncollected_count,
       palms = palms_count,
       spec_df = spec_df,
-      dead_since_first = if (exists("monitora_dead_since_first", inherits = TRUE)) get("monitora_dead_since_first") else NULL,
-      recruits_since_first = if (exists("monitora_recruits_since_first", inherits = TRUE)) get("monitora_recruits_since_first") else NULL
+      dead_since_first = fp_loaded$dead_since_first,
+      recruits_since_first = fp_loaded$recruits_since_first
     ),
     dashboard = dashboard_obj,
     tag_list = unique(trimws(as.character(fp_coords$`New Tag No`))),
@@ -1018,9 +1112,10 @@ forplot_balance <- function(fp_file_path = NULL,
 
 
 # Helpers ####
-.find_field_header_row <- function(raw, max_check = 6) {
+.find_field_header_row <- function(raw, max_check = 6, extra_targets = NULL) {
   max_r <- min(nrow(raw), max_check)
   targets <- c("New Tag No", "T1", "T2", "X", "Y", "Family", "D")
+  targets <- unique(c(targets, trimws(as.character(extra_targets))))
 
   scores <- vapply(seq_len(max_r), function(i) {
     row_i <- as.character(unlist(raw[i, , drop = TRUE]))

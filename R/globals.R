@@ -72,6 +72,9 @@ utils::globalVariables(
     # From plot_html_map
     "latitude", "longitude",
 
+    # From .calculate_phytosociological_metrics
+    "absolute_frequency", "relative_dominance", "basal_area_m2",
+
     NULL
   )
 )

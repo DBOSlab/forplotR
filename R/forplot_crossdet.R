@@ -599,8 +599,16 @@ forplot_crossdet <- function(fp_file_path,
     }
   }
 
-  # Read and standardize the inventory first, so input problems are reported
-  # before any download.
+  # Resolve or download local JABOT occurrence files.
+  files <- .resolve_occurrence_files(
+    herbarium = herbarium,
+    path = path,
+    force_refresh = force_refresh,
+    verbose = verbose,
+    resource_map = resource_map
+  )
+
+  # Read and standardize the inventory.
   inv <- .inventory_to_common_df(
     fp_file_path = fp_file_path,
     input_type = input_type,
@@ -617,15 +625,6 @@ forplot_crossdet <- function(fp_file_path,
       call. = FALSE
     )
   }
-
-  # Resolve or download local JABOT occurrence files.
-  files <- .resolve_occurrence_files(
-    herbarium = herbarium,
-    path = path,
-    force_refresh = force_refresh,
-    verbose = verbose,
-    resource_map = resource_map
-  )
 
   # Keep collected rows only when requested.
   if (isTRUE(only_collected) && "Collected" %in% names(inv)) {

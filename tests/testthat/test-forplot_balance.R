@@ -317,7 +317,7 @@ test_that("forplot_balance normalizes input_type and language", {
   seen <- new.env(parent = emptyenv())
 
   testthat::local_mocked_bindings(
-    .harmonize_plot_input = function(fp_file_path, input_type, station_name, verbose) {
+    .harmonize_plot_input = function(fp_file_path, input_type, station_name, verbose, ...) {
       seen$input_type <- input_type
       seen$station_name <- station_name
       stop("TEST_STOP_AFTER_HARMONIZE", call. = FALSE)

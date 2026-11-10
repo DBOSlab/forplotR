@@ -692,7 +692,7 @@ test_that(".harmonize_plot_input supports spatial and non-spatial schemas", {
   f <- .localize_function(
     .harmonize_plot_input,
     bindings = list(
-      .fp_query_to_field_sheet_df = function(path) core_only
+      .fp_query_to_field_sheet_df = function(path, ...) core_only
     )
   )
 
@@ -1713,4 +1713,22 @@ test_that(".herbaria_lookup_links returns NA when Voucher is absent", {
   )
 
   expect_equal(out, rep(NA_character_, 2))
+})
+
+test_that("multistem groups with a single valid stem are kept", {
+  df <- tibble::tibble(
+    `New Tag No` = c("7", "7a"),
+    `New Stem Grouping` = c("G7", "G7"),
+    D = c(120, NA)
+  )
+  out <- suppressMessages(.consolidate_multistem_trees(df, min_diameter = 5))
+  expect_equal(nrow(out), 1L)
+  expect_equal(out$D, 120)
+})
+
+test_that("relative frequency sums to 100 and IVI to 300", {
+  fp <- .make_field_sheet_df()
+  sp <- .calculate_phytosociological_metrics(fp)$species_metrics
+  expect_equal(sum(sp$relative_frequency), 100, tolerance = 0.05)
+  expect_equal(sum(sp$importance_value), 300, tolerance = 0.1)
 })

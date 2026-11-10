@@ -62,17 +62,19 @@
   )
 }
 
+# Corners about 10 m apart, matching the 0.01-ha (10 x 10 m) test plot,
+# in the order (0,0), (0,length), (width,0), (width,length).
 .map_test_vertices <- function() {
   data.frame(
-    Latitude = c(-3.0000, -3.0000, -3.0010, -3.0010),
-    Longitude = c(-60.0000, -59.9990, -60.0000, -59.9990)
+    Latitude = c(-3.00000, -2.99991, -3.00000, -2.99991),
+    Longitude = c(-60.00000, -60.00000, -59.99991, -59.99991)
   )
 }
 
 .map_test_vertices_with_units <- function() {
   data.frame(
-    `Latitude (WGS84)` = c("-3,0000", "-3,0000", "-3,0010", "-3,0010"),
-    `Longitude (WGS84)` = c("-60,0000", "-59,9990", "-60,0000", "-59,9990"),
+    `Latitude (WGS84)` = c("-3,00000", "-2,99991", "-3,00000", "-2,99991"),
+    `Longitude (WGS84)` = c("-60,00000", "-60,00000", "-59,99991", "-59,99991"),
     check.names = FALSE
   )
 }
