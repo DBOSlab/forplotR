@@ -6,83 +6,117 @@ export(forplot_map)
 export(forplot_sheets)
 export(forplot_vouchers)
 import(ggplot2)
-importFrom(DBI,dbConnect)
-importFrom(DBI,dbDisconnect)
-importFrom(DBI,dbExecute)
-importFrom(DBI,dbGetQuery)
-importFrom(DBI,dbWriteTable)
-importFrom(data.table,":=")
-importFrom(data.table,fread)
-importFrom(dplyr,any_of)
-importFrom(dplyr,arrange)
-importFrom(dplyr,bind_rows)
-importFrom(dplyr,case_when)
-importFrom(dplyr,distinct)
-importFrom(dplyr,filter)
-importFrom(dplyr,group_by)
-importFrom(dplyr,if_else)
-importFrom(dplyr,mutate)
-importFrom(dplyr,n)
-importFrom(dplyr,rename)
-importFrom(dplyr,rename_with)
-importFrom(dplyr,select)
+importFrom(DBI,
+  dbConnect,
+  dbDisconnect,
+  dbExecute,
+  dbGetQuery,
+  dbWriteTable
+)
+importFrom(data.table,
+  ":=",
+  fread
+)
+importFrom(dplyr,
+  any_of,
+  arrange,
+  bind_rows,
+  case_when,
+  distinct,
+  filter,
+  group_by,
+  if_else,
+  mutate,
+  n,
+  rename,
+  rename_with,
+  select
+)
 importFrom(duckdb,duckdb)
 importFrom(geodata,elevation_global)
-importFrom(geosphere,bearing)
-importFrom(geosphere,destPoint)
-importFrom(grDevices,colorRampPalette)
-importFrom(grDevices,dev.off)
-importFrom(grDevices,pdf)
+importFrom(geosphere,
+  bearing,
+  destPoint
+)
+importFrom(grDevices,
+  colorRampPalette,
+  dev.off,
+  pdf
+)
 importFrom(grid,unit)
 importFrom(here,here)
-importFrom(htmltools,HTML)
-importFrom(htmltools,htmlEscape)
-importFrom(htmltools,tags)
-importFrom(htmlwidgets,onRender)
-importFrom(htmlwidgets,prependContent)
-importFrom(htmlwidgets,saveWidget)
-importFrom(leaflet,addCircleMarkers)
-importFrom(leaflet,addControl)
-importFrom(leaflet,addLabelOnlyMarkers)
-importFrom(leaflet,addPolygons)
-importFrom(leaflet,addPolylines)
-importFrom(leaflet,addProviderTiles)
-importFrom(leaflet,fitBounds)
-importFrom(leaflet,leaflet)
-importFrom(leaflet,setView)
+importFrom(htmltools,
+  HTML,
+  htmlEscape,
+  tags
+)
+importFrom(htmlwidgets,
+  onRender,
+  prependContent,
+  saveWidget
+)
+importFrom(leaflet,
+  addCircleMarkers,
+  addControl,
+  addLabelOnlyMarkers,
+  addPolygons,
+  addPolylines,
+  addProviderTiles,
+  fitBounds,
+  leaflet,
+  setView
+)
 importFrom(magrittr,"%>%")
-importFrom(openxlsx,addStyle)
-importFrom(openxlsx,addWorksheet)
-importFrom(openxlsx,createStyle)
-importFrom(openxlsx,createWorkbook)
-importFrom(openxlsx,read.xlsx)
-importFrom(openxlsx,saveWorkbook)
-importFrom(openxlsx,write.xlsx)
-importFrom(openxlsx,writeData)
-importFrom(plotly,config)
-importFrom(plotly,layout)
-importFrom(plotly,plot_ly)
-importFrom(readr,locale)
-importFrom(readr,read_delim)
+importFrom(openxlsx,
+  addStyle,
+  addWorksheet,
+  createStyle,
+  createWorkbook,
+  read.xlsx,
+  saveWorkbook,
+  write.xlsx,
+  writeData
+)
+importFrom(plotly,
+  config,
+  layout,
+  plot_ly
+)
+importFrom(readr,
+  locale,
+  read_delim
+)
 importFrom(readxl,read_excel)
-importFrom(rmarkdown,pdf_document)
-importFrom(rmarkdown,render)
+importFrom(rmarkdown,
+  pdf_document,
+  render
+)
 importFrom(scales,rescale)
-importFrom(stats,na.omit)
-importFrom(stats,setNames)
+importFrom(stats,
+  na.omit,
+  setNames
+)
 importFrom(stringi,stri_trans_general)
-importFrom(stringr,str_detect)
-importFrom(stringr,str_remove)
-importFrom(stringr,str_to_lower)
-importFrom(stringr,str_trim)
-importFrom(stringr,word)
-importFrom(terra,extract)
-importFrom(terra,vect)
-importFrom(tibble,as_tibble)
-importFrom(tibble,tibble)
+importFrom(stringr,
+  str_detect,
+  str_remove,
+  str_to_lower,
+  str_trim,
+  word
+)
+importFrom(terra,
+  extract,
+  vect
+)
+importFrom(tibble,
+  as_tibble,
+  tibble
+)
 importFrom(tidyr,replace_na)
 importFrom(tinytex,latexmk)
-importFrom(utils,capture.output)
-importFrom(utils,download.file)
-importFrom(utils,read.csv)
+importFrom(utils,
+  capture.output,
+  download.file,
+  read.csv
+)
 importFrom(writexl,write_xlsx)
