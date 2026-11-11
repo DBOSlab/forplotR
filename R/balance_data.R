@@ -339,6 +339,7 @@
     param_list$priority_obj <- priority_obj
     param_list$priority_species_tbl <- .flatten_priority_species_checklist(
       priority_obj,
+      original_data = fp_coords,
       language = language
     )
   }

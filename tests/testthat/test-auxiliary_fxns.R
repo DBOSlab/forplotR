@@ -1732,3 +1732,31 @@ test_that("relative frequency sums to 100 and IVI to 300", {
   expect_equal(sum(sp$relative_frequency), 100, tolerance = 0.05)
   expect_equal(sum(sp$importance_value), 300, tolerance = 0.1)
 })
+
+test_that(".flatten_priority_species_checklist maps tags to subplots and sorts numerically", {
+  priority_obj <- list(
+    species_checklist = tibble::tibble(
+      Family = "Fabaceae",
+      Species = "Inga sp.",
+      n_trees = 4L,
+      priority_subplots = "3, 23, 100",
+      tags = list(c("845", "23", "203", "999")),
+      subplots = list(c("100", "3", "23"))
+    )
+  )
+  original <- data.frame(
+    `New Tag No` = c("845", "23", "203"),
+    T1 = c(100L, 3L, 23L),
+    check.names = FALSE
+  )
+
+  flat <- .flatten_priority_species_checklist(priority_obj,
+                                              original_data = original,
+                                              language = "en")
+
+  expect_identical(
+    flat[[5]],
+    paste("S3 - [23](#subplot-3)", "S23 - [203](#subplot-23)",
+          "S100 - [845](#subplot-100)", "? - 999", sep = " | ")
+  )
+})

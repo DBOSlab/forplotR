@@ -4220,14 +4220,16 @@
     result$subplot_tag_links <- character(nrow(result))
 
     for (i in seq_len(nrow(result))) {
-      tag_vec <- result$tags[[i]]
+      tag_vec <- as.character(result$tags[[i]])
       pairs <- character(length(tag_vec))
+      sub_vec <- rep(NA_character_, length(tag_vec))
 
       for (j in seq_along(tag_vec)) {
         tg <- tag_vec[j]
         sub_idx <- which(tag_subplot_lookup$tag == tg)
         if (length(sub_idx) > 0) {
           sub <- tag_subplot_lookup$subplot[sub_idx[1]]
+          sub_vec[j] <- sub
           # Create links for both HTML and LaTeX
           pairs[j] <- sprintf("S%s - [%s](#subplot-%s)", sub, tg, sub)
         } else {
@@ -4235,10 +4237,14 @@
         }
       }
 
-      # Sort by subplot number
-      subplot_nums <- suppressWarnings(as.numeric(gsub("S", "", pairs)))
-      pairs <- pairs[order(subplot_nums, pairs)]
-      result$subplot_tag_links[i] <- paste(pairs, collapse = " | ")
+      # Sort numerically by subplot, then by tag; unknown subplots go last
+      ord <- order(
+        suppressWarnings(as.numeric(sub_vec)),
+        suppressWarnings(as.numeric(tag_vec)),
+        tag_vec,
+        na.last = TRUE
+      )
+      result$subplot_tag_links[i] <- paste(pairs[ord], collapse = " | ")
     }
 
     result <- result[, c("Family", "Species", "n_trees",

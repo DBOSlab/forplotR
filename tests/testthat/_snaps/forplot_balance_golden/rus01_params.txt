@@ -2010,7 +2010,7 @@ $remaining_species
 <2 x 5>
 Family	Species	No Trees	Priority Subplots	Subplot - Tag
 Lauraceae	*Persea indet*	1	98	S98 - [872](#subplot-98)
-Indet	*Indet indet*	10	NA	203 | 23 | 491 | 668 | 672 | 700 | 845 | 852 | 855 | 860
+Indet	*Indet indet*	10	NA	S3 - [23](#subplot-3) | S23 - [203](#subplot-23) | S60 - [491](#subplot-60) | S62 - [668](#subplot-62) | S62 - [672](#subplot-62) | S78 - [700](#subplot-78) | S99 - [855](#subplot-99) | S99 - [860](#subplot-99) | S100 - [845](#subplot-100) | S100 - [852](#subplot-100)
 
 ## priority_uncollected_plot
 <waiver>
