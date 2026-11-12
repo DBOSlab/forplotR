@@ -128,12 +128,12 @@
   path
 }
 
-# RUS01 ships with one individual (tag 1700) that has no subplot (T1), which
-# forplot_balance() rejects. Drop it so the bundled data can be used as fixture.
-# Its metadata headers were also stored with make.names() mangling
+# RUS01's metadata headers were stored with make.names() mangling
 # ("Plot.Name:.REBIO..."), so restore the spaces the field sheet expects.
+# It also contains one individual without subplot (tag 1700), which is kept on
+# purpose: forplot_balance() must exclude it with a warning, not abort.
 .golden_rus01 <- function() {
-  d <- RUS01[!is.na(RUS01[[3]]) & nzchar(trimws(RUS01[[3]])), , drop = FALSE]
+  d <- RUS01
   meta <- grepl(":", names(d), fixed = TRUE)
   names(d)[meta] <- gsub(".", " ", names(d)[meta], fixed = TRUE)
   d

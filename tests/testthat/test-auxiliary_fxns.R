@@ -1760,3 +1760,36 @@ test_that(".flatten_priority_species_checklist maps tags to subplots and sorts n
           "S100 - [845](#subplot-100)", "? - 999", sep = " | ")
   )
 })
+
+test_that(".compute_global_coordinates excludes individuals without T1 with a warning", {
+  df <- data.frame(
+    `New Tag No` = c("1", "2", "1700"),
+    T1 = c("1", "2", NA),
+    X = c(1, 2, NA),
+    Y = c(1, 2, NA),
+    check.names = FALSE
+  )
+
+  expect_warning(
+    out <- .compute_global_coordinates(df, subplot_size = 10,
+                                       plot_width_m = 20, plot_length_m = 20),
+    "1 individual[(]s[)] without a subplot.*tag 1700"
+  )
+  expect_identical(out$`New Tag No`, c("1", "2"))
+})
+
+test_that(".compute_global_coordinates reports tags with T1 outside the grid", {
+  df <- data.frame(
+    `New Tag No` = c("1", "77"),
+    T1 = c(1, 105),
+    X = c(1, 1),
+    Y = c(1, 1),
+    check.names = FALSE
+  )
+
+  expect_error(
+    .compute_global_coordinates(df, subplot_size = 10,
+                                plot_width_m = 100, plot_length_m = 100),
+    "outside the resolved plot grid [(]1-100[)].*105 [(]tag 77[)]"
+  )
+})

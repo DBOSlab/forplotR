@@ -1824,17 +1824,45 @@
 
   .validate_local_xy(out, subplot_size = subplot_size)
 
+  tag_label <- function(idx) {
+    tags <- if ("New Tag No" %in% names(out)) {
+      trimws(as.character(out$`New Tag No`[idx]))
+    } else {
+      rep(NA_character_, length(idx))
+    }
+    lab <- ifelse(is.na(tags) | !nzchar(tags), paste0("row ", idx), paste0("tag ", tags))
+    shown <- utils::head(lab, 10L)
+    if (length(lab) > length(shown)) {
+      shown <- c(shown, paste0("... (", length(lab) - length(shown), " more)"))
+    }
+    paste(shown, collapse = ", ")
+  }
+
+  # Individuals without a subplot cannot be placed on the plot: drop them
+  # with a warning instead of aborting the whole plot.
+  missing_t1 <- !is.finite(out$T1)
+  if (any(missing_t1)) {
+    warning(
+      sum(missing_t1), " individual(s) without a subplot (`T1`) were excluded ",
+      "from the plot maps: ", tag_label(which(missing_t1)), ".",
+      call. = FALSE
+    )
+    out <- out[!missing_t1, , drop = FALSE]
+  }
+
   total_subplots <- n_rows * n_cols
-  bad_t1 <- !is.finite(out$T1) | out$T1 < 1 | out$T1 > total_subplots
+  bad_t1 <- out$T1 < 1 | out$T1 > total_subplots
 
   if (any(bad_t1)) {
-    bad_vals <- unique(out$T1[bad_t1])
+    bad_idx <- which(bad_t1)
+    bad_vals <- unique(out$T1[bad_idx])
     bad_vals <- bad_vals[seq_len(min(length(bad_vals), 5L))]
     stop(
       paste0(
         "`T1` contains subplot IDs outside the resolved plot grid (1-",
         total_subplots, "). Invalid example(s): ",
-        paste(bad_vals, collapse = ", "), "."
+        paste(bad_vals, collapse = ", "), " (", tag_label(bad_idx), "). ",
+        "Check `plot_size`, `plot_width_m`, `plot_length_m` and `subplot_size`."
       ),
       call. = FALSE
     )
