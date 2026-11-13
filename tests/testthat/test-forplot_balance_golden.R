@@ -128,16 +128,14 @@
   path
 }
 
-# RUS01's metadata headers were stored with make.names() mangling
-# ("Plot.Name:.REBIO..."), so restore the spaces the field sheet expects.
-# It also contains one individual without subplot (tag 1700), which is kept on
-# purpose: forplot_balance() must exclude it with a warning, not abort.
-.golden_rus01 <- function() {
-  d <- RUS01
-  meta <- grepl(":", names(d), fixed = TRUE)
-  names(d)[meta] <- gsub(".", " ", names(d)[meta], fixed = TRUE)
-  d
-}
+# RUS01 contains one individual without subplot (tag 1700), kept on purpose:
+# forplot_balance() must exclude it with a warning, not abort.
+.golden_rus01 <- function() RUS01
+
+test_that("RUS01 keeps the field-sheet metadata headers readable", {
+  expect_true("Plot Name: REBIO Augusto Ruschi" %in% names(RUS01))
+  expect_true("Plotcode: RUS01" %in% names(RUS01))
+})
 
 # -----------------------------------------------------------------------------
 # Tests
