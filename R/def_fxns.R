@@ -167,9 +167,77 @@
 
 
 #_______________________________________________________________________________
+# Offline mode and optional packages ####
+
+#' Is forplotR running in offline mode?
+#'
+#' Set `options(forplotR.offline = TRUE)` to stop every function from
+#' accessing the internet (herbarium downloads, GADM boundaries, global
+#' elevation). Used when forplotR runs in the browser, where plot data must
+#' never leave the user's computer.
+#'
+#' @keywords internal
+#' @noRd
+.forplotr_offline <- function() {
+  isTRUE(getOption("forplotR.offline", FALSE))
+}
+
+#' Stop when a feature needs the internet and offline mode is on
+#'
+#' @keywords internal
+#' @noRd
+.stop_if_offline <- function(what) {
+  if (.forplotr_offline()) {
+    stop(
+      what, " needs internet access, which is disabled ",
+      "(options(forplotR.offline = TRUE)).",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+#' Names of the packages in `pkgs` that are not installed
+#'
+#' @keywords internal
+#' @noRd
+.missing_pkgs <- function(pkgs) {
+  pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+}
+
+#' Message telling the user which suggested packages to install
+#'
+#' @keywords internal
+#' @noRd
+.install_hint <- function(what, pkgs) {
+  paste0(
+    what, " requires the package(s) ", paste0("'", pkgs, "'", collapse = ", "),
+    ". Install with install.packages(c(",
+    paste0("\"", pkgs, "\"", collapse = ", "), "))"
+  )
+}
+
+
+#_______________________________________________________________________________
 # Main function to validate if coordinates fall within the specified administrative division ####
 
 .check_point_in_admin <- function(lat, long, majorarea, country, level = 1) {
+
+  # The validation is optional: offline or without the spatial packages,
+  # warn and skip it instead of aborting the conversion.
+  missing_spatial <- .missing_pkgs(c("geodata", "terra"))
+  if (.forplotr_offline() || length(missing_spatial)) {
+    warning(
+      if (.forplotr_offline()) {
+        "Offline mode (options(forplotR.offline = TRUE))"
+      } else {
+        .install_hint("Locality validation", missing_spatial)
+      },
+      "; locality validation skipped.",
+      call. = FALSE
+    )
+    return(invisible(NA))
+  }
 
   # Translate country name to standardized format
   standardized_country <- .translate_country(country)

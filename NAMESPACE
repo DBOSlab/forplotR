@@ -6,13 +6,6 @@ export(forplot_map)
 export(forplot_sheets)
 export(forplot_vouchers)
 import(ggplot2)
-importFrom(DBI,
-  dbConnect,
-  dbDisconnect,
-  dbExecute,
-  dbGetQuery,
-  dbWriteTable
-)
 importFrom(data.table,
   ":=",
   fread
@@ -32,8 +25,6 @@ importFrom(dplyr,
   rename_with,
   select
 )
-importFrom(duckdb,duckdb)
-importFrom(geodata,elevation_global)
 importFrom(geosphere,
   bearing,
   destPoint,
@@ -102,10 +93,6 @@ importFrom(stringr,
   str_to_lower,
   str_trim,
   word
-)
-importFrom(terra,
-  extract,
-  vect
 )
 importFrom(tibble,
   as_tibble,

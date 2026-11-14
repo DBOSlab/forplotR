@@ -92,13 +92,19 @@ from team-related columns when available.}
 \item{long}{Longitude in decimal degrees of the collection site.}
 
 \item{alt}{Altitude in meters of the collection site. If \code{NULL},
-extract the altitude from geographic coordinates dataset.}
+extract the altitude from geographic coordinates dataset. This requires
+internet access and the suggested packages \pkg{geodata} and \pkg{terra};
+without them, or with \code{options(forplotR.offline = TRUE)}, \code{alt}
+is left as \code{NA} with a warning.}
 
 \item{add_census_notes}{If \code{TRUE}, census notes will be included in the
 herbarium sheet's notes. If \code{FALSE}, census notes will be omitted.}
 
 \item{validate_locality}{If \code{TRUE} (default), validates whether the
-coordinates fall within the provided administrative division (country/majorarea).}
+coordinates fall within the provided administrative division (country/majorarea).
+Needs internet access and the suggested packages \pkg{geodata} and
+\pkg{terra}; without them, or with \code{options(forplotR.offline = TRUE)},
+the validation is skipped with a warning.}
 
 \item{dir}{Output directory. The file is saved within a subfolder named
 after the current date. The default writes to a session temporary directory

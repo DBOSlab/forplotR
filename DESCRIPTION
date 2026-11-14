@@ -35,10 +35,7 @@ Depends:
     R (>= 4.1.0)
 Imports:
     data.table,
-    DBI,
     dplyr,
-    duckdb,
-    geodata,
     geosphere,
     ggplot2,
     grDevices,
@@ -56,14 +53,17 @@ Imports:
     stats,
     stringi,
     stringr,
-    terra,
     tibble,
     tidyr,
     tools,
     utils,
     writexl
 Suggests:
+    DBI,
+    duckdb,
+    geodata,
     knitr,
+    terra,
     testthat (>= 3.2.0),
     tinytex,
     withr

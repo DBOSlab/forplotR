@@ -38,6 +38,14 @@ spreadsheets.
   fail gracefully with a warning when offline.
 - `verbose = FALSE` now silences all informational messages.
 - PDF rendering requires the suggested package 'tinytex'.
+- 'terra', 'geodata', 'duckdb' and 'DBI' are now suggested packages, loaded
+  only by the features that need them (locality validation and elevation in
+  `forplot_sheets()`, herbarium lookup in `forplot_map()` and
+  `forplot_crossdet()`). Without them those features are skipped with a
+  warning that says what to install, and `library(forplotR)` loads faster.
+- New option `options(forplotR.offline = TRUE)`: no function accesses the
+  internet. Locality validation, elevation download and herbarium downloads
+  are skipped with a warning; already cached herbarium data is still used.
 
 ### Infrastructure
 

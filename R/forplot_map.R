@@ -122,7 +122,9 @@
 #'
 #' @param herbaria_lookup Logical. If \code{TRUE}, the function performs a local
 #' herbarium lookup and adds herbarium image links to specimen popups when
-#' available.
+#' available. Requires the suggested packages \pkg{DBI} and \pkg{duckdb} and
+#' internet access; with \code{options(forplotR.offline = TRUE)} the lookup
+#' is skipped with a warning and the map is built without the links.
 #'
 #' @param herbaria Character vector or \code{NULL}. Herbarium codes to use in
 #' the herbarium lookup, for example \code{c("RB", "UPCB")}. When
@@ -250,8 +252,6 @@
 #' @importFrom openxlsx read.xlsx
 #' @importFrom data.table fread :=
 #' @importFrom stats na.omit setNames
-#' @importFrom DBI dbConnect dbDisconnect dbExecute dbGetQuery dbWriteTable
-#' @importFrom duckdb duckdb
 #'
 #' @export
 
