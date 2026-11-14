@@ -43,6 +43,8 @@ spreadsheets.
   `forplot_sheets()`, herbarium lookup in `forplot_map()` and
   `forplot_crossdet()`). Without them those features are skipped with a
   warning that says what to install, and `library(forplotR)` loads faster.
+- `forplot_map()` no longer needs pandoc: without it, the map's scripts,
+  styles and images are embedded directly, giving the same single-file HTML.
 - New option `options(forplotR.offline = TRUE)`: no function accesses the
   internet. Locality validation, elevation download and herbarium downloads
   are skipped with a warning; already cached herbarium data is still used.

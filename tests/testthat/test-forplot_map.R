@@ -148,13 +148,12 @@ test_that("forplot_map normalizes input_type case and whitespace", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
-      saved$selfcontained <- selfcontained
+      saved$selfcontained <- TRUE
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -825,12 +824,11 @@ test_that("named MONITORA coordinate vectors may be supplied lon before lat", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -867,12 +865,11 @@ test_that("vertex data frame names with units and decimal commas are accepted", 
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -952,12 +949,11 @@ test_that("herbarium lookup is not called when herbaria_lookup is FALSE", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -997,12 +993,11 @@ test_that("empty herbaria with lookup enabled gives a warning and continues", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1042,12 +1037,11 @@ test_that("herbarium lookup failures warn and map generation continues", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1084,12 +1078,11 @@ test_that("invalid herbarium lookup result warns and is ignored", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1132,13 +1125,12 @@ test_that("valid herbarium links are incorporated into popup content", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$widget <- widget
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1192,12 +1184,11 @@ test_that("herbarium lookup receives all lookup-control arguments", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1251,13 +1242,12 @@ test_that("voucher image directories add a photo badge and slideshow to popup", 
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$widget <- widget
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1297,12 +1287,11 @@ test_that("voucher_imgs = NULL does not require image-directory traversal", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1341,14 +1330,13 @@ test_that("forplot_map creates a Leaflet htmlwidget and requests self-contained 
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$widget <- widget
       saved$file <- file
-      saved$selfcontained <- selfcontained
+      saved$selfcontained <- TRUE
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1388,13 +1376,12 @@ test_that("generated widget contains specimen and subplot layers", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$widget <- widget
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1428,13 +1415,12 @@ test_that("generated widget contains expected popup metadata", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$widget <- widget
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1471,13 +1457,12 @@ test_that("specimen marker status colors are embedded in the Leaflet widget", {
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$widget <- widget
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
@@ -1516,12 +1501,11 @@ test_that("CRAN smoke test does not require internet or a real Excel workbook", 
   )
 
   testthat::local_mocked_bindings(
-    saveWidget = function(widget, file, selfcontained = TRUE, ...) {
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
       saved$file <- file
       writeLines("<html></html>", file)
       invisible(NULL)
-    },
-    .package = "htmlwidgets"
+    }
   )
 
   old <- setwd(tempdir())
