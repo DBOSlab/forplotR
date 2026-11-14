@@ -666,8 +666,8 @@ forplot_crossdet <- function(fp_file_path,
   }
 
   con <- tryCatch(
-    DBI::dbConnect(duckdb::duckdb(), dbdir = dbdir_use %||% ":memory:"),
-    error = function(e) DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+    DBI::dbConnect(.duckdb_driver(), dbdir = dbdir_use %||% ":memory:"),
+    error = function(e) DBI::dbConnect(.duckdb_driver(), dbdir = ":memory:")
   )
   on.exit(try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE), add = TRUE)
 

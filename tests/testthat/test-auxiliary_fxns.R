@@ -85,7 +85,7 @@ library(testthat)
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
 
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  con <- DBI::dbConnect(.duckdb_driver(), dbdir = ":memory:")
 
   DBI::dbExecute(con, "
     CREATE TABLE herbaria_index (

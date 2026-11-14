@@ -726,7 +726,7 @@
   }
 
   db_path <- .herbaria_cache_paths()$duckdb_path
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  con <- DBI::dbConnect(.duckdb_driver(), dbdir = db_path)
 
   DBI::dbExecute(con, "
     CREATE TABLE IF NOT EXISTS occ_raw (
@@ -1595,3 +1595,21 @@
   list(links = out_local, resolved = resolved_local)
 }
 
+
+#' DuckDB driver that does not write to the user's home directory
+#'
+#' Since duckdb 1.4/2.0 the driver stores extensions and secrets under
+#' `~/.duckdb` unless `shared_home = FALSE`. The argument is passed only when
+#' the installed duckdb supports it.
+#'
+#' @return A `duckdb_driver` object.
+#'
+#' @keywords internal
+#' @noRd
+.duckdb_driver <- function() {
+  if ("shared_home" %in% names(formals(duckdb::duckdb))) {
+    do.call(duckdb::duckdb, list(shared_home = FALSE))
+  } else {
+    duckdb::duckdb()
+  }
+}

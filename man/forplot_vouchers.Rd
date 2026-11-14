@@ -90,6 +90,7 @@ img_dir <- file.path(tempdir(), "voucher_imgs")
 forplot_vouchers(fp, output_dir = img_dir, verbose = FALSE)
 head(list.dirs(img_dir, recursive = FALSE))
 
+\donttest{
 # MONITORA spreadsheet, one station
 fm <- file.path(tempdir(), "TUM.xlsx")
 openxlsx::write.xlsx(TUM, fm)
@@ -100,6 +101,7 @@ forplot_vouchers(
   output_dir = file.path(tempdir(), "voucher_imgs_tum"),
   verbose = FALSE
 )
+}
 
 \dontrun{
 # With your own files (not shipped with the package)

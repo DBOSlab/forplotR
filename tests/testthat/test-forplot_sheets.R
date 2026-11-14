@@ -259,3 +259,44 @@ test_that(".check_point_in_admin validates coordinates against mocked boundaries
     "Could not match"
   )
 })
+
+
+# Regression tests ------------------------------------------------------------
+
+test_that(".fmt_num removes floating-point noise and keeps text", {
+  expect_identical(.fmt_num("9.1999999999999993"), "9.2")
+  expect_identical(.fmt_num("267.39999999999998"), "267.4")
+  expect_identical(.fmt_num(c("3", "4.4000000000000004", NA, "", "abc")),
+                   c("3", "4.4", "", "", "abc"))
+  expect_identical(.fmt_num(13.369), "13.37")
+})
+
+test_that("forplot_sheets notes carry no floating-point noise", {
+  fx <- .sheets_fixtures()
+  out <- .run_sheets(fx)
+  expect_false(any(grepl("[0-9][.][0-9]{5,}", out$notes)))
+})
+
+test_that("MONITORA vouchers recorded in an earlier census are carried over", {
+  fx <- .sheets_fixtures()
+  out <- .run_sheets(
+    fx,
+    fp_file_path = fx$mon,
+    input_type = "monitora",
+    station_name = "EA-1",
+    majorarea = "AP",
+    minorarea = "Laranjal do Jari",
+    lat = 1.5,
+    long = -52.5,
+    alt = 300
+  )
+
+  # Most collected trees of EA-1 have their voucher in an earlier census
+  expect_gt(mean(!is.na(out$number) & nzchar(out$number)), 0.5)
+
+  # Tree 27 (subunit Leste, subplot 6) was vouchered as H. Medeiros 3239
+  tum <- forplotR::TUM
+  num_col <- grep("^voucher/n", names(tum), value = TRUE)
+  expect_true("3239" %in% tum[[num_col]])
+  expect_true("3239" %in% out$number)
+})
