@@ -1190,6 +1190,49 @@
     rep("", nrow(df_use))
   }
 
+  # A voucher is recorded only in the census in which the tree was collected,
+  # so rows of the most recent census often lack it. Inherit collector and
+  # number from earlier censuses of the same tree (station + subunit +
+  # subplot + tag), most recent census first.
+  need_voucher <- !nzchar(voucher_collector_raw) & !nzchar(voucher_number_raw)
+  if (any(need_voucher) && !is.na(col_ano) && col_ano %in% names(df_all) &&
+      ((!is.na(col_voucher_c) && col_voucher_c %in% names(df_all)) ||
+       (!is.na(col_voucher_n) && col_voucher_n %in% names(df_all)))) {
+
+    .tree_key <- function(d) {
+      paste(
+        d$.__st_name, d$.__st_num,
+        .clean_spaces(d[[col_subunidade]]),
+        .clean_spaces(d[[col_nparcela]]),
+        .clean_spaces(d[[col_tag]]),
+        sep = "|"
+      )
+    }
+
+    old_c <- if (!is.na(col_voucher_c) && col_voucher_c %in% names(df_all)) {
+      .clean_spaces(df_all[[col_voucher_c]])
+    } else {
+      rep("", nrow(df_all))
+    }
+    old_n <- if (!is.na(col_voucher_n) && col_voucher_n %in% names(df_all)) {
+      .clean_spaces(df_all[[col_voucher_n]])
+    } else {
+      rep("", nrow(df_all))
+    }
+
+    has_old <- nzchar(old_c) | nzchar(old_n)
+    if (any(has_old)) {
+      old_year <- .to_year(df_all[[col_ano]])
+      ord <- which(has_old)[order(old_year[has_old], decreasing = TRUE, na.last = TRUE)]
+      old_key <- .tree_key(df_all)[ord]
+      hit <- match(.tree_key(df_use)[need_voucher], old_key)
+      found <- !is.na(hit)
+      idx <- which(need_voucher)[found]
+      voucher_collector_raw[idx] <- old_c[ord][hit[found]]
+      voucher_number_raw[idx] <- old_n[ord][hit[found]]
+    }
+  }
+
   voucher_vec <- ifelse(
     (!nzchar(voucher_collector_raw)) & (!nzchar(voucher_number_raw)),
     NA_character_,

@@ -627,6 +627,23 @@ forplot_sheets <- function(fp_file_path = NULL,
   x[is.na(x)] <- ""
   trimws(x)
 }
+
+# Format measurements for label notes. Spreadsheet values often carry
+# floating-point noise (e.g. "9.1999999999999993"); numbers are rounded to
+# `digits` decimals and printed without trailing zeros. Non-numeric text is
+# returned unchanged.
+.fmt_num <- function(x, digits = 2) {
+  s <- .clean_text(x)
+  v <- suppressWarnings(as.numeric(s))
+  ok <- !is.na(v)
+  s[ok] <- vapply(
+    round(v[ok], digits),
+    format,
+    character(1),
+    trim = TRUE, scientific = FALSE, drop0trailing = TRUE
+  )
+  s
+}
 # Retrieve descriptions based on flags
 .get_descriptions <- function(language = language) {
   descriptions <- list(
@@ -833,9 +850,9 @@ forplot_sheets <- function(fp_file_path = NULL,
     census_note_i <- .clean_text(fp_sheet$`Census Notes`[i])
     tag_i <- .clean_text(fp_sheet$`New Tag No`[i])
     t1_i <- .clean_text(fp_sheet$T1[i])
-    x_i <- .clean_text(fp_sheet$X[i])
-    y_i <- .clean_text(fp_sheet$Y[i])
-    d_i <- .clean_text(fp_sheet$D[i])
+    x_i <- .fmt_num(fp_sheet$X[i])
+    y_i <- .fmt_num(fp_sheet$Y[i])
+    d_i <- .fmt_num(fp_sheet$D[i])
 
     # English version
     if (language == "en") {
