@@ -3,3 +3,13 @@
 ^README\.Rmd$
 ^codecov\.yml$
 ^\.github$
+^\.Rhistory$
+^\.RData$
+^\.zenodo\.json$
+^CITATION\.cff$
+^codemeta\.json$
+^doc$
+^Meta$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

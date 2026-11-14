@@ -21,7 +21,7 @@
   }
 
   if (is.null(cache_dir) || !nzchar(cache_dir)) {
-    cache_dir <- file.path(getwd(), ".forplotR_cache")
+    cache_dir <- file.path(tempdir(), "forplotR_cache")
   }
 
   if (!dir.exists(cache_dir)) {
@@ -726,7 +726,7 @@
   }
 
   db_path <- .herbaria_cache_paths()$duckdb_path
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  con <- DBI::dbConnect(.duckdb_driver(), dbdir = db_path)
 
   DBI::dbExecute(con, "
     CREATE TABLE IF NOT EXISTS occ_raw (
@@ -1272,7 +1272,7 @@
 
     if (verbose) {
       message("JABOT resources found for ", h, ": ", nrow(jabot_res))
-      print(jabot_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)
+      message(paste(utils::capture.output(print(jabot_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)), collapse = "\n"))
     }
 
     for (i in seq_len(nrow(jabot_res))) {
@@ -1351,7 +1351,7 @@
 
         if (verbose) {
           message("REFLORA resources found for ", h, ": ", nrow(reflora_res))
-          print(reflora_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)
+          message(paste(utils::capture.output(print(reflora_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)), collapse = "\n"))
         }
 
         for (i in seq_len(nrow(reflora_res))) {
@@ -1595,3 +1595,21 @@
   list(links = out_local, resolved = resolved_local)
 }
 
+
+#' DuckDB driver that does not write to the user's home directory
+#'
+#' Since duckdb 1.4/2.0 the driver stores extensions and secrets under
+#' `~/.duckdb` unless `shared_home = FALSE`. The argument is passed only when
+#' the installed duckdb supports it.
+#'
+#' @return A `duckdb_driver` object.
+#'
+#' @keywords internal
+#' @noRd
+.duckdb_driver <- function() {
+  if ("shared_home" %in% names(formals(duckdb::duckdb))) {
+    do.call(duckdb::duckdb, list(shared_home = FALSE))
+  } else {
+    duckdb::duckdb()
+  }
+}

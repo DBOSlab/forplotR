@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "To cite forplotR in publications, please use the metadata below."
+type: software
+title: "forplotR: Streamlined Forest Plot Data Management and Visualization"
+version: 1.0.0
+license: MIT
+repository-code: "https://github.com/DBOSlab/forplotR"
+url: "https://dboslab.github.io/forplotR-website/"
+authors:
+  - family-names: Ottino
+    given-names: Giulia C.
+    orcid: "https://orcid.org/0009-0001-4352-1733"
+  - family-names: Cardoso
+    given-names: Domingos
+    orcid: "https://orcid.org/0000-0001-7072-2656"
+keywords:
+  - R
+  - forest plots
+  - ForestPlots.net
+  - MONITORA
+  - herbarium
+  - vouchers

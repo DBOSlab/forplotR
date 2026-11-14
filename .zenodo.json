@@ -1,0 +1,33 @@
+{
+  "title": "forplotR: Streamlined Forest Plot Data Management and Visualization",
+  "description": "R package to manage and visualize permanent forest plot data collected in the ForestPlots.net and MONITORA formats: interactive plot maps, collection-balance reports, voucher image folders, herbarium label spreadsheets and cross-checks against JABOT herbarium records.",
+  "upload_type": "software",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Ottino, Giulia C.",
+      "orcid": "0009-0001-4352-1733"
+    },
+    {
+      "name": "Cardoso, Domingos",
+      "orcid": "0000-0001-7072-2656"
+    }
+  ],
+  "keywords": [
+    "R",
+    "forest plots",
+    "ForestPlots.net",
+    "MONITORA",
+    "herbarium",
+    "vouchers",
+    "biodiversity informatics",
+    "vegetation monitoring"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/DBOSlab/forplotR",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

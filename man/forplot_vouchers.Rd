@@ -6,7 +6,7 @@
 \usage{
 forplot_vouchers(
   fp_file_path = NULL,
-  output_dir = "voucher_imgs",
+  output_dir = file.path(tempdir(), "voucher_imgs"),
   input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
   station_name = NULL,
   verbose = TRUE
@@ -17,7 +17,9 @@ forplot_vouchers(
 in one of the supported plot-data layouts.}
 
 \item{output_dir}{Character. Root directory in which voucher image folders
-will be organized. Default is \code{"voucher_imgs"}.}
+will be organized. The default is a session temporary directory
+(\code{tempdir()}), which is deleted when the R session ends; point it to your
+voucher image folder to organize it in place.}
 
 \item{input_type}{Character. Input layout. Must be one of \code{"field_sheet"},
 \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
@@ -79,35 +81,32 @@ non-empty voucher code is present after input harmonization, except when
 \code{Collected} explicitly indicates a negative collection status.
 }
 \examples{
-\dontrun{
-# Standard field sheet
-forplot_vouchers(
-  fp_file_path = "data/RUS_plot.xlsx",
-  input_type = "field_sheet",
-  output_dir = "voucher_imgs"
-)
+# Write the bundled RUS01 field sheet to a temporary Excel file
+fp <- file.path(tempdir(), "RUS01.xlsx")
+openxlsx::write.xlsx(RUS01, fp)
 
-# Panará / TI field sheet
-forplot_vouchers(
-  fp_file_path = "data/SKR_01.xlsx",
-  input_type = "field_sheet_ti",
-  output_dir = "voucher_imgs_skr"
-)
+# Create one folder per collected voucher, organized by family and species
+img_dir <- file.path(tempdir(), "voucher_imgs")
+forplot_vouchers(fp, output_dir = img_dir, verbose = FALSE)
+head(list.dirs(img_dir, recursive = FALSE))
 
-# ForestPlots Query export
+\donttest{
+# MONITORA spreadsheet, one station
+fm <- file.path(tempdir(), "TUM.xlsx")
+openxlsx::write.xlsx(TUM, fm)
 forplot_vouchers(
-  fp_file_path = "data/query_export.xlsx",
-  input_type = "fp_query_sheet",
-  output_dir = "voucher_imgs_query"
-)
-
-# MONITORA spreadsheet
-forplot_vouchers(
-  fp_file_path = "data/Monitora_Plantas_PND_2024_validado_subir_no_processo.xlsx",
+  fm,
   input_type = "monitora",
-  output_dir = "voucher_imgs_descobrimento",
-  station_name = 1
+  station_name = "EA-1",
+  output_dir = file.path(tempdir(), "voucher_imgs_tum"),
+  verbose = FALSE
 )
+}
+
+\dontrun{
+# With your own files (not shipped with the package)
+forplot_vouchers("my_query_export.xlsx", input_type = "fp_query_sheet",
+                 output_dir = "path/to/voucher_imgs")
 }
 
 }

@@ -5,182 +5,112 @@
 
 <!-- badges: start -->
 
+[![R-CMD-check](https://github.com/DBOSlab/forplotR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DBOSlab/forplotR/actions/workflows/R-CMD-check.yaml)
 [![Codecov test
 coverage](https://codecov.io/gh/DBOSlab/forplotR/graph/badge.svg)](https://app.codecov.io/gh/DBOSlab/forplotR)
-[![Test
-Coverage](https://github.com/DBOSlab/forplotR/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/DBOSlab/forplotR/actions/workflows/test-coverage.yaml)
-[![CRAN
-Downloads](https://cranlogs.r-pkg.org/badges/grand-total/forplotR)](https://cran.r-project.org/package=forplotR)
-[![R-CMD-check](https://github.com/DBOSlab/forplotR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DBOSlab/forplotR/actions/workflows/R-CMD-check.yaml)
 [![License:
 MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <!-- badges: end -->
 
-`forplotR` is an R package for processing forest plot data, generating
-herbarium-ready spreadsheets, organizing voucher folders, creating
-spatial overviews of plot individuals, and visualizing plot maps
-interactively.
+`forplotR` streamlines field and post-field work with permanent forest
+plot data. It reads [ForestPlots.net](https://forestplots.net/) field
+sheets and Query Library exports, and spreadsheets of the Brazilian
+[MONITORA](https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora)
+program, and turns them into interactive plot maps, collection-balance
+reports, organized voucher image folders and herbarium label
+spreadsheets.
 
 ## Installation
 
-You can install the development version of `forplotR` from
-[GitHub](https://github.com/DBOSlab/forplotR) with:
+Install the development version from
+[GitHub](https://github.com/DBOSlab/forplotR):
 
 ``` r
-# install.packages("devtools")
-devtools::install_github("DBOSlab/forplotR")
+# install.packages("remotes")
+remotes::install_github("DBOSlab/forplotR")
 ```
+
+Saving HTML maps and reports requires [pandoc](https://pandoc.org/)
+(bundled with RStudio). PDF reports additionally require a LaTeX
+distribution, e.g. `tinytex::install_tinytex()`.
+
+## Main functions
+
+| Function | What it does |
+|----|----|
+| `forplot_map()` | Interactive HTML map of tagged trees, with voucher photos and filters for taxonomy and collection status |
+| `forplot_balance()` | Plot- and subplot-level collection-balance maps, HTML/PDF report, species checklist and Excel summary |
+| `forplot_vouchers()` | Creates and updates voucher image folders organized by family and species |
+| `forplot_sheets()` | Fills a herbarium label spreadsheet (JABOT, BRAHMS or custom) from field data |
+| `forplot_crossdet()` | Cross-checks field determinations against a JABOT herbarium Darwin Core Archive |
+
+All functions accept `input_type = "field_sheet"`, `"field_sheet_ti"`,
+`"fp_query_sheet"` or `"monitora"` (`forplot_sheets()` uses
+`"forestplots"` or `"monitora"`). Output is written to `dir`; when `dir`
+is not supplied, files go to a temporary directory that is removed when
+the R session ends.
+
+## Quick start
+
+The package ships two example datasets: `RUS01`, a ForestPlots.net field
+sheet of a 1-ha Atlantic Forest plot, and `TUM`, MONITORA data from the
+Parque Nacional Montanhas do Tumucumaque.
 
 ``` r
 library(forplotR)
-```
 
-  
+fp <- file.path(tempdir(), "RUS01.xlsx")
+openxlsx::write.xlsx(RUS01, fp)
+out <- "forplotR_output"   # your output folder
 
-## Usage
+# 1. Voucher image folders, organized by family and species
+forplot_vouchers(fp, output_dir = file.path(out, "voucher_imgs"))
 
-Below are the description of the four main functions (`forplot_sheets`,
-`forplot_vouchers`, `forplot_balance` and `forplot_map`) available in
-the package and how to use them.  
-
-#### *1. `forplot_sheets`*
-
-This code is purposed to convert forest plot census data into a
-herbarium spreadsheet format. The function reads a ForestPlots-format
-field dataset and an empty herbarium template, and outputs a filled
-herbarium data frame (and Excel file) with taxonomy, location, and
-collector information. It ensures required metadata (location,
-coordinates, etc.) are provided and adds any relevant notes (e.g.,
-diameter, census notes) to the herbarium sheet. The default herbarium
-format is JABOT, with support for BRAHMS or a custom format
-(user-specified column mapping).
-
-``` r
-library(forplotR)
-
-forplot_sheets(forestplots_file_path = NULL,
-     herb_file_path = NULL,
-     language = "en",
-     herbarium_format = "jabot",
-     country = "Brazil",
-     majorarea = NULL,
-     minorarea = NULL,
-     protectedarea = NULL,
-     locnotes = NULL,
-     project = NULL,
-     collector = NULL,
-     addcoll = NULL,
-     lat = NULL,
-     long = NULL,
-     alt = NULL,
-     dir = "Results_rainfor_herb",
-     filename = "rainfor_to_herb"
+# 2. Interactive map. Corners in order: (0,0), (0,length), (width,0), (width,length)
+corners <- data.frame(
+  Latitude  = c(-19.9000, -19.9009, -19.9000, -19.9009),
+  Longitude = c(-40.5500, -40.5500, -40.5490, -40.5490)
 )
+forplot_map(fp, vertex_coords = corners,
+            voucher_imgs = file.path(out, "voucher_imgs"), dir = out)
+
+# 3. Collection-balance report and Excel summary
+forplot_balance(fp, plot_size = 1, subplot_size = 10, render_pdf = FALSE, dir = out)
+
+# 4. Herbarium label spreadsheet from an empty JABOT template
+forplot_sheets(fp, herb_file_path = "jabot_template.xlsx",
+               majorarea = "ES", minorarea = "Santa Teresa",
+               collector = "G. C. Ottino", lat = -19.9, long = -40.55,
+               dir = out)
 ```
 
-  
-By specifying the `language` argument as “en”, “pt”, or “es”, the
-function automatically translates Rainfor field codes (e.g., “A” for
-tree condition, “5” for canopy exposure) into their full descriptive
-meanings and embeds them in standardized herbarium notes.
-
-These notes integrate both automatic code translations and manual field
-observations. For example:
+`forplot_sheets()` translates RAINFOR field codes (tree condition, light
+exposure) into standardized, multilingual (`language = "en"`, `"pt"` or
+`"es"`) herbarium notes and merges them with free-text field notes:
 
 ``` text
-Tree, 24.83cm DBH, with peeling bark, small buttress roots, bark with tiny reddish plates, crown completely exposed to vertical and lateral light in a 45 degree curve. Individual #3 in the subplot 1, x = 1.5m, y = 2.5m.
+Tree, 24.83cm DBH, with peeling bark, small buttress roots, bark with tiny
+reddish plates, crown completely exposed to vertical and lateral light in a
+45 degree curve. Individual #3 in the subplot 1, x = 1.5m, y = 2.5m.
 ```
 
-In this output: - *“with peeling bark”* and *“crown completely
-exposed…”* are automatically derived from Rainfor codes; - *“small
-buttress roots”* and *“bark with tiny reddish plates”* are taken from
-the field notes manually entered in the ForestPlots spreadsheet.
-
-This process ensures clear, standardized and multilingual descriptions
-for herbarium records, supporting integration across botanical
-databases.
-
-------------------------------------------------------------------------
-
-#### *2. `forplot_vouchers`*
-
-This function creates a folder structure for organizing voucher images
-or files. It is especially useful for large projects where images of
-herbarium specimens or field vouchers need to be grouped by collector,
-number, or taxonomic name.
+A complete worked example is in the vignette:
 
 ``` r
-forplot_vouchers(
-     input_df = my_dataframe,
-     base_dir = "herbarium_vouchers"
-)
+vignette("forplotR")
 ```
-
-  
-
-Each row in the input data frame generates a subdirectory like
-`herbarium_vouchers/Family_name/Genus_name/Voucher_name`, making file
-organization more efficient.
-
-------------------------------------------------------------------------
-
-#### *3. `forplot_balance`*
-
-This function plots the balance of taxonomic representation in the
-herbarium dataset using bar plots. It helps assess the sampling effort
-by family, genus, or species.
-
-``` r
-forplot_balance(
-     fp_file_path = "data/forestplot.xlsx",
-     plot_size = 1,
-     subplot_size = 10,
-     highlight_palms = TRUE,
-     dir = "Results_map_plot",
-     filename = "plot_specimen"
-)
-```
-
-  
-The function generates A full PDF report with plot metadata and
-navigable sections including subplot maps; an Excel spreadsheet with the
-collection percentages (overall and per subplot) and tag numbers for
-collected and not collected individuals.
-
-------------------------------------------------------------------------
-
-#### *4. `forplot_map`*
-
-This function creates an interactive HTML map using leaflet to visualize
-collection localities. It is useful for reporting or exploring the
-spatial distribution of vouchers.
-
-``` r
-forplot_map(
-     fp_file_path = "data/forestplot.xlsx",        
-     vertex_coords = "data/vertex.xlsx",       
-     map_type = "street",  
-     voucher_imgs = "voucher_imgs",
-     dir = "Results_plot_map_",              
-     filename = "plot_map"                  
-)
-```
-
-  
-The function generates a standalone HTML file with markers for each
-collection point and optional labels, which can be opened in any web
-browser.
-
-------------------------------------------------------------------------
 
 ## Documentation
 
-Full function documentation and articles are available at the `forplotR`
-[website](https://dboslab.github.io/forplotR-website/).  
-  
+Full documentation and articles are available on the [`forplotR`
+website](https://dboslab.github.io/forplotR-website/).
 
 ## Citation
 
-Ottino, G.C. & Cardoso, D. 2025. *forplotR*: Streamlined Forest Plot
-Data Management and Visualization in R.
-<https://github.com/dboslab/forplotR>
+``` r
+citation("forplotR")
+```
+
+Ottino, G. C. & Cardoso, D. (2025). *forplotR: Streamlined Forest Plot
+Data Management and Visualization*. R package version 1.0.0.
+<https://github.com/DBOSlab/forplotR>

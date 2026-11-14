@@ -50,7 +50,9 @@
 #' in one of the supported plot-data layouts.
 #'
 #' @param output_dir Character. Root directory in which voucher image folders
-#' will be organized. Default is `"voucher_imgs"`.
+#' will be organized. The default is a session temporary directory
+#' (`tempdir()`), which is deleted when the R session ends; point it to your
+#' voucher image folder to organize it in place.
 #'
 #' @param input_type Character. Input layout. Must be one of `"field_sheet"`,
 #' `"field_sheet_ti"`, `"fp_query_sheet"`, or `"monitora"`.
@@ -66,40 +68,37 @@
 #' internally to organize the voucher directories.
 #'
 #' @examples
-#' \dontrun{
-#' # Standard field sheet
-#' forplot_vouchers(
-#'   fp_file_path = "data/RUS_plot.xlsx",
-#'   input_type = "field_sheet",
-#'   output_dir = "voucher_imgs"
-#' )
+#' # Write the bundled RUS01 field sheet to a temporary Excel file
+#' fp <- file.path(tempdir(), "RUS01.xlsx")
+#' openxlsx::write.xlsx(RUS01, fp)
 #'
-#' # Panará / TI field sheet
-#' forplot_vouchers(
-#'   fp_file_path = "data/SKR_01.xlsx",
-#'   input_type = "field_sheet_ti",
-#'   output_dir = "voucher_imgs_skr"
-#' )
+#' # Create one folder per collected voucher, organized by family and species
+#' img_dir <- file.path(tempdir(), "voucher_imgs")
+#' forplot_vouchers(fp, output_dir = img_dir, verbose = FALSE)
+#' head(list.dirs(img_dir, recursive = FALSE))
 #'
-#' # ForestPlots Query export
+#' \donttest{
+#' # MONITORA spreadsheet, one station
+#' fm <- file.path(tempdir(), "TUM.xlsx")
+#' openxlsx::write.xlsx(TUM, fm)
 #' forplot_vouchers(
-#'   fp_file_path = "data/query_export.xlsx",
-#'   input_type = "fp_query_sheet",
-#'   output_dir = "voucher_imgs_query"
-#' )
-#'
-#' # MONITORA spreadsheet
-#' forplot_vouchers(
-#'   fp_file_path = "data/Monitora_Plantas_PND_2024_validado_subir_no_processo.xlsx",
+#'   fm,
 #'   input_type = "monitora",
-#'   output_dir = "voucher_imgs_descobrimento",
-#'   station_name = 1
+#'   station_name = "EA-1",
+#'   output_dir = file.path(tempdir(), "voucher_imgs_tum"),
+#'   verbose = FALSE
 #' )
+#' }
+#'
+#' \dontrun{
+#' # With your own files (not shipped with the package)
+#' forplot_vouchers("my_query_export.xlsx", input_type = "fp_query_sheet",
+#'                  output_dir = "path/to/voucher_imgs")
 #' }
 #'
 #' @export
 forplot_vouchers <- function(fp_file_path = NULL,
-                             output_dir = "voucher_imgs",
+                             output_dir = file.path(tempdir(), "voucher_imgs"),
                              input_type = c("field_sheet",
                                             "field_sheet_ti",
                                             "fp_query_sheet",
@@ -185,7 +184,7 @@ forplot_vouchers <- function(fp_file_path = NULL,
 
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
-    message("Created main output directory: ", output_dir)
+    if (isTRUE(verbose)) message("Created main output directory: ", output_dir)
   }
 
   existing_dirs <- list.dirs(
@@ -328,13 +327,16 @@ forplot_vouchers <- function(fp_file_path = NULL,
     }
   }
 
-  message("Folders created: ", n_created)
-  message("Files moved: ", n_moved)
-  message("Rows skipped (not collected): ", n_skipped_not_collected)
-  message(
-    "Rows skipped (missing voucher/family/species): ",
-    n_skipped_missing_data
-  )
+  if (isTRUE(verbose)) {
+    message("Output directory: ", output_dir)
+    message("Folders created: ", n_created)
+    message("Files moved: ", n_moved)
+    message("Rows skipped (not collected): ", n_skipped_not_collected)
+    message(
+      "Rows skipped (missing voucher/family/species): ",
+      n_skipped_missing_data
+    )
+  }
 
   invisible(fp_sheet)
 }

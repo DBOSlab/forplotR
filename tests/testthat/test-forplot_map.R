@@ -1250,17 +1250,6 @@ test_that("voucher image directories add a photo badge and slideshow to popup", 
     .package = "forplotR"
   )
 
-  # forplot_map() calls here::here(voucher_imgs). For this isolated filesystem
-  # test we want the absolute temporary path unchanged.
-  testthat::local_mocked_bindings(
-    here = function(...) {
-      args <- list(...)
-      if (!length(args)) return(getwd())
-      as.character(args[[1]])
-    },
-    .package = "here"
-  )
-
   testthat::local_mocked_bindings(
     saveWidget = function(widget, file, selfcontained = TRUE, ...) {
       saved$widget <- widget
@@ -1294,21 +1283,17 @@ test_that("voucher image directories add a photo badge and slideshow to popup", 
 test_that("voucher_imgs = NULL does not require image-directory traversal", {
   input_file <- .map_test_input_file()
   saved <- new.env(parent = emptyenv())
-  here_called <- new.env(parent = emptyenv())
-  here_called$value <- FALSE
+  index_called <- new.env(parent = emptyenv())
+  index_called$value <- FALSE
 
+  # A NULL image directory should bypass the image-folder index entirely.
   testthat::local_mocked_bindings(
     .harmonize_plot_input = .map_mock_standard_input,
-    .package = "forplotR"
-  )
-
-  # A NULL image directory should bypass here::here() entirely.
-  testthat::local_mocked_bindings(
-    here = function(...) {
-      here_called$value <- TRUE
-      stop("here::here() should not be called when voucher_imgs is NULL")
+    .voucher_image_index = function(...) {
+      index_called$value <- TRUE
+      stop(".voucher_image_index() should not be called when voucher_imgs is NULL")
     },
-    .package = "here"
+    .package = "forplotR"
   )
 
   testthat::local_mocked_bindings(
@@ -1337,7 +1322,7 @@ test_that("voucher_imgs = NULL does not require image-directory traversal", {
     )
   )
 
-  expect_false(here_called$value)
+  expect_false(index_called$value)
   expect_true(file.exists(saved$file))
 })
 

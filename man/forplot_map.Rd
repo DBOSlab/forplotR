@@ -21,7 +21,28 @@ forplot_map(
   herbaria = NULL,
   herbaria_force_refresh = FALSE,
   keep_herbaria_downloads = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  highlight_palms = TRUE,
+  plot_name = NULL,
+  plot_code = NULL,
+  team = NULL,
+  language = c("en", "pt", "es", "fr", "ma", "pa"),
+  embed_voucher_imgs = FALSE,
+  dir = NULL,
+  colname_tagno = NULL,
+  colname_stemgroup = NULL,
+  colname_subplot = NULL,
+  colname_subplot_t2 = NULL,
+  colname_x = NULL,
+  colname_y = NULL,
+  colname_family = NULL,
+  colname_species = NULL,
+  colname_dbh = NULL,
+  colname_cap = NULL,
+  colname_voucher = NULL,
+  colname_collected = NULL,
+  colname_station = NULL,
+  colname_census_year = NULL
 )
 }
 \arguments{
@@ -32,12 +53,18 @@ data in ForestPlots.net field-sheet, Query Library, or MONITORA format.}
 \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
 
 \item{vertex_coords}{Plot reference coordinates. Accepted inputs are a data
-frame, a path to an Excel file, or a numeric vector of length 2.
+frame, a path to an Excel or CSV file, or a numeric vector of length 2.
+Latitude and longitude columns are detected by name (for example
+\code{lat}, \code{latitude}, \code{lon}, \code{long}, \code{longitude}).
 For \code{"field_sheet"}, \code{"field_sheet_ti"}, and
-\code{"fp_query_sheet"}, provide the four plot corners as latitude and
-longitude. For \code{"monitora"}, provide a single central latitude/longitude.
-A numeric vector of length 2 is interpreted as \code{c(lat, lon)} unless
-named with \code{lat}/\code{latitude} and \code{lon}/\code{longitude}.}
+\code{"fp_query_sheet"}, provide the four plot corners in the order
+described in the "Vertex order" section. For \code{"monitora"}, provide a
+single central latitude/longitude. A numeric vector of length 2 is
+interpreted as \code{c(lat, lon)} unless named with \code{lat}/\code{latitude}
+and \code{lon}/\code{longitude}. When several MONITORA stations are
+requested, supply one center per station: a named list, a data frame with
+one row per station (in the order of \code{station_name}), or a data frame
+with a station column.}
 
 \item{plot_size}{Numeric scalar. Total plot size in hectares. Used for
 non-MONITORA inputs.}
@@ -45,25 +72,24 @@ non-MONITORA inputs.}
 \item{subplot_size}{Numeric scalar. Side length of each subplot in meters.}
 
 \item{plot_width_m}{Optional numeric scalar. Plot width in meters for
-non-MONITORA layouts. If omitted, dimensions are inferred from \code{plot_size}
-and \code{subplot_size}.}
+non-MONITORA layouts. If omitted, dimensions are inferred from
+\code{plot_size} and \code{subplot_size}.}
 
 \item{plot_length_m}{Optional numeric scalar. Plot length in meters for
 non-MONITORA layouts. If one dimension is supplied, the other is derived
 from \code{plot_size}.}
 
 \item{voucher_imgs}{Character scalar or \code{NULL}. Directory containing
-voucher image subfolders. Subdirectories are assumed to be named after
-voucher IDs, each containing one or more image files to display in specimen
-popups.}
+voucher image subfolders. Each subfolder must be named after a voucher
+(matching ignores case, spaces, and punctuation, so \code{"GCO 123"} matches
+a folder named \code{"GCO_123"}) and contain one or more image files.}
 
 \item{filename}{Character scalar. Basename for the output HTML file, without
-extension. The function prepends a date-stamped prefix before writing the file.}
+extension.}
 
 \item{station_name}{Character vector or \code{NULL}. For
-\code{input_type = "monitora"}, optionally filter or iterate over one or more
-station names. When a vector of length greater than 1 is supplied, the
-function may process stations one by one via internal recursion.}
+\code{input_type = "monitora"}, the station(s) to map. When more than one
+station is supplied, one HTML map is written per station.}
 
 \item{collector}{Character scalar or \code{NULL}. Optional fallback collector
 name used when compact voucher codes are provided without an explicit
@@ -90,10 +116,59 @@ DwC-A archives used during herbarium lookup are removed at the end of the run.
 Set to \code{TRUE} to retain them on disk.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints detailed messages during
-herbarium lookup and related processing.}
+harmonization, herbarium lookup and related processing.}
+
+\item{highlight_palms}{Logical. If \code{TRUE}, Arecaceae individuals are
+shown as a separate status category.}
+
+\item{plot_name}{Optional plot name. If provided, overrides the plot name
+extracted from the input file metadata.}
+
+\item{plot_code}{Optional plot code. If provided, overrides the plot code
+extracted from the input file metadata.}
+
+\item{team}{Optional team or PI name. If provided, overrides the team
+extracted from the input file metadata.}
+
+\item{language}{Map interface language. One of \code{"en"} (English),
+\code{"pt"} (Portuguese), \code{"es"} (Spanish), \code{"fr"} (French),
+\code{"ma"} (Mandarin), or \code{"pa"} (Panará).}
+
+\item{embed_voucher_imgs}{Logical. If \code{TRUE}, voucher images are
+embedded in the HTML file, so the map is a single file that can be shared
+on its own (but may become large). If \code{FALSE} (default), images are
+copied next to the HTML file and linked.}
+
+\item{dir}{Optional output directory, created if needed. If \code{NULL}
+(default), the HTML file is written to a session temporary directory
+(\code{tempdir()}), which is deleted when the R session ends; supply a path
+to keep the map.}
+
+\item{colname_tagno, colname_stemgroup, colname_subplot, colname_x, colname_y, colname_family, colname_species, colname_dbh, colname_voucher, colname_collected}{Optional column names in the input file to map to the internal schema,
+respectively: tree tag (\code{"New Tag No"}), stem group
+(\code{"New Stem Grouping"}), subplot (\code{"T1"}; for MONITORA, the
+subunit N/S/L/O), local X and Y coordinates (m), family, species
+(\code{"Original determination"}), diameter in mm (\code{"D"}), voucher,
+and collection status. The default \code{NULL} keeps automatic detection.
+Matching ignores case, accents, and punctuation. A supplied column always
+overrides automatic detection.}
+
+\item{colname_subplot_t2}{MONITORA only. Column with the subplot number
+within the subunit (\code{"N_parcela"}).}
+
+\item{colname_cap}{MONITORA only. Column with circumference at breast height
+in cm, which is converted to diameter. Ignored if \code{colname_dbh} is
+supplied.}
+
+\item{colname_station}{MONITORA only. Column with the station name, used to
+filter by \code{station_name} and as the plot code.}
+
+\item{colname_census_year}{MONITORA only. Column with the census year or
+date. Only the most recent census is plotted.}
 }
 \value{
-Invisibly returns the path to the generated HTML file.
+Invisibly returns the path to the generated HTML file, or a
+character vector of paths when several MONITORA stations are mapped.
 }
 \description{
 Generate an interactive HTML map of vouchered individuals in a forest plot
@@ -109,16 +184,17 @@ Land field sheets, Query Library exports, and MONITORA layouts. Depending on
 \code{input_type}, the function:
 \enumerate{
 \item validates required arguments and reads the input table;
-\item harmonizes the data into a canonical internal schema;
+\item harmonizes the data into a canonical internal schema, optionally
+using the \code{colname_*} arguments to map non-standard column names;
 \item extracts plot metadata such as team, plot name, and plot code;
 \item converts local subplot coordinates to geographic coordinates using
 either plot vertices or a MONITORA center point;
 \item builds plot and subplot overlays;
-\item colors specimen markers by collection status, with palms shown as a
-separate visual category;
+\item colors specimen markers by collection status, with palms optionally
+shown as a separate visual category;
 \item optionally embeds voucher image carousels in specimen popups;
-\item optionally performs a local herbarium lookup using internal helper
-functions and adds herbarium image links when available; and
+\item optionally performs a local herbarium lookup and adds herbarium image
+links when available; and
 \item saves the final map as an HTML file.
 }
 
@@ -126,6 +202,22 @@ Collection status is inferred from the canonical \code{Collected} column
 after input harmonization. For some input types, this field is derived from
 source-specific voucher or collection-status columns.
 }
+\section{Vertex order}{
+
+For non-MONITORA inputs, \code{vertex_coords} must list the four plot
+corners in this order, using the plot's local coordinate system:
+\enumerate{
+\item origin, \code{(X = 0, Y = 0)};
+\item \code{(X = 0, Y = plot_length_m)};
+\item \code{(X = plot_width_m, Y = 0)};
+\item \code{(X = plot_width_m, Y = plot_length_m)}.
+}
+A warning is issued when the distances between corners do not match the
+plot dimensions, which usually means the corners are in a different order.
+Coordinates are used exactly as given (decimal degrees, negative for south
+and west).
+}
+
 \section{Input types}{
 
 \describe{
@@ -138,44 +230,63 @@ source-specific voucher or collection-status columns.
 
 \section{Side effects}{
 
-The function writes an HTML file to disk. When \code{herbaria_lookup = TRUE},
-it may also build or refresh a local herbarium index from DwC-A downloads and
+The function writes an HTML file named
+\code{Results_<ddMonYYYY>_<filename>.html} in \code{dir} (the working
+directory by default). When voucher images are linked rather than embedded, they are
+copied to a \code{<filename>_vouchers} folder next to the HTML file; keep
+both together when sharing the map. When \code{herbaria_lookup = TRUE}, it
+may also build or refresh a local herbarium index from DwC-A downloads and
 may remove downloaded archives at the end of the run depending on
 \code{keep_herbaria_downloads}.
 }
 
 \examples{
+# Write the bundled RUS01 field sheet to a temporary Excel file
+fp <- file.path(tempdir(), "RUS01.xlsx")
+openxlsx::write.xlsx(RUS01, fp)
+
+# Plot corners, in order: (0,0), (0,length), (width,0), (width,length).
+# Approximate coordinates, for illustration only.
+corners <- data.frame(
+  Latitude  = c(-19.9000, -19.9009, -19.9000, -19.9009),
+  Longitude = c(-40.5500, -40.5500, -40.5490, -40.5490)
+)
+
+# Saving a self-contained HTML widget requires pandoc
+if (rmarkdown::pandoc_available()) {
+  html <- forplot_map(
+    fp,
+    vertex_coords = corners,
+    language = "pt",
+    dir = tempdir(),
+    verbose = FALSE
+  )
+}
+
 \dontrun{
-vertex_df <- data.frame(
-  Latitude = c(-3.123, -3.123, -3.125, -3.125),
-  Longitude = c(-60.012, -60.010, -60.012, -60.010)
-)
-
+# Look up vouchers in a JABOT herbarium (downloads a Darwin Core Archive)
 forplot_map(
-  fp_file_path = "data/tree_data.xlsx",
-  input_type = "field_sheet",
-  vertex_coords = vertex_df,
-  voucher_imgs = "voucher_imgs",
-  filename = "plot_map"
-)
-
-forplot_map(
-  fp_file_path = "data/RUS_plot.xlsx",
-  input_type = "field_sheet",
-  vertex_coords = "data/vertices.xlsx",
-  voucher_imgs = "voucher_imgs",
+  fp,
+  vertex_coords = corners,
+  voucher_imgs = "path/to/voucher_imgs",
   collector = "G. C. Ottino",
   herbaria_lookup = TRUE,
   herbaria = "RB",
-  filename = "rus_plot_map"
+  dir = "path/to/output"
 )
 
+# Field sheet with non-standard column names
 forplot_map(
-  fp_file_path = "data/monitora.xlsx",
-  input_type = "monitora",
-  vertex_coords = c(lat = -3.10, lon = -60.02),
-  station_name = "Station1",
-  filename = "monitora_map"
+  "my_plot.xlsx",
+  vertex_coords = corners,
+  colname_tagno = "Placa",
+  colname_subplot = "Subparcela",
+  colname_x = "Coord X",
+  colname_y = "Coord Y",
+  colname_family = "Familia",
+  colname_species = "Especie",
+  colname_dbh = "DAP_mm",
+  colname_voucher = "Voucher"
 )
 }
 
