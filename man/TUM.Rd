@@ -3,21 +3,47 @@
 \docType{data}
 \name{TUM}
 \alias{TUM}
-\title{Countries and associated classification of botanical divisions}
+\title{MONITORA forest monitoring data from Parque Nacional Montanhas do Tumucumaque}
+\format{
+A data frame with 1675 rows and 47 columns. Main fields:
+\itemize{
+\item \strong{CDUC, NOMEUC, bioma}: Protected-area code, name and biome.
+\item \strong{N_estacao, Nome_estacao}: Station number and name.
+\item \strong{N_UA}: Sampling unit number.
+\item \strong{Data, Ano}: Census date (Excel serial number) and year (2014--2021).
+\item \strong{nome_coletores}: Field team.
+\item \strong{Subunidades, N_parcela}: Subunit (Norte, Sul, Leste, Oeste) and
+subplot number.
+\item \strong{N_arvore}: Tree tag number.
+\item \strong{CAP_1--CAP_8, cap_tot}: Circumference at breast height of each stem
+and total (cm).
+\item \strong{altura}: Tree height (m).
+\item \strong{arvore_morta}: Whether the tree is dead.
+\item \strong{Familia, Genero, Especie}: Taxonomic identification (column names
+carry Portuguese accents in the data).
+\item \strong{individuo.coletado}: Whether a voucher was collected.
+\item \strong{voucher/Coletor, voucher/numero, N.tombo}: Voucher collector,
+collector number and herbarium accession number.
+\item \strong{X, Y}: Local coordinates within the subplot (m).
+}
+}
+\source{
+MONITORA program, Instituto Chico Mendes de Conservacao da
+Biodiversidade (ICMBio).
+}
 \usage{
 data(TUM)
 }
 \description{
-Countries and associated classification of botanical divisions according to
-the World Geographical Scheme for Recording Plant Distributions (WGSRPD).
-This dataset provides the tabular look-up table with multilingual names for
-all botanical regions recognized by the standard.
+Tree census data from three sampling stations (\code{"EA-1"},
+\code{"EA-2"}, \code{"EA-3"}) of the MONITORA biodiversity monitoring
+program (ICMBio) in the Parque Nacional Montanhas do Tumucumaque (Amapa,
+Brazil; Amazonia), in the original MONITORA spreadsheet layout. Write it to
+an Excel file with \code{openxlsx::write.xlsx()} to use it as
+\code{fp_file_path} with \code{input_type = "monitora"}.
 }
 \examples{
-\dontrun{
-library(forplotR)
-data(TUM)
-head(TUM)
-}
+dim(TUM)
+table(TUM$Nome_estacao)
 
 }

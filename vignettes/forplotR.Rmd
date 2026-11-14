@@ -1,0 +1,219 @@
+---
+title: "From field sheet to herbarium: a worked example with forplotR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{From field sheet to herbarium: a worked example with forplotR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+has_pandoc <- rmarkdown::pandoc_available()
+```
+
+This vignette walks through a complete post-census workflow for one permanent
+forest plot, using only data shipped with the package. Every step runs
+offline and writes to a temporary directory.
+
+The workflow answers four questions a field team faces after a census:
+
+1. Which trees were vouchered, and where do their photographs go?
+2. Where are the collected and uncollected trees in the plot?
+3. How complete is the collection, per subplot and per species?
+4. How do the vouchers become herbarium labels?
+
+```{r setup}
+library(forplotR)
+
+out <- file.path(tempdir(), "forplotR_vignette")
+dir.create(out, showWarnings = FALSE)
+```
+
+## The example plot
+
+`RUS01` is a ForestPlots.net standard field sheet of a 1-ha plot (100
+subplots of 10 x 10 m) in the Reserva Biologica Augusto Ruschi, an Atlantic
+Forest reserve in Espirito Santo, Brazil. As in the original sheet, the column
+names carry the plot metadata and the first row holds the field headers:
+
+```{r data}
+dim(RUS01)
+names(RUS01)[1:3]
+unlist(RUS01[1, c(1, 3, 5:8, 23, 25)])
+```
+
+All `forplot_*()` functions read the Excel file exactly as it is exported
+from ForestPlots.net, so we first write the data to disk:
+
+```{r write}
+fp <- file.path(out, "RUS01.xlsx")
+openxlsx::write.xlsx(RUS01, fp)
+```
+
+## 1. Organize voucher image folders
+
+`forplot_vouchers()` creates one folder per collected voucher, nested by
+family and species. Photographs dropped in those folders are found later by
+`forplot_map()`. When the identification of a voucher changes in a later
+version of the sheet, rerunning the function moves its images to the new
+folder.
+
+```{r vouchers}
+img_dir <- file.path(out, "voucher_imgs")
+forplot_vouchers(fp, output_dir = img_dir, verbose = FALSE)
+
+families <- list.dirs(img_dir, recursive = FALSE, full.names = FALSE)
+length(families)
+head(families)
+head(list.dirs(file.path(img_dir, families[1]), full.names = FALSE), 4)
+```
+
+## 2. Interactive plot map
+
+`forplot_map()` georeferences each tree from its subplot and local `X`/`Y`
+coordinates, given the four plot corners. The corners below are approximate
+and only for illustration.
+
+```{r map, eval = has_pandoc}
+corners <- data.frame(
+  Latitude  = c(-19.9000, -19.9009, -19.9000, -19.9009),
+  Longitude = c(-40.5500, -40.5500, -40.5490, -40.5490)
+)
+
+html <- forplot_map(
+  fp,
+  vertex_coords = corners,
+  voucher_imgs = img_dir,
+  dir = out,
+  verbose = FALSE
+)
+basename(html)
+```
+
+The resulting self-contained HTML file can be opened in any browser and
+shared with the field team; it does not need R or an internet connection,
+apart from the background map tiles.
+
+## 3. Collection balance
+
+`forplot_balance()` summarizes how complete the voucher collection is. Here we
+skip the HTML and PDF reports (which require pandoc and LaTeX) and keep the
+Excel summary:
+
+```{r balance}
+bal <- forplot_balance(
+  fp,
+  plot_size = 1,
+  subplot_size = 10,
+  render_html = FALSE,
+  render_pdf = FALSE,
+  dir = out,
+  verbose = FALSE
+)
+
+sheets <- openxlsx::getSheetNames(bal$xlsx_report)
+sheets
+summary_tab <- openxlsx::read.xlsx(bal$xlsx_report, sheet = 1)
+head(summary_tab)
+```
+
+With `render_html = TRUE` the same call produces a navigable report with
+whole-plot and per-subplot maps of collected, uncollected and palm
+individuals, and a checklist of priority species still lacking vouchers.
+
+## 4. Herbarium label spreadsheet
+
+`forplot_sheets()` fills an empty herbarium template with taxonomy, locality,
+collector and standardized notes for every collected tree. The JABOT template
+only needs its column names:
+
+```{r template}
+jabot_cols <- c("family", "genus", "sp1", "number", "collector", "addcoll",
+                "colldd", "collmm", "collyy", "country", "majorarea",
+                "minorarea", "uc", "projeto", "locnotes", "latitude",
+                "longitude", "altprof", "notes")
+template <- as.data.frame(matrix(character(0), ncol = length(jabot_cols),
+                                 dimnames = list(NULL, jabot_cols)))
+herb <- file.path(out, "jabot_template.xlsx")
+openxlsx::write.xlsx(template, herb)
+```
+
+By default the function checks that the coordinates fall within `majorarea`
+(GADM boundaries) and extracts the altitude from WorldClim; both need an
+internet connection. Here we supply `alt` and skip the locality check:
+
+```{r sheets}
+labels <- forplot_sheets(
+  fp_file_path = fp,
+  herb_file_path = herb,
+  input_type = "forestplots",
+  language = "en",
+  majorarea = "ES",
+  minorarea = "Santa Teresa",
+  protectedarea = "REBIO Augusto Ruschi",
+  collector = "G. C. Ottino",
+  lat = -19.9,
+  long = -40.55,
+  alt = 800,
+  validate_locality = FALSE,
+  dir = out
+)
+
+nrow(labels)
+head(labels[, c("family", "genus", "sp1", "number")])
+labels$notes[1]
+```
+
+RAINFOR field codes (tree condition, light exposure) are translated into
+plain text and merged with the free-text census notes. Setting
+`language = "pt"` or `"es"` writes the notes in Portuguese or Spanish.
+
+## MONITORA data
+
+The same functions read MONITORA spreadsheets with
+`input_type = "monitora"`. The bundled `TUM` dataset has three stations; pass
+`station_name` to select one:
+
+```{r monitora}
+table(TUM$Nome_estacao)
+
+fm <- file.path(out, "TUM.xlsx")
+openxlsx::write.xlsx(TUM, fm)
+
+tum_labels <- forplot_sheets(
+  fp_file_path = fm,
+  herb_file_path = herb,
+  input_type = "monitora",
+  station_name = "EA-1",
+  majorarea = "AP",
+  minorarea = "Laranjal do Jari",
+  lat = 1.5,
+  long = -52.5,
+  alt = 300,
+  validate_locality = FALSE,
+  dir = out
+)
+nrow(tum_labels)
+```
+
+## Herbarium cross-check
+
+`forplot_crossdet()` compares field determinations with the current
+determinations of the same vouchers in a JABOT herbarium. It downloads the
+herbarium's Darwin Core Archive on the first call (cached afterwards), so it
+is not run here:
+
+```{r crossdet, eval = FALSE}
+check <- forplot_crossdet(fp, herbaria = "RB", collector_fallback = "G. C. Ottino")
+head(check$matches)
+```
+
+## Session information
+
+```{r session}
+sessionInfo()
+```
