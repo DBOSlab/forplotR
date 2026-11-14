@@ -190,17 +190,31 @@
     majorarea <- state_name_map[majorarea]
   }
 
-  # Download administrative boundaries
-  boundaries <- geodata::gadm(country = standardized_country, level = level, path = tempdir())
+  # Download administrative boundaries. A network or server failure must not
+  # abort the whole conversion: warn and skip the (optional) validation.
+  # geodata returns NULL (or errors) when the server is unreachable.
+  boundaries <- tryCatch(
+    geodata::gadm(country = standardized_country, level = level, path = tempdir()),
+    error = function(e) NULL
+  )
 
-  if (is.null(boundaries) || nrow(boundaries) == 0) {
+  if (is.null(boundaries)) {
+    warning(
+      "Could not download administrative boundaries (GADM); ",
+      "locality validation skipped.",
+      call. = FALSE
+    )
+    return(invisible(NA))
+  }
+
+  if (nrow(boundaries) == 0) {
     stop("\u274c No administrative boundaries found for the selected country. Check the country name.")
   }
 
   # Standardize admin names by removing accents and trimming
-  majorarea_clean <- stri_trim_both(stri_trans_general(majorarea, "Latin-ASCII"))
+  majorarea_clean <- stringi::stri_trim_both(stringi::stri_trans_general(majorarea, "Latin-ASCII"))
   boundaries$NAME_1 <- as.character(boundaries$NAME_1)
-  boundaries$NAME_CLEAN <- stri_trim_both(stri_trans_general(boundaries$NAME_1, "Latin-ASCII"))
+  boundaries$NAME_CLEAN <- stringi::stri_trim_both(stringi::stri_trans_general(boundaries$NAME_1, "Latin-ASCII"))
 
   # Match by exact name
   match_idx <- which(boundaries$NAME_CLEAN == majorarea_clean)
@@ -219,10 +233,10 @@
   admin_geom <- boundaries[match_idx, ]
 
   # Create point geometry
-  point <- vect(matrix(c(long, lat), ncol = 2), type = "points", crs = crs(boundaries))
+  point <- terra::vect(matrix(c(long, lat), ncol = 2), type = "points", crs = terra::crs(boundaries))
 
   # Check if point lies within administrative polygon
-  inside <- any(relate(point, admin_geom, "intersects"))
+  inside <- any(terra::relate(point, admin_geom, "intersects"))
 
   if (!inside) {
     stop("\u274c The latitude and longitude DO NOT fall within the specified administrative region.\n",

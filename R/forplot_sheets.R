@@ -38,31 +38,6 @@
 #' are supported in three languages: English, Portuguese, and Spanish, depending
 #' on the value set in the `language` argument.
 #'
-#' @usage
-#' forplot_sheets(fp_file_path = NULL,
-#'                   herb_file_path = NULL,
-#'                   input_type = c("forestplots", "monitora"),
-#'                   sheet = 1,
-#'                   station_name = NULL,
-#'                   language = "en",
-#'                   herbarium_format = "jabot",
-#'                   column_map = NULL,
-#'                   country = "Brazil",
-#'                   majorarea = NULL,
-#'                   minorarea = NULL,
-#'                   protectedarea = NULL,
-#'                   locnotes = NULL,
-#'                   project = NULL,
-#'                   collector = NULL,
-#'                   addcoll = NULL,
-#'                   lat = NULL,
-#'                   long = NULL,
-#'                   alt = NULL,
-#'                   add_census_notes = TRUE,
-#'                   validate_locality = TRUE,
-#'                   dir = "Results_herb_label",
-#'                   filename = "plot_to_herb_sheet")
-#'
 #' @param fp_file_path File path to the input dataset. This can be either a
 #' ForestPlots field sheet or a MONITORA spreadsheet, depending on the value of
 #' \code{input_type}.
@@ -132,10 +107,10 @@
 #' @param validate_locality If \code{TRUE} (default), validates whether the
 #' coordinates fall within the provided administrative division (country/majorarea).
 #'
-#' @param dir Pathway to the computer's directory, where the file will be saved.
-#' The default is to create a directory named **Results_herb_label**
-#' and the search results will be saved within a subfolder named after the current
-#' date.
+#' @param dir Output directory. The file is saved within a subfolder named
+#' after the current date. The default writes to a session temporary directory
+#' (\code{tempdir()}), which is deleted when the R session ends; supply a path
+#' to keep the output.
 #'
 #' @param filename Name of the output file. Default is **plot_to_herb_sheet**.
 #'
@@ -143,19 +118,47 @@
 #' input dataset.
 #'
 #' @examples
-#' \dontrun{
-#' forplot_sheets(
-#'   fp_file_path = "your_forestplots_file.xlsx",
-#'   herb_file_path = "your_herbarium_template.xlsx",
-#'   input_type = "forestplots"
-#' )
+#' # Write the bundled RUS01 field sheet to a temporary Excel file
+#' fp <- file.path(tempdir(), "RUS01.xlsx")
+#' openxlsx::write.xlsx(RUS01, fp)
 #'
+#' # An empty JABOT herbarium template (column names only)
+#' jabot_cols <- c("family", "genus", "sp1", "number", "collector", "addcoll",
+#'                 "colldd", "collmm", "collyy", "country", "majorarea",
+#'                 "minorarea", "uc", "projeto", "locnotes", "latitude",
+#'                 "longitude", "altprof", "notes")
+#' template <- as.data.frame(matrix(character(0), ncol = length(jabot_cols),
+#'                                  dimnames = list(NULL, jabot_cols)))
+#' herb <- file.path(tempdir(), "jabot_template.xlsx")
+#' openxlsx::write.xlsx(template, herb)
+#'
+#' # Supplying 'alt' and validate_locality = FALSE keeps the example offline
+#' labels <- forplot_sheets(
+#'   fp_file_path = fp,
+#'   herb_file_path = herb,
+#'   input_type = "forestplots",
+#'   majorarea = "ES",
+#'   minorarea = "Santa Teresa",
+#'   protectedarea = "REBIO Augusto Ruschi",
+#'   collector = "G. C. Ottino",
+#'   lat = -19.9,
+#'   long = -40.55,
+#'   alt = 800,
+#'   validate_locality = FALSE,
+#'   dir = tempdir()
+#' )
+#' head(labels[, c("family", "genus", "sp1", "number")])
+#'
+#' \donttest{
+#' # Without 'alt', elevation is extracted from WorldClim (internet required)
 #' forplot_sheets(
-#'   fp_file_path = "your_monitora_file.xlsx",
-#'   herb_file_path = "your_herbarium_template.xlsx",
-#'   input_type = "monitora",
-#'   sheet = 1,
-#'   station_name = "MTQ-01"
+#'   fp_file_path = fp,
+#'   herb_file_path = herb,
+#'   majorarea = "ES",
+#'   minorarea = "Santa Teresa",
+#'   lat = -19.9,
+#'   long = -40.55,
+#'   dir = tempdir()
 #' )
 #' }
 #'
@@ -190,7 +193,7 @@ forplot_sheets <- function(fp_file_path = NULL,
                            alt = NULL,
                            add_census_notes = TRUE,
                            validate_locality = TRUE,
-                           dir = "Results_herb_label",
+                           dir = file.path(tempdir(), "Results_herb_label"),
                            filename =  "plot_to_herb_sheet") {
 
   # early file checks ----
@@ -257,8 +260,7 @@ forplot_sheets <- function(fp_file_path = NULL,
   # Creating the directory to save the file based on the current date
   foldername <- paste0(dir, "/", format(Sys.time(), "%d%b%Y"))
 
-  if (!dir.exists(dir)) dir.create(dir)
-  if (!dir.exists(foldername)) dir.create(foldername)
+  if (!dir.exists(foldername)) dir.create(foldername, recursive = TRUE)
 
   fullname <- paste0(foldername, "/", filename, ".xlsx")
 
@@ -360,27 +362,34 @@ forplot_sheets <- function(fp_file_path = NULL,
   }
   # Check if alt is NULL and use the user-provided value (if available)
   if (is.null(alt)) {
-    # If alt is NULL, proceed with elevation extraction logic
-    # Download global elevation data at 2.5 arc-second resolution (~75m at equator)
-    elev <- geodata::elevation_global(res = 2.5, path = tempdir())
+    # If alt is NULL, extract it from the WorldClim global elevation raster
+    # at 2.5 arc-minute resolution (~4.6 km at the equator). The raster is
+    # cached in tempdir() for the session, so repeated calls do not download
+    # it again; R removes it when the session ends.
+    # geodata returns NULL (or errors) when the server is unreachable.
+    elev <- tryCatch(
+      geodata::elevation_global(res = 2.5, path = tempdir()),
+      error = function(e) NULL
+    )
 
-    # Create spatial points object from coordinates
-    points <- data.frame(lon = long, lat = lat)
-    points_sp <- terra::vect(points,
-                             geom = c("lon", "lat"),
-                             crs = "EPSG:4326")  # WGS84 coordinate system
+    if (is.null(elev)) {
+      warning(
+        "Could not download global elevation data; 'alt' left as NA. ",
+        "Supply 'alt' to avoid the download.",
+        call. = FALSE
+      )
+      alt <- NA_real_
+    } else {
+      # Create spatial points object from coordinates (WGS84)
+      points <- data.frame(lon = long, lat = lat)
+      points_sp <- terra::vect(points,
+                               geom = c("lon", "lat"),
+                               crs = "EPSG:4326")
 
-    # Extract elevation values for the points
-    elev_values <- terra::extract(elev, points_sp)
-
-    # Get elevation values from the second column (first column is ID)
-    alt <- elev_values[, 2]
-
-    # Convert to numeric
-    alt <- as.numeric(alt)
-
-    # Remove the elevation data file from the disk after extraction
-    unlink(elev)
+      # Extract elevation values (first column is ID)
+      elev_values <- terra::extract(elev, points_sp)
+      alt <- as.numeric(elev_values[, 2])
+    }
   }
 
   if (identical(input_type, "forestplots")) {

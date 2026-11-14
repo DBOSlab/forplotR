@@ -100,7 +100,9 @@
 #' and report rendering.
 #'
 #' @param dir Output directory. A date-stamped subfolder in the format
-#' \code{ddMonYYYY} is created inside this directory.
+#' \code{ddMonYYYY} is created inside this directory. The default writes to a
+#' session temporary directory (\code{tempdir()}), which is deleted when the R
+#' session ends; supply a path to keep the outputs.
 #'
 #' @param filename Basename for generated output files, without extension.
 #'
@@ -147,10 +149,8 @@
 #' @importFrom utils capture.output download.file read.csv
 #' @importFrom rmarkdown render pdf_document
 #' @importFrom openxlsx read.xlsx createWorkbook addWorksheet writeData createStyle addStyle saveWorkbook
-#' @importFrom tinytex latexmk
 #' @importFrom readr locale read_delim
 #' @importFrom tibble as_tibble tibble
-#' @importFrom here here
 #' @importFrom stringr str_to_lower str_trim str_detect str_remove word
 #' @importFrom tidyr replace_na
 #' @importFrom grid unit
@@ -160,42 +160,40 @@
 #' @importFrom htmlwidgets onRender
 #'
 #' @examples
-#' \dontrun{
-#' # ForestPlots.net field sheet
-#' forplot_balance(
-#'   fp_file_path = "data/forestplot.xlsx",
+#' \donttest{
+#' # Write the bundled RUS01 field sheet to a temporary Excel file
+#' fp <- file.path(tempdir(), "RUS01.xlsx")
+#' openxlsx::write.xlsx(RUS01, fp)
+#'
+#' # Maps and Excel summary only (HTML/PDF rendering needs pandoc/LaTeX)
+#' res <- forplot_balance(
+#'   fp,
 #'   input_type = "field_sheet",
-#'   language = "en"
+#'   render_html = FALSE,
+#'   render_pdf = FALSE,
+#'   dir = tempdir(),
+#'   verbose = FALSE
 #' )
+#' res$xlsx_report
 #'
-#' # Query export with explicit plot geometry
+#' # MONITORA data, one station
+#' fm <- file.path(tempdir(), "TUM.xlsx")
+#' openxlsx::write.xlsx(TUM, fm)
 #' forplot_balance(
-#'   fp_file_path = "data/query_export.xlsx",
-#'   input_type = "fp_query_sheet",
-#'   plot_size = 1,
-#'   plot_width_m = 100,
-#'   subplot_size = 10,
-#'   render_html = TRUE,
-#'   render_pdf = FALSE
-#' )
-#'
-#' # MONITORA data for one station
-#' forplot_balance(
-#'   fp_file_path = "data/monitora.xlsx",
+#'   fm,
 #'   input_type = "monitora",
-#'   station_name = "Station1"
+#'   station_name = "EA-1",
+#'   render_html = FALSE,
+#'   render_pdf = FALSE,
+#'   dir = tempdir(),
+#'   verbose = FALSE
 #' )
+#' }
 #'
-#' # MONITORA data for multiple stations
-#' forplot_balance(
-#'   fp_file_path = "data/monitora.xlsx",
-#'   input_type = "monitora",
-#'   station_name = c("Station1", "Station2")
-#' )
-#'
+#' \dontrun{
 #' # Field sheet with non-standard column names
 #' forplot_balance(
-#'   fp_file_path = "data/minha_parcela.xlsx",
+#'   "my_plot.xlsx",
 #'   input_type = "field_sheet",
 #'   colname_tagno = "Placa",
 #'   colname_subplot = "Subparcela",
@@ -204,7 +202,8 @@
 #'   colname_family = "Familia",
 #'   colname_species = "Especie",
 #'   colname_dbh = "DAP_mm",
-#'   colname_collected = "Coletado"
+#'   colname_collected = "Coletado",
+#'   dir = "path/to/output"
 #' )
 #' }
 #'
@@ -227,7 +226,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             render_pdf = TRUE,
                             write_xlsx = TRUE,
                             verbose = TRUE,
-                            dir = "Results_map_plot",
+                            dir = file.path(tempdir(), "Results_map_plot"),
                             filename = "plot_specimen",
                             colname_tagno = NULL,
                             colname_stemgroup = NULL,
@@ -459,7 +458,8 @@ forplot_balance <- function(fp_file_path = NULL,
   )
   writeLines(c(rmd_content, ""), rmd_path)
 
-  options(tinytex.pdflatex.args = "--no-crop")
+  old_opts <- options(tinytex.pdflatex.args = "--no-crop")
+  on.exit(options(old_opts), add = TRUE)
 
   latex_engine <- "xelatex"
 
@@ -1924,6 +1924,13 @@ forplot_balance <- function(fp_file_path = NULL,
       writeLines(new_tex_lines, tex_file)
     }
 
+    if (!requireNamespace("tinytex", quietly = TRUE)) {
+      stop(
+        "Package 'tinytex' is required to render the PDF report. ",
+        "Install it with install.packages('tinytex') or use render_pdf = FALSE.",
+        call. = FALSE
+      )
+    }
     tinytex::latexmk(tex_file, engine = latex_engine)
   }
 

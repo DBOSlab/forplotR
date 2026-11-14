@@ -21,7 +21,7 @@
   }
 
   if (is.null(cache_dir) || !nzchar(cache_dir)) {
-    cache_dir <- file.path(getwd(), ".forplotR_cache")
+    cache_dir <- file.path(tempdir(), "forplotR_cache")
   }
 
   if (!dir.exists(cache_dir)) {
@@ -1272,7 +1272,7 @@
 
     if (verbose) {
       message("JABOT resources found for ", h, ": ", nrow(jabot_res))
-      print(jabot_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)
+      message(paste(utils::capture.output(print(jabot_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)), collapse = "\n"))
     }
 
     for (i in seq_len(nrow(jabot_res))) {
@@ -1351,7 +1351,7 @@
 
         if (verbose) {
           message("REFLORA resources found for ", h, ": ", nrow(reflora_res))
-          print(reflora_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)
+          message(paste(utils::capture.output(print(reflora_res[, c("ipt", "herbarium", "resource_id", "source")], row.names = FALSE)), collapse = "\n"))
         }
 
         for (i in seq_len(nrow(reflora_res))) {

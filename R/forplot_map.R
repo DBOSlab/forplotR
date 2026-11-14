@@ -160,7 +160,9 @@
 #' copied next to the HTML file and linked.
 #'
 #' @param dir Optional output directory, created if needed. If \code{NULL}
-#' (default), the HTML file is written to the working directory.
+#' (default), the HTML file is written to a session temporary directory
+#' (\code{tempdir()}), which is deleted when the R session ends; supply a path
+#' to keep the map.
 #'
 #' @param colname_tagno,colname_stemgroup,colname_subplot,colname_x,colname_y,colname_family,colname_species,colname_dbh,colname_voucher,colname_collected
 #' Optional column names in the input file to map to the internal schema,
@@ -189,39 +191,44 @@
 #' character vector of paths when several MONITORA stations are mapped.
 #'
 #' @examples
+#' # Write the bundled RUS01 field sheet to a temporary Excel file
+#' fp <- file.path(tempdir(), "RUS01.xlsx")
+#' openxlsx::write.xlsx(RUS01, fp)
+#'
+#' # Plot corners, in order: (0,0), (0,length), (width,0), (width,length).
+#' # Approximate coordinates, for illustration only.
+#' corners <- data.frame(
+#'   Latitude  = c(-19.9000, -19.9009, -19.9000, -19.9009),
+#'   Longitude = c(-40.5500, -40.5500, -40.5490, -40.5490)
+#' )
+#'
+#' # Saving a self-contained HTML widget requires pandoc
+#' if (rmarkdown::pandoc_available()) {
+#'   html <- forplot_map(
+#'     fp,
+#'     vertex_coords = corners,
+#'     language = "pt",
+#'     dir = tempdir(),
+#'     verbose = FALSE
+#'   )
+#' }
+#'
 #' \dontrun{
-#' # Corners in order: (0,0), (0,length), (width,0), (width,length)
-#' vertex_df <- data.frame(
-#'   Latitude = c(-3.123, -3.122, -3.123, -3.122),
-#'   Longitude = c(-60.012, -60.012, -60.011, -60.011)
-#' )
-#'
+#' # Look up vouchers in a JABOT herbarium (downloads a Darwin Core Archive)
 #' forplot_map(
-#'   fp_file_path = "data/tree_data.xlsx",
-#'   input_type = "field_sheet",
-#'   vertex_coords = vertex_df,
-#'   voucher_imgs = "voucher_imgs",
-#'   filename = "plot_map",
-#'   language = "pt"
-#' )
-#'
-#' forplot_map(
-#'   fp_file_path = "data/RUS_plot.xlsx",
-#'   input_type = "field_sheet",
-#'   vertex_coords = "data/vertices.xlsx",
-#'   voucher_imgs = "voucher_imgs",
-#'   embed_voucher_imgs = TRUE,
+#'   fp,
+#'   vertex_coords = corners,
+#'   voucher_imgs = "path/to/voucher_imgs",
 #'   collector = "G. C. Ottino",
 #'   herbaria_lookup = TRUE,
 #'   herbaria = "RB",
-#'   filename = "rus_plot_map"
+#'   dir = "path/to/output"
 #' )
 #'
 #' # Field sheet with non-standard column names
 #' forplot_map(
-#'   fp_file_path = "data/minha_parcela.xlsx",
-#'   input_type = "field_sheet",
-#'   vertex_coords = vertex_df,
+#'   "my_plot.xlsx",
+#'   vertex_coords = corners,
 #'   colname_tagno = "Placa",
 #'   colname_subplot = "Subparcela",
 #'   colname_x = "Coord X",
@@ -231,18 +238,6 @@
 #'   colname_dbh = "DAP_mm",
 #'   colname_voucher = "Voucher"
 #' )
-#'
-#' # MONITORA, one map per station
-#' forplot_map(
-#'   fp_file_path = "data/monitora.xlsx",
-#'   input_type = "monitora",
-#'   vertex_coords = list(
-#'     Station1 = c(lat = -3.10, lon = -60.02),
-#'     Station2 = c(lat = -3.20, lon = -60.05)
-#'   ),
-#'   station_name = c("Station1", "Station2"),
-#'   filename = "monitora_map"
-#' )
 #' }
 #'
 #' @importFrom leaflet leaflet addProviderTiles addPolygons addCircleMarkers fitBounds
@@ -251,7 +246,6 @@
 #' @importFrom htmlwidgets onRender prependContent saveWidget
 #' @importFrom geosphere destPoint bearing distGeo
 #' @importFrom readxl read_excel
-#' @importFrom here here
 #' @importFrom magrittr "%>%"
 #' @importFrom openxlsx read.xlsx
 #' @importFrom data.table fread :=
@@ -421,8 +415,8 @@ forplot_map <- function(fp_file_path = NULL,
   output_file <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename, ".html")
 
   if (is.null(dir)) {
-    foldername <- "."
-    output_path <- output_file
+    foldername <- tempdir()
+    output_path <- file.path(foldername, output_file)
   } else {
     foldername <- .arg_check_dir(dir)
     if (!dir.exists(foldername)) dir.create(foldername, recursive = TRUE)
@@ -917,7 +911,7 @@ forplot_map <- function(fp_file_path = NULL,
       )
     )
 
-  message("Saving HTML map: '", output_path, "'")
+  if (isTRUE(verbose)) message("Saving HTML map: '", output_path, "'")
   htmlwidgets::saveWidget(
     map,
     file = normalizePath(output_path, winslash = "/", mustWork = FALSE),
@@ -1288,7 +1282,7 @@ forplot_map <- function(fp_file_path = NULL,
 #' @keywords internal
 #' @noRd
 .voucher_image_index <- function(voucher_imgs) {
-  base <- if (dir.exists(voucher_imgs)) voucher_imgs else here::here(voucher_imgs)
+  base <- normalizePath(voucher_imgs, winslash = "/", mustWork = FALSE)
 
   if (!dir.exists(base)) {
     message("`voucher_imgs` folder not found: ", voucher_imgs, ". Skipping images.")

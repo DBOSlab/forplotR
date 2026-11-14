@@ -36,7 +36,8 @@ importFrom(duckdb,duckdb)
 importFrom(geodata,elevation_global)
 importFrom(geosphere,
   bearing,
-  destPoint
+  destPoint,
+  distGeo
 )
 importFrom(grDevices,
   colorRampPalette,
@@ -44,7 +45,6 @@ importFrom(grDevices,
   pdf
 )
 importFrom(grid,unit)
-importFrom(here,here)
 importFrom(htmltools,
   HTML,
   htmlEscape,
@@ -91,7 +91,6 @@ importFrom(rmarkdown,
   pdf_document,
   render
 )
-importFrom(scales,rescale)
 importFrom(stats,
   na.omit,
   setNames
@@ -113,7 +112,6 @@ importFrom(tibble,
   tibble
 )
 importFrom(tidyr,replace_na)
-importFrom(tinytex,latexmk)
 importFrom(utils,
   capture.output,
   download.file,

@@ -496,7 +496,7 @@
           guide = "legend"
         ) +
         ggplot2::labs(
-          title = paste(tr["subunit"], sub, "—", tr["subplot"], t2),
+          title = paste(tr["subunit"], sub, "\u2014", tr["subplot"], t2),
           subtitle = paste(tr["plot_name"], plot_name, "|", tr["plot_code"], plot_code),
           x = tr["local_x_m"],
           y = tr["local_y_m"]

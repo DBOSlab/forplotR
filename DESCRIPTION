@@ -1,8 +1,8 @@
 Package: forplotR
 Type: Package
-Title: Streamlined Forest Plot Data Management and Visualization in R
+Title: Streamlined Forest Plot Data Management and Visualization
 Version: 1.0.0
-Authors@R: 
+Authors@R:
     c(
       person(given = "Giulia C.",
              family = "Ottino",
@@ -15,25 +15,24 @@ Authors@R:
              role = c("aut", "ths", "cph"),
              comment = c(ORCID = "0000-0001-7072-2656"))
     )
-Maintainer: Giulia Ottino <botgiuc@gmail.com>
-Description: Provides tools for managing and visualizing forest plot data
-    collected in the 'ForestPlots.net' format and related layouts, including
-    field sheets, Query Library exports, and datasets from the MONITORA
-    monitoring program. Functions generate static and interactive specimen
-    maps, organize voucher image repositories based on updated taxonomy,
-    fill herbarium spreadsheets (e.g., JABOT, BRAHMS) from field data,
-    and export HTML maps with filters for taxonomy, collection status and
-    image availability. Includes optional automated lookup of herbarium
-    records from JABOT, with direct image links matched by collector and
-    voucher number. The package also implements the 'plot_for_balance()'
-    workflow to produce plot- and subplot-level PDF reports, species
-    checklists, Excel summaries of collection completeness, and optional
-    above-ground biomass (AGB) estimates per plot using 'BiomasaFP'.
+Description: Tools for managing and visualizing permanent forest plot data
+    collected in the 'ForestPlots.net' field-sheet and Query Library formats
+    and in the layout of the Brazilian 'MONITORA' biodiversity monitoring
+    program. Functions build interactive 'HTML' plot maps of tagged trees
+    with voucher photographs and filters for taxonomy and collection status
+    ('forplot_map()'); produce plot- and subplot-level collection-balance
+    reports, species checklists and 'Excel' summaries of collection
+    completeness ('forplot_balance()'); organize voucher image folders by
+    updated identification ('forplot_vouchers()'); fill herbarium label
+    spreadsheets such as 'JABOT' and 'BRAHMS' from field data
+    ('forplot_sheets()'); and cross-check field determinations against
+    specimen records of a 'JABOT' herbarium Darwin Core Archive
+    ('forplot_crossdet()').
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Depends: 
-    R (>= 3.5.0)
+Depends:
+    R (>= 4.1.0)
 Imports:
     data.table,
     DBI,
@@ -42,35 +41,36 @@ Imports:
     geodata,
     geosphere,
     ggplot2,
-    plotly,
     grDevices,
     grid,
-    here,
     htmltools,
     htmlwidgets,
+    jsonlite,
     leaflet,
     magrittr,
     openxlsx,
+    plotly,
     readr,
     readxl,
     rmarkdown,
-    scales,
+    stats,
     stringi,
     stringr,
     terra,
     tibble,
     tidyr,
-    tinytex,
     tools,
     utils,
     writexl
 Suggests:
-    curl,
-    testthat (>= 3.0.0),
+    knitr,
+    testthat (>= 3.2.0),
+    tinytex,
     withr
+VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 URL:
-    https://dboslab.github.io/forplotR-website/
+    https://dboslab.github.io/forplotR-website/,
     https://github.com/DBOSlab/forplotR
 BugReports: https://github.com/DBOSlab/forplotR/issues
 Config/testthat/edition: 3

@@ -22,8 +22,22 @@ forplot_balance(
   render_pdf = TRUE,
   write_xlsx = TRUE,
   verbose = TRUE,
-  dir = "Results_map_plot",
-  filename = "plot_specimen"
+  dir = file.path(tempdir(), "Results_map_plot"),
+  filename = "plot_specimen",
+  colname_tagno = NULL,
+  colname_stemgroup = NULL,
+  colname_subplot = NULL,
+  colname_subplot_t2 = NULL,
+  colname_x = NULL,
+  colname_y = NULL,
+  colname_family = NULL,
+  colname_species = NULL,
+  colname_dbh = NULL,
+  colname_cap = NULL,
+  colname_voucher = NULL,
+  colname_collected = NULL,
+  colname_station = NULL,
+  colname_census_year = NULL
 )
 }
 \arguments{
@@ -83,9 +97,34 @@ messages during input harmonization, coordinate computation, map generation,
 and report rendering.}
 
 \item{dir}{Output directory. A date-stamped subfolder in the format
-\code{ddMonYYYY} is created inside this directory.}
+\code{ddMonYYYY} is created inside this directory. The default writes to a
+session temporary directory (\code{tempdir()}), which is deleted when the R
+session ends; supply a path to keep the outputs.}
 
 \item{filename}{Basename for generated output files, without extension.}
+
+\item{colname_tagno, colname_stemgroup, colname_subplot, colname_x, colname_y, colname_family, colname_species, colname_dbh, colname_voucher, colname_collected}{Optional column names in the input file to map to the internal schema,
+respectively: tree tag (\code{"New Tag No"}), stem group
+(\code{"New Stem Grouping"}), subplot (\code{"T1"}; for MONITORA, the
+subunit N/S/L/O), local X and Y coordinates (m), family, species
+(\code{"Original determination"}), diameter in mm (\code{"D"}), voucher,
+and collection status. Use them when your file uses different column names.
+The default \code{NULL} keeps automatic detection. Matching ignores case,
+accents, and punctuation. A supplied column always overrides automatic
+detection.}
+
+\item{colname_subplot_t2}{MONITORA only. Column with the subplot number
+within the subunit (\code{"N_parcela"}).}
+
+\item{colname_cap}{MONITORA only. Column with circumference at breast height
+in cm, which is converted to diameter. Ignored if \code{colname_dbh} is
+supplied.}
+
+\item{colname_station}{MONITORA only. Column with the station name, used to
+filter by \code{station_name} and as the plot code.}
+
+\item{colname_census_year}{MONITORA only. Column with the census year or
+date. Only the most recent census is plotted.}
 }
 \value{
 Invisibly returns a list with paths to generated outputs:
@@ -146,37 +185,50 @@ intermediate files used during report rendering are removed before exit.
 }
 
 \examples{
-\dontrun{
-# ForestPlots.net field sheet
-forplot_balance(
-  fp_file_path = "data/forestplot.xlsx",
+\donttest{
+# Write the bundled RUS01 field sheet to a temporary Excel file
+fp <- file.path(tempdir(), "RUS01.xlsx")
+openxlsx::write.xlsx(RUS01, fp)
+
+# Maps and Excel summary only (HTML/PDF rendering needs pandoc/LaTeX)
+res <- forplot_balance(
+  fp,
   input_type = "field_sheet",
-  language = "en"
+  render_html = FALSE,
+  render_pdf = FALSE,
+  dir = tempdir(),
+  verbose = FALSE
 )
+res$xlsx_report
 
-# Query export with explicit plot geometry
+# MONITORA data, one station
+fm <- file.path(tempdir(), "TUM.xlsx")
+openxlsx::write.xlsx(TUM, fm)
 forplot_balance(
-  fp_file_path = "data/query_export.xlsx",
-  input_type = "fp_query_sheet",
-  plot_size = 1,
-  plot_width_m = 100,
-  subplot_size = 10,
-  render_html = TRUE,
-  render_pdf = FALSE
-)
-
-# MONITORA data for one station
-forplot_balance(
-  fp_file_path = "data/monitora.xlsx",
+  fm,
   input_type = "monitora",
-  station_name = "Station1"
+  station_name = "EA-1",
+  render_html = FALSE,
+  render_pdf = FALSE,
+  dir = tempdir(),
+  verbose = FALSE
 )
+}
 
-# MONITORA data for multiple stations
+\dontrun{
+# Field sheet with non-standard column names
 forplot_balance(
-  fp_file_path = "data/monitora.xlsx",
-  input_type = "monitora",
-  station_name = c("Station1", "Station2")
+  "my_plot.xlsx",
+  input_type = "field_sheet",
+  colname_tagno = "Placa",
+  colname_subplot = "Subparcela",
+  colname_x = "Coord X",
+  colname_y = "Coord Y",
+  colname_family = "Familia",
+  colname_species = "Especie",
+  colname_dbh = "DAP_mm",
+  colname_collected = "Coletado",
+  dir = "path/to/output"
 )
 }
 

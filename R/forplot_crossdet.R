@@ -72,24 +72,6 @@
 #' available, the function can automatically download the required JABOT archive
 #' for the selected herbarium and then proceed locally.
 #'
-#' @usage
-#' forplot_crossdet(fp_file_path,
-#'                  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-#'                  herbaria,
-#'                  collector_fallback = NULL,
-#'                  collector_codes = NULL,
-#'                  station_name = NULL,
-#'                  sheet = NULL,
-#'                  path = NULL,
-#'                  only_collected = TRUE,
-#'                  save = TRUE,
-#'                  dir = "crossdet_plot",
-#'                  filename = "crossdet_plot",
-#'                  dbdir = NULL,
-#'                  force_refresh = FALSE,
-#'                  verbose = FALSE,
-#'                  resource_map = NULL)
-#'
 #' @param fp_file_path Character scalar. Path to the inventory Excel file.
 #'
 #' @param input_type Character scalar. One of \code{"field_sheet"},
@@ -121,9 +103,11 @@
 #'   to rows marked as collected and/or with non-empty voucher values.
 #'
 #' @param save Logical. If \code{TRUE}, saves an Excel workbook with the result
-#'   sheets.
+#'   sheets. Default \code{FALSE}: results are only returned.
 #'
 #' @param dir Character scalar. Output directory used when \code{save = TRUE}.
+#'   The default is a session temporary directory (\code{tempdir()}), which is
+#'   deleted when the R session ends; supply a path to keep the workbook.
 #'
 #' @param filename Character scalar. Output file name without extension.
 #'
@@ -154,40 +138,29 @@
 #'
 #' @examples
 #' \dontrun{
-#' library(forplotR)
-#' library(openxlsx)
-#'
-#' data(RUS01)
-#' openxlsx::write.xlsx(RUS01, "RUS_plot.xlsx")
+#' # Downloads the JABOT Darwin Core Archive of the selected herbarium
+#' # (internet required; tens of MB on the first call, cached afterwards).
+#' fp <- file.path(tempdir(), "RUS01.xlsx")
+#' openxlsx::write.xlsx(RUS01, fp)
 #'
 #' out1 <- forplot_crossdet(
-#'   fp_file_path = "RUS_plot.xlsx",
+#'   fp_file_path = fp,
 #'   input_type = "field_sheet",
 #'   herbaria = "RB",
-#'   collector_fallback = "G. Ottino",
-#'   save = FALSE
+#'   collector_fallback = "G. Ottino"
 #' )
 #'
-#' data(TUM)
-#' openxlsx::write.xlsx(TUM, "monitora_station.xlsx")
+#' fm <- file.path(tempdir(), "TUM.xlsx")
+#' openxlsx::write.xlsx(TUM, fm)
 #'
 #' out2 <- forplot_crossdet(
-#'   fp_file_path = "monitora_station.xlsx",
+#'   fp_file_path = fm,
 #'   input_type = "monitora",
 #'   herbaria = "RB",
-#'   station_name = "Estacao 2",
-#'   save = FALSE
-#' )
-#'
-#' out3 <- forplot_crossdet(
-#'   fp_file_path = "monitora_station.xlsx",
-#'   input_type = "monitora",
-#'   herbaria = "RB",
-#'   station_name = 1,
+#'   station_name = "EA-1",
 #'   collector_fallback = "H. Medeiros",
-#'   force_refresh = TRUE,
-#'   verbose = TRUE,
-#'   save = FALSE
+#'   save = TRUE,
+#'   dir = tempdir()
 #' )
 #' }
 #'
@@ -205,8 +178,8 @@ forplot_crossdet <- function(fp_file_path,
                              sheet = NULL,
                              path = NULL,
                              only_collected = TRUE,
-                             save = TRUE,
-                             dir = "crossdet_plot",
+                             save = FALSE,
+                             dir = file.path(tempdir(), "crossdet_plot"),
                              filename = "crossdet_plot",
                              dbdir = NULL,
                              force_refresh = FALSE,

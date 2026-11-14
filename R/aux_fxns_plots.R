@@ -753,16 +753,17 @@
 #'
 #' @param df Data frame with columns: New Tag No, New Stem Grouping, D, and optionally ExtraD
 #' @param min_diameter Numeric. Minimum diameter to include (default = 5 cm)
+#' @param verbose Logical. If \code{FALSE}, informational messages are suppressed.
 #'
 #' @return Data frame with multistemmed trees consolidated to single rows
 #'
 #' @keywords internal
 #' @noRd
-.consolidate_multistem_trees <- function(df, min_diameter = 5) {
+.consolidate_multistem_trees <- function(df, min_diameter = 5, verbose = TRUE) {
 
   # Check if required columns exist
   if (!all(c("New Tag No", "New Stem Grouping", "D") %in% names(df))) {
-    message("Required columns for multistem consolidation not found. Skipping.")
+    if (isTRUE(verbose)) message("Required columns for multistem consolidation not found. Skipping.")
     return(df)
   }
 
@@ -788,7 +789,7 @@
     dplyr::filter(n_stems > 1)
 
   if (nrow(stem_group_counts) == 0) {
-    message("No multistemmed trees found (no duplicate New Stem Grouping values)")
+    if (isTRUE(verbose)) message("No multistemmed trees found (no duplicate New Stem Grouping values)")
     return(df)
   }
 
@@ -3853,7 +3854,7 @@
       }
 
       # Apply consolidation
-      fp_sheet <- .consolidate_multistem_trees(fp_sheet, min_diameter = 5)
+      fp_sheet <- .consolidate_multistem_trees(fp_sheet, min_diameter = 5, verbose = verbose)
 
       # Report results
       n_after <- nrow(fp_sheet)
@@ -3861,10 +3862,10 @@
         message("Rows after consolidation: ", n_after)
         message("Rows removed: ", n_before - n_after)
         message("================================\n")
-      } else {
-        message("Note: Columns 'New Stem Grouping' and/or 'New Tag No' not found. ")
-        message("      Multistem consolidation skipped.")
       }
+    } else if (verbose) {
+      message("Note: Columns 'New Stem Grouping' and/or 'New Tag No' not found. ")
+      message("      Multistem consolidation skipped.")
     }
   }
 
