@@ -63,6 +63,7 @@ Suggests:
     duckdb,
     geodata,
     knitr,
+    markdown,
     terra,
     testthat (>= 3.2.0),
     tinytex,

@@ -43,6 +43,10 @@ spreadsheets.
   `forplot_sheets()`, herbarium lookup in `forplot_map()` and
   `forplot_crossdet()`). Without them those features are skipped with a
   warning that says what to install, and `library(forplotR)` loads faster.
+- The HTML report of `forplot_balance()` no longer needs pandoc: without it,
+  the report is rendered with knitr and the suggested package 'markdown',
+  with the same sections, table of contents, interactive plots and figures,
+  in a single HTML file.
 - `forplot_map()` no longer needs pandoc: without it, the map's scripts,
   styles and images are embedded directly, giving the same single-file HTML.
 - New option `options(forplotR.offline = TRUE)`: no function accesses the

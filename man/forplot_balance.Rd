@@ -86,7 +86,9 @@ inputs, the function falls back to \code{"1"} when no value is available.}
 \item{team}{Optional team or PI name. If provided, overrides the team
 extracted from the input file metadata.}
 
-\item{render_html}{Logical. If \code{TRUE}, renders the HTML report.}
+\item{render_html}{Logical. If \code{TRUE}, renders the HTML report. Uses
+pandoc when available; otherwise the report is rendered with \pkg{knitr}
+and the suggested package \pkg{markdown} into the same single-file HTML.}
 
 \item{render_pdf}{Logical. If \code{TRUE}, renders the PDF report.}
 
@@ -190,7 +192,7 @@ intermediate files used during report rendering are removed before exit.
 fp <- file.path(tempdir(), "RUS01.xlsx")
 openxlsx::write.xlsx(RUS01, fp)
 
-# Maps and Excel summary only (HTML/PDF rendering needs pandoc/LaTeX)
+# Maps and Excel summary only (the PDF report needs LaTeX)
 res <- forplot_balance(
   fp,
   input_type = "field_sheet",
