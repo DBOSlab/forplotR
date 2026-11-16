@@ -338,7 +338,10 @@ test_that("the Panara report takes its labels from the Panara dictionary", {
   expect_identical(pa[["date"]], "Haka")
   expect_false(any(c("team", "with_voucher", "pending", "palms", "tag", "species",
                      "family", "individuals", "subplot") %in% names(pa)[pa == pt]))
-  expect_gte(sum(pa != pt), 30L)
+  expect_gte(sum(pa != pt), 40L)
+  expect_identical(pa[["fig_fam"]], d("Most Common Families"))
+  expect_identical(pa[["tab_spp"]], d("Species Metrics"))
+  expect_identical(sprintf(pa[["n_pending"]], 3L), paste("3", tolower(d("uncollected"))))
 
   # what the dictionary does not cover stays in Portuguese, never English
   expect_identical(pa[["fn_palms"]], pt[["fn_palms"]])

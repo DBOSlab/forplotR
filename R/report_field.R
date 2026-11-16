@@ -234,7 +234,18 @@
     dbh = "hover_dbh",
     dbh_axis = "dbh_x",
     checklist = "Checklist",
-    appendix = "Checklist"
+    appendix = "Checklist",
+    # titles reworded to what the dictionary has (e.g. the IVI figure is
+    # titled "most common families"); the numbers shown are the same
+    grid_cap = "Subplot Index",
+    maps_cap = "General Plot",
+    plot_map = "General Plot",
+    phyto_title = "Metric Summary",
+    fig_fam = "Most Common Families",
+    fig_spp = "Most Abundant Species",
+    fig_dbh = "DBH Classes",
+    tab_fam = "Family Metrics",
+    tab_spp = "Species Metrics"
   )
   one <- function(key, col) {
     v <- dict[[col]][dict$key == key]
@@ -255,6 +266,13 @@
   if (!is.na(sub_pl) && nzchar(sub_pl)) {
     out[["subplots_of"]] <- paste0("%d ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L), " \u00b7 %s \u00d7 %s m")
     out[["in_subplots"]] <- paste0("%d ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L))
+    if ("tag" %in% names(out)) out[["tags_sub"]] <- paste0(out[["tag"]], " · ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L))
+  }
+  # counts of pending stems: the number plus the dictionary's "not collected"
+  if ("pending" %in% names(out)) {
+    low <- paste0(tolower(substr(out[["pending"]], 1L, 1L)), substring(out[["pending"]], 2L))
+    out[["n_pending"]] <- paste0("%d ", low)
+    out[["leg_many"]] <- paste0("3+ ", low)
   }
 
   # from the header of the Panara field sheet ("Date | Haka", "Notas de campo | ...")
