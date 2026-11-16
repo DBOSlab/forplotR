@@ -4,6 +4,7 @@
   --acc:#0E3B2C;--link:#1F6B47;--moss:#3d5a40;
   --todo:#A33A1F;--todo-bg:#FBEBE5;--ok:#B9C1BC;--okline:#7E8A83;--palm:#C99A2E;
   --many:#A33A1F;--few:#E7A28A;--done:#CFE3D6;--empty:#F1ECE1;
+  --s1:#2f7d4f;--s2:#2f6db3;--s3:#b5730f;
   --serif:"Source Serif 4","Source Serif Pro",Charter,"Bitstream Charter",Cambria,"Sitka Text",Georgia,serif;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","PingFang SC","Microsoft YaHei",sans-serif;
   --mono:ui-monospace,"SF Mono",Consolas,"Liberation Mono",monospace;
@@ -190,4 +191,45 @@ figure{margin:0}figcaption{font-size:13px;font-weight:600;margin-bottom:6px}
   .route a{min-height:0}
   a{text-decoration:none}
   .grid,.whole,.map,.trees tr.r-todo td,.route a{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* floristics and phytosociology: booktabs strip, charts and tables */
+.kpi.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.kpi.k4 .kpi-i:nth-child(4n+1){border-left:0;padding-left:0}
+.kpi.k4 .kpi-i:nth-child(n+5){border-top:1px solid var(--rule)}
+.fig{margin:22px 0 8px}
+.fig figcaption{font-family:var(--serif);font-size:15px;font-weight:600;margin-bottom:4px}
+.fig .note{font-size:11.5px;color:var(--mut);margin:4px 0 0}
+.chart .gl{stroke:#ECE6DA;stroke-width:1}
+.chart .bl{stroke:var(--ink);stroke-width:1}
+.chart .ax{font:10px var(--sans);fill:var(--mut);text-anchor:middle;font-variant-numeric:tabular-nums}
+.chart .ax.end{text-anchor:end}
+.chart .nm{font:12px var(--sans);fill:var(--ink);text-anchor:end}
+.chart .nm.it{font-style:italic}
+.chart .vl{font:600 11px var(--sans);fill:var(--ink);font-variant-numeric:tabular-nums}
+.chart rect{stroke:var(--sf);stroke-width:1.5}
+.chart .s1{fill:var(--s1)}.chart .s2{fill:var(--s2)}.chart .s3{fill:var(--s3)}
+.chart rect:hover{opacity:.82}
+.leg .k-s1{background:var(--s1)}.leg .k-s2{background:var(--s2)}.leg .k-s3{background:var(--s3)}
+.tbl.phy{font-size:13px;margin:18px 0 26px;font-variant-numeric:tabular-nums}
+.tbl.phy caption{caption-side:top;text-align:left;font-family:var(--serif);font-size:15px;font-weight:600;color:var(--ink);padding-bottom:6px}
+.tbl.phy thead th{border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.tbl.phy tbody tr:last-child td{border-bottom:1px solid var(--ink)}
+.tbl.phy td{padding:4px 6px;border-bottom:1px solid #EFEAE0}
+.tbl.phy td.b{font-weight:600}
+.phyto .chart{max-width:720px}
+@media (max-width:760px){
+  .kpi.k4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi.k4 .kpi-i:nth-child(n){border-left:0;padding-left:0;border-top:1px solid var(--rule)}
+  .kpi.k4 .kpi-i:nth-child(-n+2){border-top:0}
+  .kpi.k4 .kpi-i:nth-child(2n){border-left:1px solid var(--rule);padding-left:12px}
+  .phyto .tbl.phy{display:block;overflow-x:auto}
+}
+@media print{
+  .kpi.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .tbl.phy{font-size:8pt;margin:3mm 0 6mm}
+  .tbl.phy td{padding:1.2mm 2mm}
+  .tbl.phy thead{display:table-header-group}.tbl.phy tr{break-inside:avoid}
+  .fig{break-inside:avoid;margin:5mm 0 3mm}
+  .chart{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }

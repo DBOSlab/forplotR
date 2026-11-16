@@ -13,7 +13,11 @@ Authors@R:
              family = "Cardoso",
              email = "cardosobot@gmail.com",
              role = c("aut", "ths", "cph"),
-             comment = c(ORCID = "0000-0001-7072-2656"))
+             comment = c(ORCID = "0000-0001-7072-2656")),
+      person(given = "Pedro Lage",
+             family = "Viana",
+             role = "ths",
+             comment = c(affiliation = "Instituto Nacional da Mata Atlântica (INMA)"))
     )
 Description: Tools for managing and visualizing permanent forest plot data
     collected in the 'ForestPlots.net' field-sheet and Query Library formats

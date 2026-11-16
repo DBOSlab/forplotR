@@ -59,3 +59,19 @@ test_that(".save_widget_selfcontained writes a single file without pandoc", {
   expect_match(html, "<title>Test</title>", fixed = TRUE)
   expect_length(list.files(dirname(out)), 1L)
 })
+
+test_that(".save_widget_selfcontained delegates to htmlwidgets when pandoc exists", {
+  calls <- list()
+  local_mocked_bindings(pandoc_available = function(...) TRUE, .package = "rmarkdown")
+  local_mocked_bindings(
+    saveWidget = function(widget, file, selfcontained, title, ...) {
+      calls[[length(calls) + 1L]] <<- list(file = file, selfcontained = selfcontained,
+                                            title = title)
+      invisible(NULL)
+    },
+    .package = "htmlwidgets"
+  )
+  out <- withr::local_tempfile(fileext = ".html")
+  expect_identical(.save_widget_selfcontained("w", out, title = "T"), out)
+  expect_identical(calls, list(list(file = out, selfcontained = TRUE, title = "T")))
+})

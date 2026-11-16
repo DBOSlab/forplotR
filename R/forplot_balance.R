@@ -47,11 +47,22 @@
 #' maps with the tag of every stem (all stems, with voucher, pending and, when
 #' \code{highlight_palms = TRUE}, palms), a priority route, one A4 page per
 #' subplot (map, tree table with stems pending collection first, and blank
-#' columns for new DBH, status, voucher number and notes) and a checklist
-#' appendix. Maps are inline SVG, so the file opens without internet. In a
+#' columns for new DBH, status, voucher number and notes), a floristic and
+#' phytosociological overview and a checklist appendix. Maps are inline SVG, so the file opens without internet. In a
 #' browser the report has a search box for tags and subplots; tapping a stem on
 #' a subplot map highlights its row in the table. MONITORA plots are drawn as
 #' the cross of four arms of the protocol.
+#'
+#' The floristic and phytosociological overview follows Mueller-Dombois &
+#' Ellenberg (1974), with the subplot as the sampling unit for frequency. It
+#' gives richness (species, genera, families), density and basal area per
+#' hectare, Shannon \eqn{H'}, Simpson \eqn{1 - D} and Pielou \eqn{J'}; the
+#' families and species with the highest importance value (IVI = relative
+#' density + relative frequency + relative dominance) as stacked bar charts;
+#' the distribution of stems per diameter class; and the full tables of
+#' phytosociological parameters of every family and species. A name used in
+#' more than one family (e.g. "Indet indet") is treated as one taxon per
+#' family. The same charts are also saved as PNG files.
 #'
 #' The PDF report is the same HTML printed by a headless Chrome, Chromium or
 #' Microsoft Edge, one A4 page per subplot. The browser is found automatically
@@ -185,15 +196,16 @@
 #' fp <- file.path(tempdir(), "RUS01.xlsx")
 #' openxlsx::write.xlsx(RUS01, fp)
 #'
-#' # Maps and Excel summary only (the PDF report needs LaTeX)
+#' # Field report (HTML) and Excel summary; set render_pdf = TRUE to also
+#' # print the report to PDF with Chrome, Chromium or Edge
 #' res <- forplot_balance(
 #'   fp,
 #'   input_type = "field_sheet",
-#'   render_html = FALSE,
 #'   render_pdf = FALSE,
 #'   dir = tempdir(),
 #'   verbose = FALSE
 #' )
+#' res$html_report
 #' res$xlsx_report
 #'
 #' # MONITORA data, one station
@@ -451,13 +463,19 @@ forplot_balance <- function(fp_file_path = NULL,
   ggplot2::ggsave(
     filename = file.path(foldername, paste0(filename, "_species_plot.png")),
     plot = balance$dashboard$species_plot,
-    width = 14, height = 11, units = "in", dpi = 300
+    width = 10, height = 7.5, units = "in", dpi = 300, bg = "white"
   )
 
   ggplot2::ggsave(
     filename = file.path(foldername, paste0(filename, "_family_plot.png")),
     plot = balance$dashboard$family_plot,
-    width = 14, height = 11, units = "in", dpi = 300
+    width = 10, height = 6.5, units = "in", dpi = 300, bg = "white"
+  )
+
+  ggplot2::ggsave(
+    filename = file.path(foldername, paste0(filename, "_dbh_classes.png")),
+    plot = balance$dashboard$dbh_plot,
+    width = 9, height = 5.5, units = "in", dpi = 300, bg = "white"
   )
 
   # Report ------------------------------------------------------------------
@@ -482,7 +500,8 @@ forplot_balance <- function(fp_file_path = NULL,
       highlight_palms = highlight_palms,
       meta = balance$metadata,
       language = language,
-      plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL
+      plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL,
+      phyto = balance$dashboard$phytosoc
     )
     if (isTRUE(render_html)) {
       html_report <- final_html

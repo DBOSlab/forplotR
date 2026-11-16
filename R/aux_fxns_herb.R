@@ -98,7 +98,7 @@
   }
 
   x <- as.character(recordedBy)
-  x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+  x <- stringi::stri_trans_general(x, "Latin-ASCII")
   x[is.na(x)] <- ""
   x <- trimws(x)
 
@@ -153,7 +153,7 @@
   }
 
   x <- as.character(name_raw)
-  x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+  x <- stringi::stri_trans_general(x, "Latin-ASCII")
   x[is.na(x)] <- ""
   x <- trimws(tolower(x))
   x <- gsub("\\bet\\s+al\\b\\.?", "", x)
@@ -349,8 +349,10 @@
   number_raw <- vapply(parsed, `[[`, character(1), "number")
   number_clean <- .normalize_number_token(number_raw)
 
+  # unname(): a voucher without collector would otherwise give an NA row name
+  # and data.frame() below would fail for the whole plot.
   tok <- t(vapply(
-    collector_raw,
+    unname(collector_raw),
     .collector_tokens_one,
     FUN.VALUE = c(primary = NA_character_, fallback = NA_character_)
   ))
