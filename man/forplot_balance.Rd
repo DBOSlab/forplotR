@@ -24,6 +24,7 @@ forplot_balance(
   verbose = TRUE,
   dir = file.path(tempdir(), "Results_map_plot"),
   filename = "plot_specimen",
+  logos = NULL,
   header_row = NULL,
   colname_tagno = NULL,
   colname_stemgroup = NULL,
@@ -106,6 +107,18 @@ session temporary directory (\code{tempdir()}), which is deleted when the R
 session ends; supply a path to keep the outputs.}
 
 \item{filename}{Basename for generated output files, without extension.}
+
+\item{logos}{Logos shown at the top of the HTML and PDF report. A character
+vector that may mix logo names (\code{"forplotR"}, \code{"jbrj"},
+\code{"ci"}, \code{"iakio"}), presets and paths to your own image files
+(PNG, SVG or JPEG), in the order they should appear. Presets:
+\code{"default"} is forplotR + JBRJ; \code{"panara"} adds Conservação
+Internacional and the Iakiô Panará association. The default \code{NULL}
+uses \code{"default"}, or \code{"panara"} when
+\code{input_type = "field_sheet_ti"}; pass \code{c("forplotR", "jbrj")} to
+keep only the two standard logos there. \code{FALSE} or \code{"none"}
+leaves the report without logos. Logos keep their proportions and share
+one height.}
 
 \item{header_row}{Row of the spreadsheet that holds the column names. The
 default \code{NULL} finds it automatically (see \code{\link[=detect_header_row]{detect_header_row()}}),
@@ -200,7 +213,8 @@ maps with the tag of every stem (all stems, with voucher, pending and, when
 \code{highlight_palms = TRUE}, palms), a priority route, one A4 page per
 subplot (map, tree table with stems pending collection first, and blank
 columns for new DBH, status, voucher number and notes), a floristic and
-phytosociological overview and a checklist appendix. Maps are inline SVG, so the file opens without internet. In a
+phytosociological overview and a checklist appendix. The first page
+carries the logos chosen with \code{logos}. Maps are inline SVG, so the file opens without internet. In a
 browser the report has a search box for tags and subplots; tapping a stem on
 a subplot map highlights its row in the table. MONITORA plots are drawn as
 the cross of four arms of the protocol.

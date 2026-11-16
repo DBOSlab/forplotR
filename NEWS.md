@@ -21,6 +21,16 @@
   a helper column `"D"`), the first one in the sheet is used and the other is
   kept as `D_2`; a message says which is which.
 - The census date read from the sheet is shown in the field report.
+- The field report (HTML and PDF) has a header with official logos again.
+  `forplot_balance()` gains `logos`: logo names (`"forplotR"`, `"jbrj"`,
+  `"ci"`, `"iakio"`), presets and paths to your own image files, in the order
+  they should appear. The default is forplotR + JBRJ; the `"panara"` preset
+  adds Conservação Internacional and the Iakiô Panará association and is
+  used automatically for `input_type = "field_sheet_ti"` (pass
+  `logos = c("forplotR", "jbrj")` to keep only the two standard ones, or
+  `FALSE` for none). The logos are in `inst/logos/`, keep their proportions
+  and share one height in both formats.
+- `LICENSE.md` with the full text of the MIT licence.
 - `inst/extdata/panara_field_sheet_template.xlsx`: the blank field-sheet
   template of the Panará Indigenous Land (metadata labels and bilingual
   header, no data), used in the examples.

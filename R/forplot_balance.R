@@ -51,7 +51,8 @@
 #' \code{highlight_palms = TRUE}, palms), a priority route, one A4 page per
 #' subplot (map, tree table with stems pending collection first, and blank
 #' columns for new DBH, status, voucher number and notes), a floristic and
-#' phytosociological overview and a checklist appendix. Maps are inline SVG, so the file opens without internet. In a
+#' phytosociological overview and a checklist appendix. The first page
+#' carries the logos chosen with \code{logos}. Maps are inline SVG, so the file opens without internet. In a
 #' browser the report has a search box for tags and subplots; tapping a stem on
 #' a subplot map highlights its row in the table. MONITORA plots are drawn as
 #' the cross of four arms of the protocol.
@@ -141,6 +142,18 @@
 #' session ends; supply a path to keep the outputs.
 #'
 #' @param filename Basename for generated output files, without extension.
+#'
+#' @param logos Logos shown at the top of the HTML and PDF report. A character
+#' vector that may mix logo names (\code{"forplotR"}, \code{"jbrj"},
+#' \code{"ci"}, \code{"iakio"}), presets and paths to your own image files
+#' (PNG, SVG or JPEG), in the order they should appear. Presets:
+#' \code{"default"} is forplotR + JBRJ; \code{"panara"} adds Conservação
+#' Internacional and the Iakiô Panará association. The default \code{NULL}
+#' uses \code{"default"}, or \code{"panara"} when
+#' \code{input_type = "field_sheet_ti"}; pass \code{c("forplotR", "jbrj")} to
+#' keep only the two standard logos there. \code{FALSE} or \code{"none"}
+#' leaves the report without logos. Logos keep their proportions and share
+#' one height.
 #'
 #' @param header_row Row of the spreadsheet that holds the column names. The
 #' default \code{NULL} finds it automatically (see [detect_header_row()]),
@@ -268,6 +281,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             verbose = TRUE,
                             dir = file.path(tempdir(), "Results_map_plot"),
                             filename = "plot_specimen",
+                            logos = NULL,
                             header_row = NULL,
                             colname_tagno = NULL,
                             colname_stemgroup = NULL,
@@ -349,6 +363,9 @@ forplot_balance <- function(fp_file_path = NULL,
   language <- match.arg(tolower(trimws(as.character(language))),
                         c("en", "pt", "es", "fr", "ma", "pa"))
 
+  # validated before anything is read or written
+  report_logos <- .resolve_report_logos(logos, input_type)
+
   dir <- .arg_check_dir(dir)
 
   foldername <- file.path(dir, format(Sys.time(), "%d%b%Y"))
@@ -382,6 +399,7 @@ forplot_balance <- function(fp_file_path = NULL,
         filename = paste0(filename, "_station_", st),
         language = language,
         verbose = verbose,
+        logos = logos,
         header_row = header_row,
         colname_tagno = colname_tagno,
         colname_stemgroup = colname_stemgroup,
@@ -513,7 +531,8 @@ forplot_balance <- function(fp_file_path = NULL,
       meta = balance$metadata,
       language = language,
       plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL,
-      phyto = balance$dashboard$phytosoc
+      phyto = balance$dashboard$phytosoc,
+      logos = report_logos
     )
     if (isTRUE(render_html)) {
       html_report <- final_html
