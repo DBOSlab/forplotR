@@ -26,6 +26,7 @@
     doc_title       = c("Collection balance", "Balan\u00e7o de coleta", "Balance de colecta", "Bilan de collecte", "\u91c7\u96c6\u5e73\u8861"),
     census          = c("census", "censo", "censo", "recensement", "\u666e\u67e5"),
     team            = c("Team", "Equipe", "Equipo", "\u00c9quipe", "\u56e2\u961f"),
+    date            = c("Date", "Data", "Fecha", "Date", "\u65e5\u671f"),
     subplots_of     = c("%d subplots of %s \u00d7 %s m", "%d subparcelas de %s \u00d7 %s m", "%d subparcelas de %s \u00d7 %s m", "%d sous-parcelles de %s \u00d7 %s m", "%d \u4e2a %s \u00d7 %s \u7c73\u5b50\u6837\u5730"),
     individuals     = c("Individuals", "Indiv\u00edduos", "Individuos", "Individus", "\u4e2a\u4f53"),
     in_subplots     = c("in %d subplots", "em %d subparcelas", "en %d subparcelas", "dans %d sous-parcelles", "\u5206\u5e03\u4e8e %d \u4e2a\u5b50\u6837\u5730"),
@@ -660,16 +661,141 @@
 }
 
 
+# Logos ------------------------------------------------------------------------
+
+#' Official logos shipped with the package (inst/logos)
+#'
+#' @return Named list; each element has `file`, `alt` and `url`.
+#' @keywords internal
+#' @noRd
+.report_logo_catalog <- function() {
+  list(
+    forplotr = list(file = "forplotR.png", alt = "forplotR",
+                    url = "https://dboslab.github.io/forplotR-website/"),
+    jbrj = list(file = "jbrj.png",
+                alt = "Instituto de Pesquisas Jardim Bot\u00e2nico do Rio de Janeiro (JBRJ)",
+                url = "https://www.gov.br/jbrj/pt-br"),
+    ci = list(file = "ci.png", alt = "Conserva\u00e7\u00e3o Internacional Brasil (CI)",
+              url = "https://brasil.conservation.org/"),
+    iakio = list(file = "iakio.png", alt = "Associa\u00e7\u00e3o Iaki\u00f4 Panar\u00e1",
+                 url = "https://www.instagram.com/associacao.iakio/"),
+    monitora = list(file = "monitora.png", alt = "Programa MONITORA (ICMBio)",
+                    url = "https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora"),
+    forestplots = list(file = "forestplots.png", alt = "ForestPlots.net",
+                       url = "https://forestplots.net/")
+  )
+}
+
+#' Logo presets: a name that stands for several logos
+#'
+#' @keywords internal
+#' @noRd
+.report_logo_presets <- function() {
+  list(
+    default = c("forplotr", "jbrj"),
+    panara = c("forplotr", "jbrj", "ci", "iakio"),
+    monitora = c("forplotr", "jbrj", "monitora"),
+    forestplots = c("forplotr", "jbrj", "forestplots")
+  )
+}
+
+#' Resolve the `logos` argument into images ready to embed
+#'
+#' @param logos `NULL` (automatic), `FALSE`/`"none"`/`character(0)` (no logos),
+#'   or a character vector mixing logo names (`"forplotR"`, `"jbrj"`, `"ci"`,
+#'   `"iakio"`, `"monitora"`, `"forestplots"`), presets (`"default"`,
+#'   `"panara"`, `"monitora"`, `"forestplots"`) and paths to image files.
+#' @param input_type Canonical input type; with `logos = NULL`, the Indigenous
+#'   Land field sheet gets the `"panara"` preset.
+#' @param auto What `logos = NULL` stands for when `input_type` does not decide
+#'   it (a preset or logo name).
+#' @return Data frame with `src` (data URI), `alt` and `url`; zero rows for none.
+#' @keywords internal
+#' @noRd
+.resolve_report_logos <- function(logos = NULL, input_type = "field_sheet",
+                                  auto = "default") {
+  empty <- data.frame(src = character(), alt = character(), url = character(),
+                      stringsAsFactors = FALSE)
+  presets <- .report_logo_presets()
+  catalog <- .report_logo_catalog()
+
+  if (is.null(logos)) {
+    logos <- if (identical(input_type, "field_sheet_ti")) "panara" else auto
+  }
+  if (isFALSE(logos)) return(empty)
+  if (!is.character(logos) || anyNA(logos)) {
+    stop("`logos` must be NULL, FALSE or a character vector of logo names, presets ",
+         "and image file paths.", call. = FALSE)
+  }
+  logos <- trimws(logos)
+  logos <- logos[nzchar(logos)]
+  if (!length(logos) || identical(tolower(logos), "none")) return(empty)
+
+  # presets expand in place; a logo named twice is shown once. "monitora" and
+  # "forestplots" are both a logo and a preset: alone they are the preset (the
+  # partner logo next to forplotR and JBRJ), in a list they are just the logo.
+  items <- unlist(lapply(logos, function(x) {
+    key <- tolower(x)
+    is_preset <- key %in% names(presets) && (length(logos) == 1L || !(key %in% names(catalog)))
+    if (is_preset) presets[[key]] else x
+  }), use.names = FALSE)
+  items <- items[!duplicated(tolower(items))]
+
+  rows <- lapply(items, function(x) {
+    key <- tolower(x)
+    if (key %in% names(catalog)) {
+      lg <- catalog[[key]]
+      f <- system.file("logos", lg$file, package = "forplotR")
+      if (!nzchar(f)) return(NULL)
+      return(data.frame(src = .file_data_uri(f), alt = lg$alt, url = lg$url,
+                        stringsAsFactors = FALSE))
+    }
+    if (file.exists(x) && !dir.exists(x)) {
+      ext <- tolower(tools::file_ext(x))
+      if (!ext %in% c("png", "svg", "jpg", "jpeg", "gif", "webp")) {
+        stop("Logo file '", x, "' must be a PNG, SVG, JPEG, GIF or WebP image.",
+             call. = FALSE)
+      }
+      alt <- gsub("[_-]+", " ", tools::file_path_sans_ext(basename(x)))
+      return(data.frame(src = .file_data_uri(x), alt = alt, url = "",
+                        stringsAsFactors = FALSE))
+    }
+    stop("Unknown logo '", x, "'. Use one of: ",
+         paste(c("forplotR", "jbrj", "ci", "iakio", "monitora", "forestplots"), collapse = ", "),
+         "; a preset (", paste(names(presets), collapse = ", "),
+         "); \"none\"; or the path to an image file.", call. = FALSE)
+  })
+  rows <- rows[!vapply(rows, is.null, logical(1))]
+  if (!length(rows)) return(empty)
+  do.call(rbind, rows)
+}
+
+#' Logo strip of the report cover
+#'
+#' @keywords internal
+#' @noRd
+.fr_logos_html <- function(logos) {
+  if (is.null(logos) || !nrow(logos)) return("")
+  img <- sprintf('<img src="%s" alt="%s">', logos$src, .fr_esc(logos$alt))
+  has_url <- nzchar(logos$url)
+  img[has_url] <- sprintf('<a href="%s" target="_blank" rel="noopener">%s</a>',
+                          .fr_esc(logos$url[has_url]), img[has_url])
+  paste0('<div class="logos">', paste(img, collapse = ""), '</div>')
+}
+
+
 # HTML -------------------------------------------------------------------------
 
 #' Build the field report as one HTML string
 #'
 #' @param lay Layout from `.field_report_layout()`.
-#' @param meta List with `plot_name`, `plot_code`, `plot_census_no_fp`, `team`.
+#' @param meta List with `plot_name`, `plot_code`, `plot_census_no_fp`, `team`
+#'   and, optionally, `census_date` (a `Date`).
+#' @param logos Data frame from `.resolve_report_logos()`, or `NULL` for none.
 #' @keywords internal
 #' @noRd
 .field_report_html <- function(lay, meta, language = "en", highlight_palms = TRUE,
-                               plot_area_ha = NULL, phyto = NULL) {
+                               plot_area_ha = NULL, phyto = NULL, logos = NULL) {
   tr <- .field_report_strings(language)
   d <- lay$trees
   c <- lay$cells
@@ -702,6 +828,11 @@
   }
   team_txt <- if (.safe_nzchar(as.character(meta$team))) paste0('<p class="meta">', tr[["team"]], ": ", .fr_esc(meta$team), "</p>") else ""
   ver <- tryCatch(as.character(utils::packageVersion("forplotR")), error = function(e) "")
+  date_txt <- if (inherits(meta$census_date, "Date") && length(meta$census_date) == 1L && !is.na(meta$census_date)) {
+    paste0(" \u00b7 ", tr[["date"]], ": ", format(meta$census_date, "%d/%m/%Y"))
+  } else {
+    ""
+  }
 
   fns <- c(
     if (n_indet > 0) sprintf(tr[["fn_indet"]], n_indet),
@@ -722,10 +853,11 @@
 
   summary_html <- paste0(
     '<section class="page cover" id="summary">',
+    .fr_logos_html(logos),
     '<header class="doc-head">',
     sprintf('<p class="kicker">%s%s</p>', tr[["doc_title"]], census),
     sprintf('<h1>%s <span>%s</span></h1>', pn, pc),
-    sprintf('<p class="meta">%s%s</p>', size_txt, if (nzchar(ver)) paste0(" \u00b7 forplotR ", ver) else ""),
+    sprintf('<p class="meta">%s%s%s</p>', size_txt, date_txt, if (nzchar(ver)) paste0(" \u00b7 forplotR ", ver) else ""),
     team_txt, '</header>',
     '<dl class="kpi">',
     kpi(tr[["individuals"]], n_all, sprintf(tr[["in_subplots"]], sum(c$n > 0))),
@@ -873,10 +1005,12 @@
 #' @noRd
 .write_field_report <- function(file, fp_coords, input_type, subplot_size,
                                 plot_width_m, plot_length_m, highlight_palms,
-                                meta, language, plot_area_ha = NULL, phyto = NULL) {
+                                meta, language, plot_area_ha = NULL, phyto = NULL,
+                                logos = NULL) {
   lay <- .field_report_layout(fp_coords, input_type, subplot_size,
                               plot_width_m, plot_length_m, highlight_palms)
-  html <- .field_report_html(lay, meta, language, highlight_palms, plot_area_ha, phyto)
+  html <- .field_report_html(lay, meta, language, highlight_palms, plot_area_ha, phyto,
+                             logos = logos)
   con <- file(file, open = "wb")
   on.exit(close(con), add = TRUE)
   writeBin(charToRaw(enc2utf8(html)), con)

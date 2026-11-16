@@ -1,5 +1,43 @@
 # forplotR (development version)
 
+- Field sheets that start with rows of plot metadata are now read from their
+  real header row. `detect_header_row()` scores the first rows of a sheet by
+  the column names it recognises and returns the header row;
+  `read_plot_metadata()` turns the `"Label | Translation: value"` cells above
+  it into `plot_code`, `plot_name`, `date` (day/month/year first) and `team`
+  (one element per person); `read_plot_sheet()` reads the table from that row.
+  `forplot_balance()`, `forplot_map()`, `forplot_vouchers()` and
+  `forplot_sheets()` gain `header_row = NULL` (automatic) to force the row.
+- Bilingual column names are understood: either side of
+  `"Name | Translation"` is matched, ignoring case and accents, with English,
+  Portuguese and Panará labels (`"Família botânica | Ksyapiâhapiâra pârikiã"`
+  is `Family`, `"D | Wy"` is `D`). The Indigenous Land (Panará) field sheet is
+  now mapped by column name under both `input_type = "field_sheet_ti"` and
+  `"field_sheet"`, with the fixed column order as a fallback. When that sheet
+  has separate columns for the scientific and the Panará name, the
+  determination is the scientific name and the Panará name is kept in
+  `Local name`.
+- When two columns read as the same name (the Panará sheet has `"D | Wy"` and
+  a helper column `"D"`), the first one in the sheet is used and the other is
+  kept as `D_2`; a message says which is which.
+- The census date read from the sheet is shown in the field report.
+- The field report (HTML and PDF) has a header with official logos again, and
+  the map can show them too. `forplot_balance()` and `forplot_map()` gain
+  `logos`: logo names, presets and paths to your own image files, in the
+  order they should appear. Logos shipped in `inst/logos/`: `"forplotR"`,
+  `"jbrj"`, `"ci"` (Conservação Internacional), `"iakio"` (Associação Iakiô
+  Panará), `"monitora"` (Programa MONITORA) and `"forestplots"`
+  (ForestPlots.net). Presets: `"default"` (forplotR + JBRJ), `"panara"`
+  (plus CI and Iakiô), `"monitora"` and `"forestplots"` (the two standard
+  logos plus that partner). In the report the default is forplotR + JBRJ,
+  or `"panara"` for `input_type = "field_sheet_ti"`; in the map it is the
+  forplotR logo alone. `FALSE` shows none. Logos keep their proportions and
+  share one height.
+- `LICENSE.md` with the full text of the MIT licence.
+- `inst/extdata/panara_field_sheet_template.xlsx`: the blank field-sheet
+  template of the Panará Indigenous Land (metadata labels and bilingual
+  header, no data), used in the examples.
+
 - The field report of `forplot_balance()` ends with a floristic and
   phytosociological overview: richness, density and basal area per hectare,
   Shannon, Simpson and Pielou indices, the families and species with the

@@ -51,7 +51,10 @@
 #' @section Input types:
 #' \describe{
 #'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field-sheet layout.}
-#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout: rows of
+#'   plot metadata, then a header that may be bilingual
+#'   (\code{"Name | Translation"}). Columns are recognised by name and, failing
+#'   that, by their fixed position in the template.}
 #'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export converted internally to a field-sheet-like schema.}
 #'   \item{\code{"monitora"}}{MONITORA layout converted internally and plotted using MONITORA geometry.}
 #' }
@@ -166,6 +169,20 @@
 #' (\code{tempdir()}), which is deleted when the R session ends; supply a path
 #' to keep the map.
 #'
+#' @param logos Logos shown in the header of the map. A character vector that
+#' may mix logo names (\code{"forplotR"}, \code{"jbrj"}, \code{"ci"},
+#' \code{"iakio"}, \code{"monitora"}, \code{"forestplots"}), presets
+#' (\code{"default"}, \code{"panara"}, \code{"monitora"},
+#' \code{"forestplots"}) and paths to your own image files, as in
+#' [forplot_balance()]. The first logo sits beside the plot name and the
+#' others in a row below it. The default \code{NULL} shows the forplotR logo
+#' alone; \code{FALSE} or \code{"none"} shows no logo.
+#'
+#' @param header_row Row of the spreadsheet that holds the column names. The
+#' default \code{NULL} finds it automatically (see [detect_header_row()]),
+#' which copes with sheets that start with rows of plot metadata. Give a
+#' number to force it.
+#'
 #' @param colname_tagno,colname_stemgroup,colname_subplot,colname_x,colname_y,colname_family,colname_species,colname_dbh,colname_voucher,colname_collected
 #' Optional column names in the input file to map to the internal schema,
 #' respectively: tree tag (\code{"New Tag No"}), stem group
@@ -276,6 +293,8 @@ forplot_map <- function(fp_file_path = NULL,
                         language = c("en", "pt", "es", "fr", "ma", "pa"),
                         embed_voucher_imgs = FALSE,
                         dir = NULL,
+                        logos = NULL,
+                        header_row = NULL,
                         colname_tagno = NULL,
                         colname_stemgroup = NULL,
                         colname_subplot = NULL,
@@ -294,6 +313,9 @@ forplot_map <- function(fp_file_path = NULL,
   # Arguments ####
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
+
+  # NULL keeps the forplotR logo alone (the header sits on top of the map)
+  map_logos <- .resolve_report_logos(if (is.null(logos)) "forplotR" else logos, input_type)
 
   language <- match.arg(tolower(trimws(as.character(language))),
                         c("en", "pt", "es", "fr", "ma", "pa"))
@@ -374,6 +396,8 @@ forplot_map <- function(fp_file_path = NULL,
         language = language,
         embed_voucher_imgs = embed_voucher_imgs,
         dir = dir,
+        logos = logos,
+        header_row = header_row,
         colname_tagno = colname_tagno,
         colname_stemgroup = colname_stemgroup,
         colname_subplot = colname_subplot,
@@ -431,7 +455,8 @@ forplot_map <- function(fp_file_path = NULL,
     station_name = station_name,
     verbose = verbose,
     col_map = col_map,
-    has_user_meta = .safe_nzchar(plot_name) || .safe_nzchar(plot_code)
+    has_user_meta = .safe_nzchar(plot_name) || .safe_nzchar(plot_code),
+    header_row = header_row
   )
 
   fp_sheet <- fp_loaded$fp_sheet
@@ -724,15 +749,31 @@ forplot_map <- function(fp_file_path = NULL,
     NA_real_
   }
 
-  logo_uri <- .forplotr_logo_uri()
   esc <- function(x) htmltools::htmlEscape(as.character(x))
+
+  # Logos of the map header: the first one sits beside the title, the others
+  # in a row under the figures. NULL keeps the forplotR logo alone.
+  logo_img <- function(lg, class) {
+    img <- sprintf("<img class='%s' src='%s' alt='%s'>", class, lg$src, esc(lg$alt))
+    if (nzchar(lg$url)) {
+      sprintf("<a href='%s' target='_blank' rel='noopener'>%s</a>", esc(lg$url), img)
+    } else {
+      img
+    }
+  }
+  partners_html <- if (nrow(map_logos) > 1L) {
+    paste0("<div class='fp-partners'>",
+           paste(vapply(seq_len(nrow(map_logos))[-1L],
+                        function(i) logo_img(map_logos[i, ], "fp-partner"), character(1)),
+                 collapse = ""),
+           "</div>")
+  } else {
+    ""
+  }
 
   header_html <- paste0(
     "<div class='fp-head'>",
-    if (nzchar(logo_uri)) {
-      paste0("<a href='https://dboslab.github.io/forplotR-website/' target='_blank' rel='noopener'>",
-             "<img class='fp-logo' src='", logo_uri, "' alt='forplotR'></a>")
-    } else "",
+    if (nrow(map_logos)) logo_img(map_logos[1L, ], "fp-logo") else "",
     "<div class='fp-head-txt'>",
     "<div class='fp-title'>", esc(plot_name), "</div>",
     "<div class='fp-sub'>",
@@ -744,6 +785,7 @@ forplot_map <- function(fp_file_path = NULL,
       paste0(" &middot; <b>", round(pct_coll), "%</b> ", esc(tolower(tr["collected"])))
     } else "",
     "</div>",
+    partners_html,
     "</div></div>"
   )
 
@@ -1350,14 +1392,6 @@ forplot_map <- function(fp_file_path = NULL,
   paste0("data:", mime, ";base64,", jsonlite::base64_enc(raw))
 }
 
-
-.forplotr_logo_uri <- function() {
-  f <- system.file("figures", "forplotR_hex_sticker.png", package = "forplotR")
-  if (!nzchar(f) || !file.exists(f)) return("")
-  .file_data_uri(f)
-}
-
-
 #' Build the HTML for a photo carousel
 #'
 #' @keywords internal
@@ -1498,6 +1532,9 @@ forplot_map <- function(fp_file_path = NULL,
   max-width: min(440px, 70vw);
 }
 .fp-logo { width: 52px; height: auto; display: block; }
+.fp-partners { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; }
+.fp-partners a { display: block; line-height: 0; }
+.fp-partner { height: 34px; width: auto; max-width: 120px; display: block; object-fit: contain; }
 .fp-title { font-size: 18px; font-weight: 700; color: #1B2A1E; line-height: 1.2; }
 .fp-sub { font-size: 13px; color: #4B5563; margin-top: 2px; }
 .fp-stats { font-size: 12px; color: #374151; margin-top: 4px; }

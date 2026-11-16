@@ -21,6 +21,11 @@ small{color:var(--mut)}
 .meta,.lede{color:var(--mut);margin:6px 0 12px}
 svg{display:block;width:100%;height:auto}
 
+/* official logos on the cover: same height, own proportions, one baseline */
+.logos{display:flex;align-items:center;flex-wrap:wrap;gap:14px 26px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid var(--line)}
+.logos a{display:block;line-height:0}
+.logos img{display:block;height:72px;width:auto;max-width:200px;object-fit:contain}
+
 /* top bar */
 .bar{position:sticky;top:0;z-index:5;display:flex;gap:6px;align-items:center;padding:8px 12px;background:var(--acc);color:#fff}
 .bar a{color:#fff;text-decoration:none;padding:8px 10px;border-radius:8px;font-weight:600;font-size:14px}
@@ -163,6 +168,8 @@ figure{margin:0}figcaption{font-size:13px;font-weight:600;margin-bottom:6px}
   html{scroll-padding:0}
   body{background:#fff;font-size:10pt}
   .bar{display:none}
+  .logos{gap:4mm 8mm;margin-bottom:4mm;padding-bottom:3mm;border-bottom:.3mm solid #bdbdbd}
+  .logos img{height:18mm;max-width:45mm}
   main{max-width:none;padding:0}
   .page{border:0;border-radius:0;padding:0;margin:0;break-after:page}
   .kpi,.kpi:has(> :nth-child(5):last-child){margin:4mm 0 1mm}

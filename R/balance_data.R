@@ -210,7 +210,8 @@
     plot_name = pick(plot_name, fp_loaded$plot_name, "Unknown Plot"),
     plot_code = pick(plot_code, fp_loaded$plot_code, ""),
     plot_census_no_fp = pick(plot_census_no, fp_loaded$census_no_fp, "1"),
-    team = pick(team, fp_loaded$team, "")
+    team = pick(team, fp_loaded$team, ""),
+    census_date = if (inherits(fp_loaded$census_date, "Date")) fp_loaded$census_date else as.Date(NA)
   )
 }
 

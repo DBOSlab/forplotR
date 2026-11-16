@@ -1529,3 +1529,57 @@ test_that("CRAN smoke test does not require internet or a real Excel workbook", 
 
   expect_true(file.exists(saved$file))
 })
+
+
+# Logos in the map header ----------------------------------------------------
+
+test_that("forplot_map puts the chosen logos in the map header", {
+  input_file <- .map_test_input_file()
+  saved <- new.env(parent = emptyenv())
+
+  testthat::local_mocked_bindings(
+    .harmonize_plot_input = .map_mock_standard_input,
+    .package = "forplotR"
+  )
+  testthat::local_mocked_bindings(
+    .save_widget_selfcontained = function(widget, file, title = NULL) {
+      saved$html <- paste(unlist(lapply(widget$x$calls, function(cl) {
+        if (identical(cl$method, "addControl")) as.character(cl$args[[1]]) else NULL
+      })), collapse = "\n")
+      writeLines("<html></html>", file)
+      invisible(NULL)
+    }
+  )
+  old <- setwd(tempdir())
+  on.exit(setwd(old), add = TRUE)
+
+  run <- function(...) {
+    suppressMessages(forplot_map(
+      fp_file_path = input_file, input_type = "field_sheet",
+      vertex_coords = .map_test_vertices(), plot_size = 0.01, subplot_size = 10,
+      voucher_imgs = .map_test_missing_voucher_dir(), filename = "logos", ...
+    ))
+    saved$html
+  }
+  count <- function(html, what) lengths(regmatches(html, gregexpr(what, html, fixed = TRUE)))
+
+  # default: the forplotR logo alone, as before
+  h <- run()
+  expect_identical(count(h, "class='fp-logo'"), 1L)
+  expect_identical(count(h, "class='fp-partner'"), 0L)
+  expect_true(grepl("alt='forplotR'", h, fixed = TRUE))
+
+  # the first logo beside the title, the others in a row
+  h <- run(logos = c("forplotR", "jbrj", "monitora", "forestplots"))
+  expect_identical(count(h, "class='fp-logo'"), 1L)
+  expect_identical(count(h, "class='fp-partner'"), 3L)
+  expect_true(grepl("alt='ForestPlots.net'", h, fixed = TRUE))
+
+  h <- run(logos = "panara")
+  expect_identical(count(h, "class='fp-partner'"), 3L)
+
+  h <- run(logos = FALSE)
+  expect_identical(count(h, "class='fp-logo'"), 0L)
+
+  expect_error(run(logos = "nope"), "Unknown logo")
+})

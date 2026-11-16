@@ -233,3 +233,87 @@ test_that("a browser that fails to print gives a warning and no PDF", {
 test_that("missing report assets raise an error", {
   expect_error(.fr_read_asset("does-not-exist.css"), "Report asset not found")
 })
+
+
+# Logos ------------------------------------------------------------------------
+
+test_that("report logos resolve presets, names and files", {
+  def <- .resolve_report_logos(NULL, "field_sheet")
+  expect_identical(nrow(def), 2L)
+  expect_identical(def$alt[1], "forplotR")
+  expect_match(def$alt[2], "JBRJ", fixed = TRUE)
+  expect_true(all(startsWith(def$src, "data:image/png;base64,")))
+
+  # the Indigenous Land sheet suggests the Panara preset; naming logos turns it off
+  ti <- .resolve_report_logos(NULL, "field_sheet_ti")
+  expect_identical(nrow(ti), 4L)
+  expect_match(ti$alt[3], "Conserva", fixed = TRUE)
+  expect_match(ti$alt[4], "Iaki", fixed = TRUE)
+  expect_identical(.resolve_report_logos(c("forplotR", "jbrj"), "field_sheet_ti"), def)
+  expect_identical(.resolve_report_logos("panara", "field_sheet"), ti)
+  expect_identical(.resolve_report_logos("default", "field_sheet_ti"), def)
+
+  # no logos
+  for (none in list(FALSE, "none", character(), "")) {
+    expect_identical(nrow(.resolve_report_logos(none)), 0L)
+  }
+  expect_identical(.fr_logos_html(.resolve_report_logos(FALSE)), "")
+  expect_identical(.fr_logos_html(NULL), "")
+
+  # order is kept, repeats are dropped, custom files are accepted
+  svg <- withr::local_tempfile(fileext = ".svg")
+  writeLines('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 1"><rect width="2" height="1"/></svg>', svg)
+  mix <- .resolve_report_logos(c("JBRJ", svg, "default"))
+  expect_identical(nrow(mix), 3L)
+  expect_match(mix$alt[1], "JBRJ", fixed = TRUE)
+  expect_true(startsWith(mix$src[2], "data:image/svg+xml;base64,"))
+  expect_identical(mix$alt[3], "forplotR")
+
+  expect_error(.resolve_report_logos("nope"), "Unknown logo 'nope'")
+  expect_error(.resolve_report_logos(1), "`logos` must be")
+  txt <- withr::local_tempfile(fileext = ".txt")
+  writeLines("x", txt)
+  expect_error(.resolve_report_logos(txt), "must be a PNG, SVG")
+})
+
+test_that("the report cover carries the logos", {
+  lay <- .field_report_layout(.rus01_coords(), "field_sheet", 10, 100, 100, TRUE)
+  meta <- list(plot_name = "Ruschi", plot_code = "RUS01", plot_census_no_fp = "1", team = "")
+  html <- .field_report_html(lay, meta, "en", TRUE, plot_area_ha = 1,
+                             logos = .resolve_report_logos("panara"))
+  # cut by position: the strip holds base64 images, too long for a regex match
+  from <- regexpr('<div class="logos">', html, fixed = TRUE)
+  to <- regexpr('<header class="doc-head">', html, fixed = TRUE)
+  expect_gt(from, 0)
+  strip <- substr(html, from, to - 1L)
+  expect_identical(lengths(regmatches(strip, gregexpr("<img ", strip, fixed = TRUE))), 4L)
+  expect_true(grepl('alt="forplotR"', strip, fixed = TRUE))
+  # the strip comes before the title, on the cover page
+  expect_lt(regexpr('<div class="logos">', html, fixed = TRUE),
+            regexpr('<header class="doc-head">', html, fixed = TRUE))
+  none <- .field_report_html(lay, meta, "en", TRUE, plot_area_ha = 1)
+  expect_false(grepl('<div class="logos">', none, fixed = TRUE))
+  expect_error(forplot_balance("x.xlsx", logos = "nope"), "Unknown logo")
+})
+
+test_that("MONITORA and ForestPlots logos work as a preset or as a single logo", {
+  def <- .resolve_report_logos("default")
+  mon <- .resolve_report_logos("monitora")
+  expect_identical(nrow(mon), 3L)
+  expect_identical(mon[1:2, ], def)
+  expect_match(mon$alt[3], "MONITORA", fixed = TRUE)
+  fp <- .resolve_report_logos("ForestPlots")
+  expect_identical(fp$alt, c(def$alt, "ForestPlots.net"))
+
+  # in a list they are just that logo, in the order given
+  one <- .resolve_report_logos(c("forestplots", "forplotR"))
+  expect_identical(one$alt, c("ForestPlots.net", "forplotR"))
+  all6 <- .resolve_report_logos(c("forplotR", "jbrj", "ci", "iakio", "monitora", "forestplots"))
+  expect_identical(nrow(all6), 6L)
+  expect_true(all(startsWith(all6$src, "data:image/png;base64,")))
+  expect_true(all(nzchar(all6$url)))
+
+  # `auto` is what NULL stands for when the input type does not decide
+  expect_identical(.resolve_report_logos(NULL, "monitora", auto = "forplotR")$alt, "forplotR")
+  expect_identical(nrow(.resolve_report_logos(NULL, "field_sheet_ti", auto = "forplotR")), 4L)
+})

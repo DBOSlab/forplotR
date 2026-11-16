@@ -64,6 +64,11 @@
 #' @param verbose Logical. If \code{TRUE}, prints detailed messages during
 #' processing.
 #'
+#' @param header_row Row of the spreadsheet that holds the column names. The
+#' default \code{NULL} finds it automatically (see [detect_header_row()]),
+#' which copes with sheets that start with rows of plot metadata. Give a
+#' number to force it.
+#'
 #' @return Invisibly returns the harmonized field-sheet data frame used
 #' internally to organize the voucher directories.
 #'
@@ -104,7 +109,8 @@ forplot_vouchers <- function(fp_file_path = NULL,
                                             "fp_query_sheet",
                                             "monitora"),
                              station_name = NULL,
-                             verbose = TRUE) {
+                             verbose = TRUE,
+                             header_row = NULL) {
   input_type <- match.arg(input_type)
 
   if (is.null(fp_file_path) || !file.exists(fp_file_path)) {
@@ -118,7 +124,8 @@ forplot_vouchers <- function(fp_file_path = NULL,
     input_type = input_type,
     station_name = station_name,
     verbose = verbose,
-    require_spatial = FALSE
+    require_spatial = FALSE,
+    header_row = header_row
   )
 
   fp_sheet <- fp_loaded$fp_sheet

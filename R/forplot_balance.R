@@ -34,7 +34,10 @@
 #' @section Input types:
 #' \describe{
 #'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
-#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout: rows of
+#'   plot metadata, then a header that may be bilingual
+#'   (\code{"Name | Translation"}). Columns are recognised by name and, failing
+#'   that, by their fixed position in the template.}
 #'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
 #'   \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
 #' }
@@ -48,7 +51,8 @@
 #' \code{highlight_palms = TRUE}, palms), a priority route, one A4 page per
 #' subplot (map, tree table with stems pending collection first, and blank
 #' columns for new DBH, status, voucher number and notes), a floristic and
-#' phytosociological overview and a checklist appendix. Maps are inline SVG, so the file opens without internet. In a
+#' phytosociological overview and a checklist appendix. The first page
+#' carries the logos chosen with \code{logos}. Maps are inline SVG, so the file opens without internet. In a
 #' browser the report has a search box for tags and subplots; tapping a stem on
 #' a subplot map highlights its row in the table. MONITORA plots are drawn as
 #' the cross of four arms of the protocol.
@@ -138,6 +142,26 @@
 #' session ends; supply a path to keep the outputs.
 #'
 #' @param filename Basename for generated output files, without extension.
+#'
+#' @param logos Logos shown at the top of the HTML and PDF report. A character
+#' vector that may mix logo names, presets and paths to your own image files
+#' (PNG, SVG or JPEG), in the order they should appear. Logos shipped with the
+#' package: \code{"forplotR"}, \code{"jbrj"} (Jardim Botânico do Rio de
+#' Janeiro), \code{"ci"} (Conservação Internacional), \code{"iakio"}
+#' (Associação Iakiô Panará), \code{"monitora"} (Programa MONITORA, ICMBio)
+#' and \code{"forestplots"} (ForestPlots.net). Presets: \code{"default"} is
+#' forplotR + JBRJ; \code{"panara"} adds CI and Iakiô; \code{"monitora"} and
+#' \code{"forestplots"}, given alone, add that partner logo to the two
+#' standard ones. The default \code{NULL} uses \code{"default"}, or
+#' \code{"panara"} when \code{input_type = "field_sheet_ti"}; pass
+#' \code{c("forplotR", "jbrj")} to keep only the two standard logos there.
+#' \code{FALSE} or \code{"none"} leaves the report without logos. Logos keep
+#' their proportions and share one height.
+#'
+#' @param header_row Row of the spreadsheet that holds the column names. The
+#' default \code{NULL} finds it automatically (see [detect_header_row()]),
+#' which copes with sheets that start with rows of plot metadata. Give a
+#' number to force it.
 #'
 #' @param colname_tagno,colname_stemgroup,colname_subplot,colname_x,colname_y,colname_family,colname_species,colname_dbh,colname_voucher,colname_collected
 #' Optional column names in the input file to map to the internal schema,
@@ -260,6 +284,8 @@ forplot_balance <- function(fp_file_path = NULL,
                             verbose = TRUE,
                             dir = file.path(tempdir(), "Results_map_plot"),
                             filename = "plot_specimen",
+                            logos = NULL,
+                            header_row = NULL,
                             colname_tagno = NULL,
                             colname_stemgroup = NULL,
                             colname_subplot = NULL,
@@ -276,6 +302,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             colname_census_year = NULL) {
 
   .validate_subplot_size(subplot_size)
+  header_row <- .arg_check_header_row(header_row)
 
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
@@ -339,6 +366,9 @@ forplot_balance <- function(fp_file_path = NULL,
   language <- match.arg(tolower(trimws(as.character(language))),
                         c("en", "pt", "es", "fr", "ma", "pa"))
 
+  # validated before anything is read or written
+  report_logos <- .resolve_report_logos(logos, input_type)
+
   dir <- .arg_check_dir(dir)
 
   foldername <- file.path(dir, format(Sys.time(), "%d%b%Y"))
@@ -372,6 +402,8 @@ forplot_balance <- function(fp_file_path = NULL,
         filename = paste0(filename, "_station_", st),
         language = language,
         verbose = verbose,
+        logos = logos,
+        header_row = header_row,
         colname_tagno = colname_tagno,
         colname_stemgroup = colname_stemgroup,
         colname_subplot = colname_subplot,
@@ -398,7 +430,8 @@ forplot_balance <- function(fp_file_path = NULL,
     station_name = station_name,
     verbose = verbose,
     col_map = col_map,
-    has_user_meta = .safe_nzchar(arg_plot_name) || .safe_nzchar(arg_plot_code)
+    has_user_meta = .safe_nzchar(arg_plot_name) || .safe_nzchar(arg_plot_code),
+    header_row = header_row
   )
 
   balance <- .prepare_balance_data(
@@ -501,7 +534,8 @@ forplot_balance <- function(fp_file_path = NULL,
       meta = balance$metadata,
       language = language,
       plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL,
-      phyto = balance$dashboard$phytosoc
+      phyto = balance$dashboard$phytosoc,
+      logos = report_logos
     )
     if (isTRUE(render_html)) {
       html_report <- final_html
