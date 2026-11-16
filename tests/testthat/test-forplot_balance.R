@@ -713,68 +713,6 @@ test_that(".build_monitora_base_plot returns a buildable ggplot", {
 })
 
 # -----------------------------------------------------------------------------
-# Interactive plot builders: no browser and no saveWidget()
-# -----------------------------------------------------------------------------
-
-test_that("interactive FP plot builder returns a plotly widget", {
-  fp <- .minimal_fp_coords()
-  labels <- tibble::tibble(T1 = 1, center_x = 5, center_y = 5)
-
-  p <- forplotR:::.build_fp_base_plot_interactive(
-    fp_coords = fp,
-    subplot_labels = labels,
-    subplot_size = 10,
-    plot_width_m = 10,
-    plot_length_m = 10,
-    plot_name = "Test",
-    plot_code = "T1",
-    highlight_palms = TRUE,
-    language = "en"
-  )
-
-  expect_s3_class(p, "plotly")
-  expect_s3_class(p, "htmlwidget")
-})
-
-
-test_that("interactive subplot builder handles empty and malformed inputs", {
-  expect_null(
-    forplotR:::.build_monitora_subplot_plot_interactive(
-      sp_data = data.frame(),
-      subplot_size = 10,
-      highlight_palms = TRUE,
-      language = "en"
-    )
-  )
-
-  expect_null(
-    forplotR:::.build_monitora_subplot_plot_interactive(
-      sp_data = data.frame(X = 1, Y = 1),
-      subplot_size = 10,
-      highlight_palms = TRUE,
-      language = "en"
-    )
-  )
-})
-
-# -----------------------------------------------------------------------------
-# Rendering helper: validate dispatch only. Do not render HTML/PDF on CRAN.
-# -----------------------------------------------------------------------------
-
-test_that(".render_plot_report validates format before rendering", {
-  expect_error(
-    forplotR:::.render_plot_report(
-      rmd_path = "does-not-need-to-exist.Rmd",
-      output_path = tempdir(),
-      output_name = "x.out",
-      params = list(),
-      format = "docx"
-    ),
-    "pdf|html"
-  )
-})
-
-# -----------------------------------------------------------------------------
 # Known regression guard for the filtered-map data replacement.
 # This test is intentionally local-only until the implementation uses ggplot2 `%+%`
 # (or another supported data replacement strategy) rather than `ggplot + data.frame`.

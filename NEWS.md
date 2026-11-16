@@ -1,3 +1,21 @@
+# forplotR (development version)
+
+- `forplot_balance()` writes a new field report: a single self-contained HTML
+  file for use on a phone (offline) or printed, one A4 page per subplot. It
+  has a summary of the collection balance with footnotes on how each number
+  is computed, a clickable subplot grid, whole-plot maps with the tag of every
+  stem (all stems, with voucher, pending and palms), a priority route, subplot
+  pages with a tree table and blank columns for remeasurement, and a
+  checklist appendix. MONITORA plots are drawn as the cross of four arms.
+  Maps are inline SVG instead of plotly widgets, so the report is several
+  times smaller (RUS01: about 1 MB instead of 5.8 MB) and builds in seconds.
+- The PDF report is the same HTML printed by a headless Chrome, Chromium or
+  Edge (found automatically or through `FORPLOTR_CHROME`); LaTeX, `tinytex`
+  and pandoc are no longer used by `forplot_balance()`. Without a browser the
+  PDF is skipped with a warning.
+- `plotly` is no longer a dependency; `markdown` and `tinytex` are no longer
+  suggested.
+
 # forplotR 1.0.0
 
 ## Initial release

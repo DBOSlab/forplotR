@@ -46,7 +46,6 @@ Imports:
     leaflet,
     magrittr,
     openxlsx,
-    plotly,
     readr,
     readxl,
     rmarkdown,
@@ -63,10 +62,8 @@ Suggests:
     duckdb,
     geodata,
     knitr,
-    markdown,
     terra,
     testthat (>= 3.2.0),
-    tinytex,
     withr
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
