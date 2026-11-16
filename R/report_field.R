@@ -266,7 +266,7 @@
   if (!is.na(sub_pl) && nzchar(sub_pl)) {
     out[["subplots_of"]] <- paste0("%d ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L), " \u00b7 %s \u00d7 %s m")
     out[["in_subplots"]] <- paste0("%d ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L))
-    if ("tag" %in% names(out)) out[["tags_sub"]] <- paste0(out[["tag"]], " · ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L))
+    if ("tag" %in% names(out)) out[["tags_sub"]] <- paste0(out[["tag"]], " \u00b7 ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L))
   }
   # counts of pending stems: the number plus the dictionary's "not collected"
   if ("pending" %in% names(out)) {
