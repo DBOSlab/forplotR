@@ -99,13 +99,19 @@
 #' @param long Longitude in decimal degrees of the collection site.
 #'
 #' @param alt Altitude in meters of the collection site. If \code{NULL},
-#' extract the altitude from geographic coordinates dataset.
+#' extract the altitude from geographic coordinates dataset. This requires
+#' internet access and the suggested packages \pkg{geodata} and \pkg{terra};
+#' without them, or with \code{options(forplotR.offline = TRUE)}, \code{alt}
+#' is left as \code{NA} with a warning.
 #'
 #' @param add_census_notes If \code{TRUE}, census notes will be included in the
 #' herbarium sheet's notes. If \code{FALSE}, census notes will be omitted.
 #'
 #' @param validate_locality If \code{TRUE} (default), validates whether the
 #' coordinates fall within the provided administrative division (country/majorarea).
+#' Needs internet access and the suggested packages \pkg{geodata} and
+#' \pkg{terra}; without them, or with \code{options(forplotR.offline = TRUE)},
+#' the validation is skipped with a warning.
 #'
 #' @param dir Output directory. The file is saved within a subfolder named
 #' after the current date. The default writes to a session temporary directory
@@ -164,8 +170,6 @@
 #'
 #' @importFrom readxl read_excel
 #' @importFrom openxlsx write.xlsx
-#' @importFrom geodata elevation_global
-#' @importFrom terra vect extract
 #' @importFrom stringi stri_trans_general
 #' @importFrom stats na.omit
 #'
@@ -367,15 +371,25 @@ forplot_sheets <- function(fp_file_path = NULL,
     # cached in tempdir() for the session, so repeated calls do not download
     # it again; R removes it when the session ends.
     # geodata returns NULL (or errors) when the server is unreachable.
-    elev <- tryCatch(
-      geodata::elevation_global(res = 2.5, path = tempdir()),
-      error = function(e) NULL
-    )
+    # Offline mode or missing spatial packages skip the download.
+    missing_spatial <- .missing_pkgs(c("geodata", "terra"))
+    skip_reason <- if (.forplotr_offline()) {
+      "Offline mode (options(forplotR.offline = TRUE)): elevation not downloaded"
+    } else if (length(missing_spatial)) {
+      .install_hint("Extracting elevation", missing_spatial)
+    }
+
+    elev <- if (is.null(skip_reason)) {
+      tryCatch(
+        geodata::elevation_global(res = 2.5, path = tempdir()),
+        error = function(e) NULL
+      )
+    }
 
     if (is.null(elev)) {
       warning(
-        "Could not download global elevation data; 'alt' left as NA. ",
-        "Supply 'alt' to avoid the download.",
+        if (is.null(skip_reason)) "Could not download global elevation data" else skip_reason,
+        "; 'alt' left as NA. Supply 'alt' to avoid the download.",
         call. = FALSE
       )
       alt <- NA_real_

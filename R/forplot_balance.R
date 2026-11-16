@@ -89,7 +89,9 @@
 #' @param team Optional team or PI name. If provided, overrides the team
 #' extracted from the input file metadata.
 #'
-#' @param render_html Logical. If \code{TRUE}, renders the HTML report.
+#' @param render_html Logical. If \code{TRUE}, renders the HTML report. Uses
+#' pandoc when available; otherwise the report is rendered with \pkg{knitr}
+#' and the suggested package \pkg{markdown} into the same single-file HTML.
 #'
 #' @param render_pdf Logical. If \code{TRUE}, renders the PDF report.
 #'
@@ -165,7 +167,7 @@
 #' fp <- file.path(tempdir(), "RUS01.xlsx")
 #' openxlsx::write.xlsx(RUS01, fp)
 #'
-#' # Maps and Excel summary only (HTML/PDF rendering needs pandoc/LaTeX)
+#' # Maps and Excel summary only (the PDF report needs LaTeX)
 #' res <- forplot_balance(
 #'   fp,
 #'   input_type = "field_sheet",
@@ -1855,6 +1857,13 @@ forplot_balance <- function(fp_file_path = NULL,
   render_env <- new.env(parent = globalenv())
 
   if (identical(format, "html")) {
+    if (!isTRUE(suppressWarnings(rmarkdown::pandoc_available()))) {
+      # No pandoc (e.g. forplotR running in the browser through webR):
+      # knitr + markdown, same content, single self-contained file.
+      .render_html_report_knitr(rmd_path, final_out, params = params, envir = render_env)
+      message("Full HTML report saved to: ", final_out)
+      return(invisible(final_out))
+    }
     rmarkdown::render(
       input = rmd_path,
       output_file = basename(final_out),

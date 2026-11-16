@@ -418,6 +418,7 @@
 #' @keywords internal
 #' @noRd
 .get_latest_version_info <- function(resource_url) {
+  .stop_if_offline("Checking herbarium data versions")
   x <- tryCatch(
     suppressWarnings(readLines(resource_url, encoding = "UTF-8", warn = FALSE)),
     error = function(e) character(0)
@@ -484,6 +485,7 @@
                           resource_map = NULL) {
   ipt <- match.arg(ipt)
   .arg_check_herbarium(herbarium)
+  .stop_if_offline("Herbarium lookup")
 
   herbarium <- unique(toupper(trimws(as.character(herbarium))))
 
@@ -638,6 +640,8 @@
   if (dir.exists(out_dir) && file.exists(file.path(out_dir, "occurrence.txt"))) {
     return(out_dir)
   }
+
+  .stop_if_offline("Downloading herbarium data")
 
   if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)

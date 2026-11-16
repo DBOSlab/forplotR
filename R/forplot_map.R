@@ -122,7 +122,9 @@
 #'
 #' @param herbaria_lookup Logical. If \code{TRUE}, the function performs a local
 #' herbarium lookup and adds herbarium image links to specimen popups when
-#' available.
+#' available. Requires the suggested packages \pkg{DBI} and \pkg{duckdb} and
+#' internet access; with \code{options(forplotR.offline = TRUE)} the lookup
+#' is skipped with a warning and the map is built without the links.
 #'
 #' @param herbaria Character vector or \code{NULL}. Herbarium codes to use in
 #' the herbarium lookup, for example \code{c("RB", "UPCB")}. When
@@ -202,16 +204,13 @@
 #'   Longitude = c(-40.5500, -40.5500, -40.5490, -40.5490)
 #' )
 #'
-#' # Saving a self-contained HTML widget requires pandoc
-#' if (rmarkdown::pandoc_available()) {
-#'   html <- forplot_map(
-#'     fp,
-#'     vertex_coords = corners,
-#'     language = "pt",
-#'     dir = tempdir(),
-#'     verbose = FALSE
-#'   )
-#' }
+#' html <- forplot_map(
+#'   fp,
+#'   vertex_coords = corners,
+#'   language = "pt",
+#'   dir = tempdir(),
+#'   verbose = FALSE
+#' )
 #'
 #' \dontrun{
 #' # Look up vouchers in a JABOT herbarium (downloads a Darwin Core Archive)
@@ -250,8 +249,6 @@
 #' @importFrom openxlsx read.xlsx
 #' @importFrom data.table fread :=
 #' @importFrom stats na.omit setNames
-#' @importFrom DBI dbConnect dbDisconnect dbExecute dbGetQuery dbWriteTable
-#' @importFrom duckdb duckdb
 #'
 #' @export
 
@@ -912,10 +909,9 @@ forplot_map <- function(fp_file_path = NULL,
     )
 
   if (isTRUE(verbose)) message("Saving HTML map: '", output_path, "'")
-  htmlwidgets::saveWidget(
+  .save_widget_selfcontained(
     map,
     file = normalizePath(output_path, winslash = "/", mustWork = FALSE),
-    selfcontained = TRUE,
     title = plot_name
   )
 
@@ -1345,7 +1341,11 @@ forplot_map <- function(fp_file_path = NULL,
 .file_data_uri <- function(path) {
   ext <- tolower(tools::file_ext(path))
   mime <- switch(ext, jpg = , jpeg = "image/jpeg", png = "image/png",
-                 gif = "image/gif", webp = "image/webp", "application/octet-stream")
+                 gif = "image/gif", webp = "image/webp", svg = "image/svg+xml",
+                 js = "text/javascript", css = "text/css",
+                 woff = "font/woff", woff2 = "font/woff2", ttf = "font/ttf",
+                 otf = "font/otf", eot = "application/vnd.ms-fontobject",
+                 "application/octet-stream")
   raw <- readBin(path, what = "raw", n = file.info(path)$size)
   paste0("data:", mime, ";base64,", jsonlite::base64_enc(raw))
 }

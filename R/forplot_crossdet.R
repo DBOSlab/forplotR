@@ -39,6 +39,11 @@
 #'   \item Classify each match into a diagnostic category.
 #' }
 #'
+#' The function requires the suggested packages \pkg{DBI} and \pkg{duckdb}.
+#' With \code{options(forplotR.offline = TRUE)} it never downloads data: it
+#' works only with \code{occurrence.txt} files already available under
+#' \code{path} or in the local cache.
+#'
 #' Determination comparison uses simplified canonical taxon strings. On both
 #' inventory and herbarium sides, authorship is ignored for routine comparison.
 #' Family-only records are treated as \code{"Indet indet"}. Genus-only records,
@@ -164,8 +169,6 @@
 #' )
 #' }
 #'
-#' @importFrom DBI dbConnect dbDisconnect dbExecute dbGetQuery
-#' @importFrom duckdb duckdb
 #'
 #' @export
 #'

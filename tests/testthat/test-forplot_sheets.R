@@ -174,6 +174,8 @@ test_that("forplot_sheets processes a single MONITORA station", {
 # Offline safety --------------------------------------------------------------
 
 test_that("forplot_sheets warns and continues when GADM boundaries cannot be downloaded", {
+  skip_if_not_installed("geodata")
+  skip_if_not_installed("terra")
   fx <- .sheets_fixtures()
 
   testthat::local_mocked_bindings(
@@ -190,6 +192,8 @@ test_that("forplot_sheets warns and continues when GADM boundaries cannot be dow
 })
 
 test_that("forplot_sheets warns when geodata returns NULL for GADM (server down)", {
+  skip_if_not_installed("geodata")
+  skip_if_not_installed("terra")
   fx <- .sheets_fixtures()
 
   testthat::local_mocked_bindings(
@@ -205,6 +209,8 @@ test_that("forplot_sheets warns when geodata returns NULL for GADM (server down)
 })
 
 test_that("forplot_sheets leaves altitude NA when elevation data cannot be downloaded", {
+  skip_if_not_installed("geodata")
+  skip_if_not_installed("terra")
   fx <- .sheets_fixtures()
 
   testthat::local_mocked_bindings(
@@ -231,6 +237,8 @@ test_that("forplot_sheets does not write to the working directory", {
 })
 
 test_that(".check_point_in_admin validates coordinates against mocked boundaries", {
+  skip_if_not_installed("geodata")
+  skip_if_not_installed("terra")
   # A square "state" polygon around (-40.5, -19.9); no download involved.
   square <- terra::vect(
     "POLYGON ((-41 -20.5, -40 -20.5, -40 -19.5, -41 -19.5, -41 -20.5))",
@@ -299,4 +307,54 @@ test_that("MONITORA vouchers recorded in an earlier census are carried over", {
   num_col <- grep("^voucher/n", names(tum), value = TRUE)
   expect_true("3239" %in% tum[[num_col]])
   expect_true("3239" %in% out$number)
+})
+
+
+# Offline mode (options(forplotR.offline = TRUE)) ------------------------------
+
+test_that("offline mode skips locality validation and elevation without network calls", {
+  fx <- .sheets_fixtures()
+  withr::local_options(forplotR.offline = TRUE)
+
+  if (requireNamespace("geodata", quietly = TRUE)) {
+    testthat::local_mocked_bindings(
+      gadm = function(...) stop("network must not be used offline"),
+      elevation_global = function(...) stop("network must not be used offline"),
+      .package = "geodata"
+    )
+  }
+
+  warnings <- character(0)
+  out <- withCallingHandlers(
+    .run_sheets(fx, validate_locality = TRUE, alt = NULL),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  expect_true(any(grepl("Offline mode.*locality validation skipped", warnings)))
+  expect_true(any(grepl("Offline mode.*elevation not downloaded", warnings)))
+  expect_s3_class(out, "data.frame")
+  expect_true(all(is.na(out$altprof)))
+})
+
+test_that("missing spatial packages skip validation and elevation with an install hint", {
+  fx <- .sheets_fixtures()
+  testthat::local_mocked_bindings(
+    .missing_pkgs = function(pkgs) intersect(pkgs, c("geodata", "terra"))
+  )
+
+  warnings <- character(0)
+  out <- withCallingHandlers(
+    .run_sheets(fx, validate_locality = TRUE, alt = NULL),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  expect_true(any(grepl("install.packages(c(\"geodata\", \"terra\"))", warnings, fixed = TRUE)))
+  expect_true(any(grepl("locality validation skipped", warnings)))
+  expect_true(all(is.na(out$altprof)))
 })

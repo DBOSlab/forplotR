@@ -1793,3 +1793,59 @@ test_that(".compute_global_coordinates reports tags with T1 outside the grid", {
     "outside the resolved plot grid [(]1-100[)].*105 [(]tag 77[)]"
   )
 })
+
+
+# Offline mode (options(forplotR.offline = TRUE)) ------------------------------
+
+test_that(".stop_if_offline only stops when the option is on", {
+  withr::local_options(forplotR.offline = NULL)
+  expect_false(.forplotr_offline())
+  expect_invisible(.stop_if_offline("Anything"))
+
+  withr::local_options(forplotR.offline = TRUE)
+  expect_true(.forplotr_offline())
+  expect_error(.stop_if_offline("Herbarium lookup"), "Herbarium lookup needs internet access")
+})
+
+test_that("herbarium discovery and downloads are blocked offline", {
+  withr::local_options(forplotR.offline = TRUE)
+  expect_error(.get_ipt_info("RB", ipt = "jabot"), "needs internet access")
+  expect_error(.get_latest_version_info("https://example.org"), "needs internet access")
+
+  info_row <- data.frame(
+    ipt = "jabot", herbarium = "RB", resource_id = "rb_test",
+    archive_base = "https://example.org/archive.do?r=",
+    resource_url = "https://example.org/resource?r=rb_test",
+    stringsAsFactors = FALSE
+  )
+  expect_error(
+    .download_dwca_one(info_row, dir = withr::local_tempdir()),
+    "Downloading herbarium data needs internet access"
+  )
+})
+
+test_that("an already downloaded DwC-A is reused offline", {
+  withr::local_options(forplotR.offline = TRUE)
+  dir <- withr::local_tempdir()
+  info_row <- data.frame(
+    ipt = "jabot", herbarium = "RB", resource_id = "rb_test",
+    archive_base = "https://example.org/archive.do?r=",
+    resource_url = "https://example.org/resource?r=rb_test",
+    stringsAsFactors = FALSE
+  )
+  cached <- file.path(dir, "dwca_jabot_RB_rb_test")
+  dir.create(cached)
+  writeLines("id", file.path(cached, "occurrence.txt"))
+
+  expect_identical(.download_dwca_one(info_row, dir = dir), cached)
+})
+
+test_that(".missing_pkgs and .install_hint report packages to install", {
+  expect_identical(.missing_pkgs("stats"), character(0))
+  expect_identical(.missing_pkgs("notAPackage123"), "notAPackage123")
+  expect_match(
+    .install_hint("Locality validation", c("geodata", "terra")),
+    "install.packages(c(\"geodata\", \"terra\"))",
+    fixed = TRUE
+  )
+})
