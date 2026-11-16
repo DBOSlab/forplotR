@@ -1,0 +1,42 @@
+# Rebuild the site's web app when the package changes on main.
+#
+# The site (DBOSlab/forplotR-website) builds forplotR from this repository's
+# main branch into a webR binary. This workflow sends it a repository_dispatch
+# event so the site rebuilds and redeploys with the new code.
+#
+# Needs the secret SITE_DISPATCH_TOKEN: a fine-grained personal access token
+# with access to DBOSlab/forplotR-website only and the permission
+# "Contents: Read and write". Without it the job only prints a warning.
+
+name: notify-site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "R/**"
+      - "inst/**"
+      - "data/**"
+      - "DESCRIPTION"
+      - "NAMESPACE"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the site to rebuild
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::SITE_DISPATCH_TOKEN is not set; the site was not asked to rebuild."
+            exit 0
+          fi
+          gh api repos/DBOSlab/forplotR-website/dispatches \
+            -f event_type=forplotr-updated \
+            -f "client_payload[sha]=${GITHUB_SHA}"
+          echo "Site rebuild requested for forplotR ${GITHUB_SHA}."
