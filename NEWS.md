@@ -1,5 +1,12 @@
 # forplotR (development version)
 
+- `read_plot_header()` lists the columns of a field sheet from its detected
+  header row, with the exact name each column has when the sheet is read
+  (the name a `colname_*` argument must give). Rows of plot metadata above
+  the header are never listed. An empty header cell is `NA_col_<position>`
+  and a repeated header gets `.1`, `.2`. The field-sheet readers now name
+  their columns with this same rule.
+
 - Field sheets that start with rows of plot metadata are now read from their
   real header row. `detect_header_row()` scores the first rows of a sheet by
   the column names it recognises and returns the header row;

@@ -41,5 +41,5 @@ detect_header_row(f)
 
 }
 \seealso{
-\code{\link[=read_plot_metadata]{read_plot_metadata()}}, \code{\link[=read_plot_sheet]{read_plot_sheet()}}
+\code{\link[=read_plot_header]{read_plot_header()}}, \code{\link[=read_plot_metadata]{read_plot_metadata()}}, \code{\link[=read_plot_sheet]{read_plot_sheet()}}
 }

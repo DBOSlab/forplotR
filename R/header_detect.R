@@ -263,7 +263,7 @@
 #' @return A single integer: the row number of the header, counted from the
 #' first row of the worksheet.
 #'
-#' @seealso [read_plot_metadata()], [read_plot_sheet()]
+#' @seealso [read_plot_header()], [read_plot_metadata()], [read_plot_sheet()]
 #'
 #' @examples
 #' # Blank template of the Panará field sheet: metadata labels on row 1,
@@ -497,13 +497,17 @@ read_plot_metadata <- function(path, sheet = 1, header_row = NULL) {
 #'
 #' @param header Character vector with the header cells.
 #' @return Data frame with one row per column: `position`, `header` (as
-#'   written), `column` (final name), `canonical` (the canonical field-sheet
-#'   column it stands for, or `NA`) and `duplicate_of`.
+#'   written), `name` (the name the column has when the sheet is read, which is
+#'   what a `colname_*` argument must give: the header as written, `NA_col_<n>`
+#'   for an empty header cell, `.1`, `.2` added to a repeated header),
+#'   `column` (final name), `canonical` (the canonical field-sheet column it
+#'   stands for, or `NA`) and `duplicate_of`.
 #' @keywords internal
 #' @noRd
 .canonical_header <- function(header) {
   header <- as.character(header)
   header[is.na(header)] <- ""
+  name <- .header_read_names(header)
   header <- trimws(gsub("[[:space:]]+", " ", header))
   canon <- .match_header_cells(header)
 
@@ -519,9 +523,85 @@ read_plot_metadata <- function(path, sheet = 1, header_row = NULL) {
   duplicate_of <- ifelse(nth > 1L, base, NA_character_)
   canon[nth > 1L] <- NA_character_
 
-  data.frame(position = seq_along(header), header = header, column = column,
-             canonical = canon, duplicate_of = duplicate_of,
+  data.frame(position = seq_along(header), header = header, name = name,
+             column = column, canonical = canon, duplicate_of = duplicate_of,
              stringsAsFactors = FALSE)
+}
+
+
+#' Column names of a sheet as the readers assign them
+#'
+#' One rule for every reader and for [read_plot_header()]: the header cell as
+#' written (trimmed), `NA_col_<position>` for an empty cell, and `make.unique()`
+#' for repeated cells (`"D"`, `"D.1"`).
+#'
+#' @keywords internal
+#' @noRd
+.header_read_names <- function(header) {
+  header <- trimws(as.character(header))
+  empty <- is.na(header) | !nzchar(header)
+  header[empty] <- paste0("NA_col_", seq_along(header))[empty]
+  make.unique(header)
+}
+
+
+#' Read the column names of a plot spreadsheet from its real header row
+#'
+#' @description
+#' Returns the columns of a field sheet as the package reads them: the header
+#' row is found with [detect_header_row()] (the same detection every reader
+#' uses), so rows of plot metadata above the header never show up as columns.
+#' Use it to see which names are available for the \code{colname_*} arguments
+#' of [forplot_balance()] and [forplot_map()], or to fill a column picker.
+#'
+#' @param path Path to an Excel file (\code{.xlsx} or \code{.xls}).
+#' @param sheet Worksheet name or index.
+#' @param header_row Row that holds the column names. The default \code{NULL}
+#' finds it automatically; give a number to force it.
+#'
+#' @return A data frame with one row per column, in sheet order, and the
+#' attribute \code{header_row}:
+#' \describe{
+#'   \item{position}{Column position in the sheet.}
+#'   \item{header}{The header cell as written (\code{""} when empty).}
+#'   \item{name}{The column name to give to a \code{colname_*} argument: the
+#'     header as written; \code{NA_col_<position>} for an empty header cell;
+#'     \code{.1}, \code{.2} added when the same header is repeated.}
+#'   \item{canonical}{The column the package recognises it as (for example
+#'     \code{"New Tag No"}, \code{"T1"}, \code{"D"}), or \code{NA}.}
+#'   \item{has_data}{Whether any cell below the header is filled.}
+#' }
+#'
+#' @seealso [detect_header_row()], [read_plot_sheet()]
+#'
+#' @examples
+#' f <- system.file("extdata", "panara_field_sheet_template.xlsx",
+#'                  package = "forplotR")
+#' cols <- read_plot_header(f)
+#' attr(cols, "header_row")
+#' cols[, c("position", "name", "canonical")]
+#'
+#' @export
+read_plot_header <- function(path, sheet = 1, header_row = NULL) {
+  .check_xlsx_path(path)
+  header_row <- .arg_check_header_row(header_row)
+  raw <- .read_raw_rows(path, sheet = sheet)
+  if (!nrow(raw)) stop("The worksheet is empty.", call. = FALSE)
+  hr <- .resolve_header_row(raw, header_row = header_row)
+
+  cols <- .canonical_header(as.character(unlist(raw[hr, , drop = TRUE])))
+  body <- raw[-seq_len(hr), , drop = FALSE]
+  cols$has_data <- vapply(seq_len(nrow(cols)), function(i) {
+    v <- body[[i]]
+    any(!is.na(v) & nzchar(trimws(v)))
+  }, logical(1))
+
+  out <- cols[, c("position", "header", "name", "canonical", "has_data")]
+  # an empty header over an empty column is not a column
+  out <- out[nzchar(out$header) | out$has_data, , drop = FALSE]
+  rownames(out) <- NULL
+  attr(out, "header_row") <- hr
+  out
 }
 
 
