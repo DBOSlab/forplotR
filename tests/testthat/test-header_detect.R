@@ -443,3 +443,12 @@ test_that("read_plot_header() keeps row 1 for a plain sheet and reads other shee
   expect_false(any(tpl$has_data))
   expect_error(read_plot_header("no-such-file.xlsx"), "existing Excel file")
 })
+
+test_that("read_plot_header() and read_plot_sheet() reject an empty worksheet", {
+  path <- withr::local_tempfile(fileext = ".xlsx")
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, "Vazia")
+  openxlsx::saveWorkbook(wb, path)
+  expect_error(read_plot_header(path), "worksheet is empty")
+  expect_error(read_plot_sheet(path), "worksheet is empty")
+})
