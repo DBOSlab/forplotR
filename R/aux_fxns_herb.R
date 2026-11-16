@@ -98,7 +98,7 @@
   }
 
   x <- as.character(recordedBy)
-  x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+  x <- stringi::stri_trans_general(x, "Latin-ASCII")
   x[is.na(x)] <- ""
   x <- trimws(x)
 
@@ -153,7 +153,7 @@
   }
 
   x <- as.character(name_raw)
-  x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+  x <- stringi::stri_trans_general(x, "Latin-ASCII")
   x[is.na(x)] <- ""
   x <- trimws(tolower(x))
   x <- gsub("\\bet\\s+al\\b\\.?", "", x)

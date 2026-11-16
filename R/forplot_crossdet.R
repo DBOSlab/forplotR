@@ -222,7 +222,7 @@ forplot_crossdet <- function(fp_file_path,
   # Clean strings, remove accents, and normalize whitespace.
   .clean_chr_local <- function(x) {
     x <- as.character(x)
-    x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+    x <- stringi::stri_trans_general(x, "Latin-ASCII")
     x[is.na(x)] <- ""
     x <- gsub("\\s+", " ", x)
     trimws(x)
@@ -257,7 +257,7 @@ forplot_crossdet <- function(fp_file_path,
   .canon_taxon_compare <- function(x) {
     x <- as.character(x)
     x[is.na(x)] <- ""
-    x <- iconv(x, to = "ASCII//TRANSLIT", sub = "")
+    x <- stringi::stri_trans_general(x, "Latin-ASCII")
     x <- trimws(gsub("\\s+", " ", x))
 
     out <- rep("Indet indet", length(x))

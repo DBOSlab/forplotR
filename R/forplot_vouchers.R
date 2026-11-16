@@ -354,7 +354,7 @@ forplot_vouchers <- function(fp_file_path = NULL,
   x[is.na(x)] <- ""
 
   x2 <- suppressWarnings(
-    iconv(x, from = "", to = "ASCII//TRANSLIT", sub = "")
+    stringi::stri_trans_general(x, "Latin-ASCII")
   )
 
   bad <- is.na(x2) | !nzchar(x2)

@@ -13,7 +13,7 @@
   x <- as.character(x)
   x[is.na(x)] <- ""
 
-  x2 <- suppressWarnings(iconv(x, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  x2 <- suppressWarnings(stringi::stri_trans_general(x, "Latin-ASCII"))
   bad <- is.na(x2) | !nzchar(x2)
   x2[bad] <- x[bad]
 
@@ -1265,7 +1265,7 @@
     rep(NA_character_, nrow(df_use))
   }
 
-  family_norm <- suppressWarnings(iconv(family_vec, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  family_norm <- suppressWarnings(stringi::stri_trans_general(family_vec, "Latin-ASCII"))
   family_norm[is.na(family_norm) | !nzchar(family_norm)] <- family_vec[is.na(family_norm) | !nzchar(family_norm)]
   family_norm <- tolower(trimws(family_norm))
 
@@ -1278,7 +1278,7 @@
 
   family_vec[family_bad] <- "Indet"
 
-  gen_norm <- suppressWarnings(iconv(gen, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  gen_norm <- suppressWarnings(stringi::stri_trans_general(gen, "Latin-ASCII"))
   gen_norm[is.na(gen_norm) | !nzchar(gen_norm)] <- gen[is.na(gen_norm) | !nzchar(gen_norm)]
   gen_norm <- tolower(trimws(gen_norm))
 
@@ -1291,7 +1291,7 @@
 
   gen[gen_bad] <- NA_character_
 
-  esp_norm <- suppressWarnings(iconv(esp, from = "", to = "ASCII//TRANSLIT", sub = ""))
+  esp_norm <- suppressWarnings(stringi::stri_trans_general(esp, "Latin-ASCII"))
   esp_norm[is.na(esp_norm) | !nzchar(esp_norm)] <- esp[is.na(esp_norm) | !nzchar(esp_norm)]
   esp_norm <- tolower(trimws(esp_norm))
 
