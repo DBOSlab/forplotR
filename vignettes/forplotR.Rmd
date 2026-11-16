@@ -101,8 +101,7 @@ apart from the background map tiles.
 ## 3. Collection balance
 
 `forplot_balance()` summarizes how complete the voucher collection is. Here we
-skip the HTML and PDF reports (which require pandoc and LaTeX) and keep the
-Excel summary:
+skip the field report and keep the Excel summary:
 
 ```{r balance}
 bal <- forplot_balance(
@@ -121,9 +120,13 @@ summary_tab <- openxlsx::read.xlsx(bal$xlsx_report, sheet = 1)
 head(summary_tab)
 ```
 
-With `render_html = TRUE` the same call produces a navigable report with
-whole-plot and per-subplot maps of collected, uncollected and palm
-individuals, and a checklist of priority species still lacking vouchers.
+With `render_html = TRUE` the same call writes a field report: one HTML file
+that opens offline on a phone and prints one A4 page per subplot. It has a
+summary of the balance, a clickable grid of subplots, whole-plot maps with the
+tag of every stem, a priority route, a page per subplot with its map, the tree
+table (stems pending collection first) and blank columns for remeasurement,
+and a checklist appendix. `render_pdf = TRUE` prints the same file to PDF when
+Chrome, Chromium or Edge is installed.
 
 ## 4. Herbarium label spreadsheet
 

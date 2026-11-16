@@ -4,7 +4,7 @@ library(testthat)
 # CRAN-safe tests for aux_fxns_plots.R and aux_fxns_herb.R
 #
 # Scope:
-# - all 71 top-level auxiliary functions currently defined in the two modules;
+# - all 69 top-level auxiliary functions currently defined in the two modules;
 # - deterministic/offline tests by default;
 # - no live HTTP download is required by this file;
 # - JABOT download/cache behavior is reproduced with local fixtures/mocks.
@@ -144,14 +144,12 @@ library(testthat)
   ".fmt_int",
   ".fmt_dec",
   "%||%",
-  ".create_rmd_content",
   ".harmonize_plot_input",
   ".grab_meta_from_row",
   ".replace_empty_with_na",
   ".safe_char_row",
   ".prioritize_uncollected_subplots",
   ".build_uncollected_priority_plot",
-  ".flatten_priority_species_checklist",
   ".get_lab",
   ".tr_dict",
   ".tr_dict_vec",
@@ -179,8 +177,8 @@ library(testthat)
   ".resolve_links_from_index"
 )
 
-test_that("auxiliary helper inventory contains all 71 expected functions", {
-  expect_length(.auxiliary_expected_helpers, 71L)
+test_that("auxiliary helper inventory contains all 69 expected functions", {
+  expect_length(.auxiliary_expected_helpers, 69L)
   expect_equal(anyDuplicated(.auxiliary_expected_helpers), 0L)
 
   ns <- asNamespace("forplotR")
@@ -984,77 +982,6 @@ test_that(".safe_char_row extracts trimmed character rows", {
   expect_equal(.safe_char_row(c(" a ", NA)), c("a", ""))
 })
 
-test_that(".create_rmd_content defaults language and warns on invalid language", {
-  subplot_plots <- list(
-    list(data = tibble::tibble(`New Tag No` = c("1", "2"), T1 = c(1, 1)), plot = "p1")
-  )
-  spec_df <- tibble::tibble(Family = "Fabaceae", Species_fmt = "Acacia mangium", tag_vec = list(c("1", "2")))
-
-  rmd0 <- .create_rmd_content(
-    subplot_plots,
-    tf_col = TRUE,
-    tf_uncol = FALSE,
-    tf_palm = FALSE,
-    plot_name = "Plot",
-    plot_code = "P001",
-    spec_df = spec_df,
-    dict = dict
-  )
-
-  expect_type(rmd0, "character")
-  expect_true(any(grepl("Full Plot Report", rmd0, fixed = TRUE)))
-
-  expect_warning(
-    rmd_bad <- .create_rmd_content(
-      subplot_plots,
-      tf_col = TRUE,
-      tf_uncol = FALSE,
-      tf_palm = FALSE,
-      plot_name = "Plot",
-      plot_code = "P001",
-      spec_df = spec_df,
-      dict = dict,
-      language = "xx"
-    ),
-    "Invalid language"
-  )
-
-  expect_true(any(grepl("Full Plot Report", rmd_bad, fixed = TRUE)))
-})
-
-test_that(".create_rmd_content translates key headings", {
-  subplot_plots <- list(list(data = tibble::tibble(`New Tag No` = "1", T1 = 1), plot = "p1"))
-  spec_df <- tibble::tibble(Family = "Fabaceae", Species_fmt = "Acacia", tag_vec = list("1"))
-
-  rmd_pt <- .create_rmd_content(
-    subplot_plots,
-    tf_col = FALSE,
-    tf_uncol = FALSE,
-    tf_palm = FALSE,
-    plot_name = "Plot",
-    plot_code = "P001",
-    spec_df = spec_df,
-    dict = dict,
-    language = "pt"
-  )
-  expect_true(any(grepl("Relatório Completo da Parcela", rmd_pt, fixed = TRUE)))
-  expect_true(any(grepl("## Metadados", rmd_pt, fixed = TRUE)))
-
-  rmd_ma <- .create_rmd_content(
-    subplot_plots,
-    tf_col = FALSE,
-    tf_uncol = FALSE,
-    tf_palm = FALSE,
-    plot_name = "Plot",
-    plot_code = "P001",
-    spec_df = spec_df,
-    dict = dict,
-    language = "ma"
-  )
-  expect_true(any(grepl("样地完整报告", rmd_ma, fixed = TRUE)))
-})
-
-
 test_that("translation helpers retrieve scalar and vector labels", {
   lab <- .get_lab(
     language = "pt",
@@ -1095,90 +1022,6 @@ test_that("translation helpers retrieve scalar and vector labels", {
 
   expect_equal(missing, "this_key_does_not_exist")
 })
-
-test_that("priority helpers select subplots, build a map and flatten the checklist", {
-  fp <- tibble::tibble(
-    T1 = c(1, 1, 2, 2, 3),
-    Family = c(
-      "Fabaceae",
-      "Myrtaceae",
-      "Fabaceae",
-      "Arecaceae",
-      "Rubiaceae"
-    ),
-    Collected = c(
-      NA_character_,
-      NA_character_,
-      NA_character_,
-      NA_character_,
-      "yes"
-    ),
-    `Original determination` = c(
-      "Inga alba",
-      "Eugenia sp",
-      "Inga alba",
-      "Attalea sp",
-      "Coffea arabica"
-    ),
-    `New Tag No` = c("1", "2", "3", "4", "5"),
-    global_x = c(1, 2, 11, 12, 21),
-    global_y = c(1, 2, 1, 2, 1),
-    diameter = c(10, 20, 30, 40, 50)
-  )
-
-  obj <- .prioritize_uncollected_subplots(
-    fp,
-    exclude_palms = TRUE
-  )
-
-  expect_type(obj, "list")
-  expect_true(all(c(
-    "priority_table",
-    "species_checklist",
-    "subplot_summary",
-    "covered_species",
-    "remaining_species"
-  ) %in% names(obj)))
-
-  expect_gt(nrow(obj$priority_table), 0)
-  expect_false("Attalea sp" %in% obj$covered_species)
-
-  p <- .build_uncollected_priority_plot(
-    fp_coords = fp,
-    priority_obj = obj,
-    subplot_size = 10,
-    plot_width_m = 30,
-    plot_length_m = 10,
-    plot_name = "Test",
-    plot_code = "P1",
-    language = "en"
-  )
-
-  expect_s3_class(p, "ggplot")
-
-  flat <- .flatten_priority_species_checklist(
-    priority_obj = obj,
-    original_data = fp,
-    render_html = TRUE,
-    language = "en"
-  )
-
-  expect_s3_class(flat, "tbl_df")
-  expect_equal(nrow(flat), nrow(obj$species_checklist))
-
-  empty <- .prioritize_uncollected_subplots(
-    dplyr::mutate(fp, Collected = "yes"),
-    exclude_palms = TRUE
-  )
-
-  expect_equal(nrow(empty$priority_table), 0L)
-  expect_equal(
-    nrow(.flatten_priority_species_checklist(empty, language = "en")),
-    0L
-  )
-})
-
-
 
 # -----------------------------------------------------------------------------
 # herbarium identity, IPT and URL helpers
@@ -1733,34 +1576,6 @@ test_that("relative frequency sums to 100 and IVI to 300", {
   expect_equal(sum(sp$importance_value), 300, tolerance = 0.1)
 })
 
-test_that(".flatten_priority_species_checklist maps tags to subplots and sorts numerically", {
-  priority_obj <- list(
-    species_checklist = tibble::tibble(
-      Family = "Fabaceae",
-      Species = "Inga sp.",
-      n_trees = 4L,
-      priority_subplots = "3, 23, 100",
-      tags = list(c("845", "23", "203", "999")),
-      subplots = list(c("100", "3", "23"))
-    )
-  )
-  original <- data.frame(
-    `New Tag No` = c("845", "23", "203"),
-    T1 = c(100L, 3L, 23L),
-    check.names = FALSE
-  )
-
-  flat <- .flatten_priority_species_checklist(priority_obj,
-                                              original_data = original,
-                                              language = "en")
-
-  expect_identical(
-    flat[[5]],
-    paste("S3 - [23](#subplot-3)", "S23 - [203](#subplot-23)",
-          "S100 - [845](#subplot-100)", "? - 999", sep = " | ")
-  )
-})
-
 test_that(".compute_global_coordinates excludes individuals without T1 with a warning", {
   df <- data.frame(
     `New Tag No` = c("1", "2", "1700"),
@@ -1848,4 +1663,73 @@ test_that(".missing_pkgs and .install_hint report packages to install", {
     "install.packages(c(\"geodata\", \"terra\"))",
     fixed = TRUE
   )
+})
+
+test_that("priority helpers select subplots, and build a map", {
+  fp <- tibble::tibble(
+    T1 = c(1, 1, 2, 2, 3),
+    Family = c(
+      "Fabaceae",
+      "Myrtaceae",
+      "Fabaceae",
+      "Arecaceae",
+      "Rubiaceae"
+    ),
+    Collected = c(
+      NA_character_,
+      NA_character_,
+      NA_character_,
+      NA_character_,
+      "yes"
+    ),
+    `Original determination` = c(
+      "Inga alba",
+      "Eugenia sp",
+      "Inga alba",
+      "Attalea sp",
+      "Coffea arabica"
+    ),
+    `New Tag No` = c("1", "2", "3", "4", "5"),
+    global_x = c(1, 2, 11, 12, 21),
+    global_y = c(1, 2, 1, 2, 1),
+    diameter = c(10, 20, 30, 40, 50)
+  )
+
+  obj <- .prioritize_uncollected_subplots(
+    fp,
+    exclude_palms = TRUE
+  )
+
+  expect_type(obj, "list")
+  expect_true(all(c(
+    "priority_table",
+    "species_checklist",
+    "subplot_summary",
+    "covered_species",
+    "remaining_species"
+  ) %in% names(obj)))
+
+  expect_gt(nrow(obj$priority_table), 0)
+  expect_false("Attalea sp" %in% obj$covered_species)
+
+  p <- .build_uncollected_priority_plot(
+    fp_coords = fp,
+    priority_obj = obj,
+    subplot_size = 10,
+    plot_width_m = 30,
+    plot_length_m = 10,
+    plot_name = "Test",
+    plot_code = "P1",
+    language = "en"
+  )
+
+  expect_s3_class(p, "ggplot")
+
+
+  empty <- .prioritize_uncollected_subplots(
+    dplyr::mutate(fp, Collected = "yes"),
+    exclude_palms = TRUE
+  )
+
+  expect_equal(nrow(empty$priority_table), 0L)
 })

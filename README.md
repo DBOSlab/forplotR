@@ -30,16 +30,17 @@ Install the development version from
 remotes::install_github("DBOSlab/forplotR")
 ```
 
-Saving HTML maps and reports requires [pandoc](https://pandoc.org/)
-(bundled with RStudio). PDF reports additionally require a LaTeX
-distribution, e.g. `tinytex::install_tinytex()`.
+Saving HTML maps with `forplot_map()` uses [pandoc](https://pandoc.org/) when
+available (bundled with RStudio). The `forplot_balance()` report is a single
+HTML file that needs neither pandoc nor LaTeX; its PDF version is printed with
+Chrome, Chromium or Edge when one of them is installed.
 
 ## Main functions
 
 | Function | What it does |
 |----|----|
 | `forplot_map()` | Interactive HTML map of tagged trees, with voucher photos and filters for taxonomy and collection status |
-| `forplot_balance()` | Plot- and subplot-level collection-balance maps, HTML/PDF report, species checklist and Excel summary |
+| `forplot_balance()` | Plot- and subplot-level collection-balance maps, field report (HTML, printable to PDF), species checklist and Excel summary |
 | `forplot_vouchers()` | Creates and updates voucher image folders organized by family and species |
 | `forplot_sheets()` | Fills a herbarium label spreadsheet (JABOT, BRAHMS or custom) from field data |
 | `forplot_crossdet()` | Cross-checks field determinations against a JABOT herbarium Darwin Core Archive |

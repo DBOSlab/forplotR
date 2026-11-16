@@ -20,7 +20,7 @@
 #'   \item extracts or overrides plot metadata;
 #'   \item cleans coordinates and diameter values and computes plot geometry;
 #'   \item generates whole-plot and subplot-level maps, with optional palm highlighting;
-#'   \item renders HTML and/or PDF reports;
+#'   \item writes the field report (HTML) and optionally prints it to PDF;
 #'   \item optionally writes an Excel workbook summarizing collection balance per subplot.
 #' }
 #'
@@ -39,10 +39,29 @@
 #'   \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
 #' }
 #'
+#' @section Field report:
+#' The report is a single self-contained HTML file designed to be used in the
+#' field, on a phone (offline) or printed. It contains a summary of the
+#' collection balance with footnotes on how each number is computed, a
+#' clickable grid of subplots coloured by what remains to collect, whole-plot
+#' maps with the tag of every stem (all stems, with voucher, pending and, when
+#' \code{highlight_palms = TRUE}, palms), a priority route, one A4 page per
+#' subplot (map, tree table with stems pending collection first, and blank
+#' columns for new DBH, status, voucher number and notes) and a checklist
+#' appendix. Maps are inline SVG, so the file opens without internet. In a
+#' browser the report has a search box for tags and subplots; tapping a stem on
+#' a subplot map highlights its row in the table. MONITORA plots are drawn as
+#' the cross of four arms of the protocol.
+#'
+#' The PDF report is the same HTML printed by a headless Chrome, Chromium or
+#' Microsoft Edge, one A4 page per subplot. The browser is found automatically
+#' or through the \code{FORPLOTR_CHROME} environment variable. When none is
+#' available, the PDF is skipped with a warning; the HTML report can then be
+#' printed to PDF from any browser.
+#'
 #' @section Side effects:
 #' The function creates output files on disk, including map images, an optional
-#' HTML report, an optional PDF report, and an optional Excel workbook. Temporary
-#' intermediate files used during report rendering are removed before exit.
+#' HTML report, an optional PDF report, and an optional Excel workbook.
 #'
 #' @param fp_file_path Path to the input Excel file in ForestPlots.net
 #' field-sheet, Query Library, or MONITORA format.
@@ -89,11 +108,12 @@
 #' @param team Optional team or PI name. If provided, overrides the team
 #' extracted from the input file metadata.
 #'
-#' @param render_html Logical. If \code{TRUE}, renders the HTML report. Uses
-#' pandoc when available; otherwise the report is rendered with \pkg{knitr}
-#' and the suggested package \pkg{markdown} into the same single-file HTML.
+#' @param render_html Logical. If \code{TRUE}, writes the field report as a
+#' single self-contained HTML file (see \emph{Field report}).
 #'
-#' @param render_pdf Logical. If \code{TRUE}, renders the PDF report.
+#' @param render_pdf Logical. If \code{TRUE}, prints the field report to PDF
+#' (A4) with a headless Chrome, Chromium or Edge. Skipped with a warning when
+#' no such browser is found.
 #'
 #' @param write_xlsx Logical. If \code{TRUE}, writes the Excel summary workbook.
 #'
@@ -135,7 +155,8 @@
 #' @return Invisibly returns a list with paths to generated outputs:
 #' \describe{
 #'   \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
-#'   \item{pdf_report}{Path to the rendered PDF report, or \code{NULL} if not generated.}
+#'   \item{pdf_report}{Path to the PDF report, or \code{NULL} if not generated
+#'     (including when no Chrome, Chromium or Edge browser is available).}
 #'   \item{xlsx_report}{Path to the Excel summary workbook, or \code{NULL} if not generated.}
 #'   \item{output_dir}{Directory where outputs were written.}
 #' }
@@ -149,7 +170,6 @@
 #' @importFrom magrittr "%>%"
 #' @importFrom grDevices pdf dev.off colorRampPalette
 #' @importFrom utils capture.output download.file read.csv
-#' @importFrom rmarkdown render pdf_document
 #' @importFrom openxlsx read.xlsx createWorkbook addWorksheet writeData createStyle addStyle saveWorkbook
 #' @importFrom readr locale read_delim
 #' @importFrom tibble as_tibble tibble
@@ -158,8 +178,6 @@
 #' @importFrom grid unit
 #' @importFrom writexl write_xlsx
 #' @importFrom stats na.omit setNames
-#' @importFrom plotly plot_ly layout config
-#' @importFrom htmlwidgets onRender
 #'
 #' @examples
 #' \donttest{
@@ -381,7 +399,6 @@ forplot_balance <- function(fp_file_path = NULL,
     plot_length_m = plot_length_m,
     plot_geometry = plot_geometry,
     highlight_palms = highlight_palms,
-    interactive = render_html,
     plot_name = arg_plot_name,
     plot_code = arg_plot_code,
     plot_census_no = arg_census_no_fp,
@@ -390,13 +407,11 @@ forplot_balance <- function(fp_file_path = NULL,
   )
 
   fp_coords <- balance$fp_coords
-  param_list <- balance$params
   plot_name <- balance$metadata$plot_name
   plot_code <- balance$metadata$plot_code
   plot_census_no_fp <- balance$metadata$plot_census_no_fp
   team <- balance$metadata$team
 
-  rmd_path <- file.path(foldername, paste0(filename, "_temp.Rmd"))
   final_html <- file.path(foldername, paste0(filename, "_full_report.html"))
   final_pdf  <- file.path(foldername, paste0(filename, "_full_report.pdf"))
 
@@ -446,61 +461,36 @@ forplot_balance <- function(fp_file_path = NULL,
   )
 
   # Report ------------------------------------------------------------------
-  rmd_content <- .create_rmd_content(
-    subplot_plots = balance$subplot_plots,
-    tf_col = balance$tf_col,
-    tf_uncol = balance$tf_uncol,
-    tf_palm = balance$tf_palm,
-    plot_name = plot_name,
-    plot_code = plot_code,
-    spec_df = balance$spec_df,
-    dashboard = balance$dashboard,
-    dict = dict,
-    language = language
-  )
-  writeLines(c(rmd_content, ""), rmd_path)
-
-  old_opts <- options(tinytex.pdflatex.args = "--no-crop")
-  on.exit(options(old_opts), add = TRUE)
-
-  latex_engine <- "xelatex"
-
+  # One self-contained HTML file (inline SVG maps); the PDF is the same file
+  # printed by a headless Chrome/Chromium/Edge, so no pandoc or LaTeX is needed.
   html_report <- NULL
   pdf_report <- NULL
   xlsx_report <- NULL
 
-  if (isTRUE(render_html)) {
+  if (isTRUE(render_html) || isTRUE(render_pdf)) {
     if (verbose) {
-      message("Rendering HTML report (this may take a few minutes)...")
+      message("Writing the field report...")
     }
-    html_report <- .render_plot_report(
-      rmd_path = rmd_path,
-      output_path = foldername,
-      output_name = final_html,
-      params = param_list,
-      format = "html",
-      latex_engine = latex_engine
+    report_file <- if (isTRUE(render_html)) final_html else tempfile(fileext = ".html")
+    .write_field_report(
+      file = report_file,
+      fp_coords = fp_coords,
+      input_type = input_type,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
+      highlight_palms = highlight_palms,
+      meta = balance$metadata,
+      language = language,
+      plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL
     )
-  }
-
-  if (isTRUE(render_pdf)) {
-    if (verbose) {
-      message("Rendering PDF report...")
+    if (isTRUE(render_html)) {
+      html_report <- final_html
     }
-    pdf_report <- tryCatch(
-      .render_plot_report(
-        rmd_path = rmd_path,
-        output_path = foldername,
-        output_name = final_pdf,
-        params = param_list,
-        format = "pdf",
-        latex_engine = latex_engine
-      ),
-      error = function(e) {
-        warning("PDF generation failed: ", conditionMessage(e), call. = FALSE)
-        NULL
-      }
-    )
+    if (isTRUE(render_pdf)) {
+      pdf_report <- .html_to_pdf(report_file, final_pdf, verbose = verbose)
+      if (!isTRUE(render_html)) unlink(report_file)
+    }
   }
 
   if (isTRUE(write_xlsx)) {
@@ -518,9 +508,6 @@ forplot_balance <- function(fp_file_path = NULL,
       )
     }
   }
-
-  unlink(rmd_path, force = TRUE)
-  unlink(gsub("_temp[.]Rmd", "_temp.knit.md", rmd_path), force = TRUE)
 
   invisible(list(
     html_report = html_report,
@@ -578,167 +565,6 @@ forplot_balance <- function(fp_file_path = NULL,
       D  = .parse_num(D),
       Collected = as.character(Collected)
     )
-}
-
-# Build interactive fp base plot using plotly (client-side rendering — no SVG pre-computation)
-.build_fp_base_plot_interactive <- function(fp_coords,
-                                            subplot_labels,
-                                            subplot_size,
-                                            plot_width_m,
-                                            plot_length_m,
-                                            plot_name,
-                                            plot_code,
-                                            highlight_palms,
-                                            language = "en") {
-
-  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
-
-  max_x <- floor(plot_width_m / subplot_size) * subplot_size
-  max_y <- floor(plot_length_m / subplot_size) * subplot_size
-
-  # Determine status and colour per individual
-  status <- dplyr::case_when(
-    highlight_palms & fp_coords$Family == "Arecaceae" ~ tr["palms"],
-    !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ tr["collected"],
-    TRUE ~ tr["uncollected"]
-  )
-  color_map <- stats::setNames(c("gray80", "#EF4444", "gold"),
-                               c(tr["collected"], tr["uncollected"], tr["palms"]))
-  point_colors <- unname(color_map[status])
-
-  # Marker sizes proportional to diameter (cm); fallback to minimum when NA
-  diams <- fp_coords$diameter
-  diams[!is.finite(diams)] <- 0
-  sizes <- 2 + diams * 3
-  sizes <- pmax(sizes, 6)
-
-  # Hover tooltip text
-  status_label <- dplyr::case_when(
-    !is.na(fp_coords$Collected) & fp_coords$Collected != "" ~ tr["collected"],
-    fp_coords$Family == "Arecaceae" ~ tr["palms"],
-    TRUE ~ tr["uncollected"]
-  )
-  hover_text <- paste0(
-    "<b>", tr["hover_tag"], ":", "</b> ", fp_coords$`New Tag No`, "<br>",
-    "<b>", tr["hover_species"], ":", "</b> ", fp_coords$`Original determination`, "<br>",
-    "<b>", tr["hover_dbh"], ":", "</b> ", round(fp_coords$D/10, 1), " cm<br>",
-    "<b>", tr["status"], ":", "</b> ", status_label
-  )
-
-  # Sanitised tag IDs matched to checklist anchors
-  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(fp_coords$`New Tag No`)))
-
-  # Grid lines and border as plotly shapes
-  v_lines <- lapply(seq(0, max_x, by = subplot_size), function(x) {
-    list(type = "line", x0 = x, x1 = x, y0 = 0, y1 = max_y,
-         line = list(color = "gray", width = 0.4), layer = "below")
-  })
-  h_lines <- lapply(seq(0, max_y, by = subplot_size), function(y) {
-    list(type = "line", x0 = 0, x1 = max_x, y0 = y, y1 = y,
-         line = list(color = "gray", width = 0.4), layer = "below")
-  })
-  border <- list(type = "rect", x0 = 0, x1 = max_x, y0 = 0, y1 = max_y,
-                 line = list(color = "darkolivegreen", width = 2.0),
-                 fillcolor = "rgba(0,0,0,0)", layer = "below")
-  all_shapes <- c(v_lines, h_lines, list(border))
-
-  # Subplot number labels as plotly annotations
-  annotations <- list()
-  if (!is.null(subplot_labels) && nrow(subplot_labels) > 0) {
-    annotations <- lapply(seq_len(nrow(subplot_labels)), function(i) {
-      list(x = subplot_labels$center_x[i],
-           y = subplot_labels$center_y[i],
-           text = as.character(subplot_labels$T1[i]),
-           showarrow = FALSE,
-           font = list(size = 9, color = "lightgray"),
-           xref = "x", yref = "y")
-    })
-  }
-
-  # Create tick values for every subplot_size (10 meters)
-  tick_vals_x <- seq(0, max_x, by = subplot_size)
-  tick_vals_y <- seq(0, max_y, by = subplot_size)
-
-  plotly_height <- max(
-    550,
-    min(950, round(760 * (max_y / max_x)))
-  )
-
-  # Build the plotly scatter
-  p <- plotly::plot_ly(
-    x = fp_coords$global_x,
-    y = fp_coords$global_y,
-    type = "scatter",
-    mode = "markers+text",
-    height = plotly_height,
-    marker = list(color = point_colors, size = sizes,
-                  line = list(color = "black", width = 0.5),
-                  symbol = "circle"),
-    text = as.character(fp_coords$`New Tag No`),
-    textposition = "middle center",
-    textfont = list(size = 7, color = "black"),
-    hovertext = hover_text,
-    hoverinfo = "text",
-    customdata = tag_ids,
-    showlegend = FALSE
-  ) %>%
-    plotly::layout(
-      title = list(
-        text = paste0("<b>", tr["collection_balance"], ": ", plot_name, "</b><br>",
-                      "<sup>", tr["plot_code"], ": ", plot_code, "</sup>"),
-        x = 0.5, xanchor = "center"
-      ),
-      xaxis = list(
-        title = list(text = tr["x_m"], standoff = 2),
-        range = c(-1, max_x + 2),
-        scaleanchor = "y",
-        scaleratio = 1,
-        showgrid = FALSE,
-        zeroline = FALSE,
-        tickmode = "array",
-        tickvals = tick_vals_x,
-        ticktext = as.character(tick_vals_x),
-        automargin = TRUE
-      ),
-      yaxis = list(
-        title = list(text = tr["y_m"], standoff = 2),
-        range = c(-1, max_y + 2),
-        showgrid = FALSE,
-        zeroline = FALSE,
-        tickmode = "array",
-        tickvals = tick_vals_y,
-        ticktext = as.character(tick_vals_y),
-        automargin = TRUE
-      ),
-      shapes = all_shapes,
-      annotations = annotations,
-      plot_bgcolor = "white",
-      paper_bgcolor = "white",
-      margin = list(l = 60, r = 60, t = 80, b = 60),  # Increased margins
-      autosize = TRUE
-    ) %>%
-    plotly::config(responsive = TRUE,
-                   displayModeBar = TRUE,
-                   scrollZoom = TRUE,
-                   doubleClick = "reset",
-                   displaylogo = FALSE,
-                   toImageButtonOptions = list(format = "png", scale = 2)
-    ) %>%
-    htmlwidgets::onRender(
-      "function(el) {
-         el.on('plotly_click', function(eventData) {
-           if (!eventData.points || eventData.points.length === 0) return;
-           var tag = eventData.points[0].customdata;
-           if (!tag) return;
-           var anchor = document.getElementById('checklist-tag-' + tag);
-           if (anchor) {
-             anchor.scrollIntoView({behavior: 'smooth', block: 'center'});
-           }
-         });
-       }"
-    )
-
-  p
 }
 
 # Build fp base plot
@@ -1045,605 +871,6 @@ forplot_balance <- function(fp_file_path = NULL,
     mini_legend_layers
 }
 
-.build_monitora_base_plot_interactive <- function(fp_coords,
-                                                  plot_name,
-                                                  plot_code,
-                                                  highlight_palms,
-                                                  language = "en",
-                                                  arm_offset = 18,
-                                                  pad = 4) {
-
-  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
-
-  stopifnot(all(
-    c("draw_x", "draw_y", "subunit_letter", "Family", "Collected", "D", "New Tag No") %in% names(fp_coords)
-  ))
-
-  arm_length <- 50
-  cell_size <- 10
-  gap_title <- 3.0
-  gap_sub <- 2.5
-  left_inset <- 0.8
-
-  to_arm <- arm_offset
-  solid_half <- 10
-  gx_min <- -(arm_offset + arm_length) - pad
-  gx_max <-  (arm_offset + arm_length) + pad
-  gy_min <- gx_min
-  gy_max <- gx_max
-  y_max_ext <- gy_max + gap_title + gap_sub + 0.5
-
-  # Rebuild the same transformed plotting coordinates used in the static MONITORA plot
-  plot_df <- fp_coords %>%
-    dplyr::mutate(
-      plot_x = dplyr::case_when(
-        subunit_letter %in% c("N", "S") ~ draw_x,
-        subunit_letter == "L" ~ draw_x - 50 + arm_offset,
-        subunit_letter == "O" ~ draw_x + 100 - (arm_offset + arm_length),
-        TRUE ~ draw_x
-      ),
-      plot_y = dplyr::case_when(
-        subunit_letter %in% c("L", "O") ~ draw_y,
-        subunit_letter == "N" ~ draw_y - 50 + arm_offset,
-        subunit_letter == "S" ~ draw_y + 100 - (arm_offset + arm_length),
-        TRUE ~ draw_y
-      )
-    )
-
-  status <- dplyr::case_when(
-    highlight_palms & plot_df$Family == "Arecaceae" ~ tr["palms"],
-    !is.na(plot_df$Collected) & plot_df$Collected != "" ~ tr["collected"],
-    TRUE ~ tr["uncollected"]
-  )
-
-  color_map <- stats::setNames(
-    c("gray80", "#EF4444", "gold"),
-    c(tr["collected"], tr["uncollected"], tr["palms"])
-  )
-  point_colors <- unname(color_map[status])
-
-  diams <- suppressWarnings(as.numeric(plot_df$D)) / 10
-  diams[!is.finite(diams)] <- 0
-  sizes <- pmax(4, sqrt(diams) * 3.5)
-
-  hover_text <- paste0(
-    "<b>", tr["hover_tag"], ":</b> ", plot_df$`New Tag No`, "<br>",
-    "<b>", tr["hover_species"], ":</b> ", plot_df$`Original determination`, "<br>",
-    "<b>", tr["hover_dbh"], ":</b> ", round(suppressWarnings(as.numeric(plot_df$D)) / 10, 1), " cm<br>",
-    "<b>", tr["status"], ":</b> ", status
-  )
-
-  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(plot_df$`New Tag No`)))
-
-  # Build the same arm-cell architecture used in the static plot
-  mk_cells <- function(arm) {
-    base <- expand.grid(c = 0:4, r = 0:1)
-    if (arm == "N") {
-      dplyr::mutate(
-        base, arm = "N",
-        xmin = -cell_size + r * cell_size,
-        xmax = -cell_size + r * cell_size + cell_size,
-        ymin = arm_offset + c * cell_size,
-        ymax = arm_offset + c * cell_size + cell_size
-      )
-    } else if (arm == "S") {
-      dplyr::mutate(
-        base, arm = "S",
-        xmin = -cell_size + r * cell_size,
-        xmax = -cell_size + r * cell_size + cell_size,
-        ymin = -(arm_offset + arm_length) + c * cell_size,
-        ymax = -(arm_offset + arm_length) + c * cell_size + cell_size
-      )
-    } else if (arm == "L") {
-      dplyr::mutate(
-        base, arm = "L",
-        xmin = arm_offset + c * cell_size,
-        xmax = arm_offset + c * cell_size + cell_size,
-        ymin = -cell_size + r * cell_size,
-        ymax = -cell_size + r * cell_size + cell_size
-      )
-    } else { # O
-      dplyr::mutate(
-        base, arm = "O",
-        xmin = -(arm_offset + arm_length) + c * cell_size,
-        xmax = -(arm_offset + arm_length) + c * cell_size + cell_size,
-        ymin = -cell_size + r * cell_size,
-        ymax = -cell_size + r * cell_size + cell_size
-      )
-    }
-  }
-
-  cells <- dplyr::bind_rows(
-    mk_cells("N"),
-    mk_cells("S"),
-    mk_cells("L"),
-    mk_cells("O")
-  )
-
-  centers <- cells %>%
-    dplyr::mutate(
-      cx = (xmin + xmax) / 2,
-      cy = (ymin + ymax) / 2,
-      col_from_center = dplyr::case_when(
-        arm %in% c("N", "L") ~ c,
-        arm %in% c("S", "O") ~ 4L - c,
-        TRUE ~ c
-      ),
-      col_idx = col_from_center + 1L,
-      base_num = (col_idx - 1L) * 2L + 1L,
-      label = ifelse(col_idx %% 2L == 1L, base_num + r, base_num + (1L - r))
-    ) %>%
-    dplyr::select(-col_from_center, -col_idx, -base_num)
-
-  edge_pad_in <- max(0.6, pad / 2)
-  arm_labels <- data.frame(
-    lab = c("N", "S", "L", "O"),
-    lx = c(0, 0, gx_max - edge_pad_in, gx_min + edge_pad_in),
-    ly = c(gy_max - edge_pad_in, gy_min + edge_pad_in, 0, 0),
-    stringsAsFactors = FALSE
-  )
-
-  # Plotly shapes: cell grid
-  cell_shapes <- lapply(seq_len(nrow(cells)), function(i) {
-    list(
-      type = "rect",
-      x0 = cells$xmin[i],
-      x1 = cells$xmax[i],
-      y0 = cells$ymin[i],
-      y1 = cells$ymax[i],
-      line = list(color = "gray70", width = 0.8),
-      fillcolor = "rgba(0,0,0,0)",
-      layer = "below"
-    )
-  })
-
-  # Plotly shapes: cross and dashed connectors
-  cross_shapes <- list(
-    list(type = "line", x0 = -solid_half, x1 =  solid_half, y0 = 0, y1 = 0,
-         line = list(color = "gray35", width = 1.2), layer = "below"),
-    list(type = "line", x0 = 0, x1 = 0, y0 = -solid_half, y1 =  solid_half,
-         line = list(color = "gray35", width = 1.2), layer = "below"),
-
-    list(type = "line", x0 = -to_arm, x1 = -solid_half, y0 = 0, y1 = 0,
-         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below"),
-    list(type = "line", x0 =  solid_half, x1 =  to_arm, y0 = 0, y1 = 0,
-         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below"),
-    list(type = "line", x0 = 0, x1 = 0, y0 = -to_arm, y1 = -solid_half,
-         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below"),
-    list(type = "line", x0 = 0, x1 = 0, y0 =  solid_half, y1 =  to_arm,
-         line = list(color = "gray50", width = 1, dash = "dot"), layer = "below")
-  )
-
-  all_shapes <- c(cell_shapes, cross_shapes)
-
-  # Plotly annotations: subplot numbers
-  subplot_annotations <- lapply(seq_len(nrow(centers)), function(i) {
-    list(
-      x = centers$cx[i],
-      y = centers$cy[i],
-      text = as.character(centers$label[i]),
-      showarrow = FALSE,
-      font = list(size = 12, color = "gray35"),
-      xref = "x",
-      yref = "y"
-    )
-  })
-
-  # Plotly annotations: N/S/L/O labels
-  arm_annotations <- lapply(seq_len(nrow(arm_labels)), function(i) {
-    list(
-      x = arm_labels$lx[i],
-      y = arm_labels$ly[i],
-      text = arm_labels$lab[i],
-      showarrow = FALSE,
-      font = list(size = 22, color = "black"),
-      xref = "x",
-      yref = "y"
-    )
-  })
-
-  # Plot title annotations positioned like the static figure
-  title_annotations <- list(
-    list(
-      x = gx_min + left_inset,
-      y = gy_max + gap_title + gap_sub,
-      text = paste0("<b>", tr["collection_balance"], ":</b> ", plot_name),
-      showarrow = FALSE,
-      xanchor = "left",
-      yanchor = "top",
-      font = list(size = 18, color = "black"),
-      xref = "x",
-      yref = "y"
-    ),
-    list(
-      x = gx_min + left_inset,
-      y = gy_max + gap_title,
-      text = paste0("<b>", tr["plot_code"], ":</b> ", ifelse(is.null(plot_code), "", plot_code)),
-      showarrow = FALSE,
-      xanchor = "left",
-      yanchor = "top",
-      font = list(size = 13, color = "black"),
-      xref = "x",
-      yref = "y"
-    )
-  )
-
-  # Optional scale annotations, matching the mini-legend spirit
-  dashed_len <- max(to_arm - solid_half, 0)
-  sx <- gx_max - 130
-  sy <- gy_min + 10
-
-  scale_shapes <- list(
-    list(type = "line", x0 = sx, x1 = sx + dashed_len, y0 = sy, y1 = sy,
-         line = list(color = "gray50", width = 1, dash = "dot")),
-    list(type = "line", x0 = sx, x1 = sx + 20, y0 = sy - 5, y1 = sy - 5,
-         line = list(color = "gray35", width = 1.2))
-  )
-
-  scale_annotations <- list(
-    list(
-      x = sx + dashed_len / 2,
-      y = sy - 1.6,
-      text = "40 m",
-      showarrow = FALSE,
-      xanchor = "center",
-      yanchor = "top",
-      font = list(size = 11, color = "gray30"),
-      xref = "x",
-      yref = "y"
-    ),
-    list(
-      x = sx + 10,
-      y = sy - 6.6,
-      text = "20 m",
-      showarrow = FALSE,
-      xanchor = "center",
-      yanchor = "top",
-      font = list(size = 11, color = "gray30"),
-      xref = "x",
-      yref = "y"
-    )
-  )
-
-  all_shapes <- c(all_shapes, scale_shapes)
-  all_annotations <- c(subplot_annotations, arm_annotations, title_annotations, scale_annotations)
-
-  p <- plotly::plot_ly(
-    x = plot_df$plot_x,
-    y = plot_df$plot_y,
-    type = "scatter",
-    mode = "markers+text",
-    height = 950,
-    width = 1100,
-    marker = list(
-      color = point_colors,
-      size = sizes,
-      line = list(color = "black", width = 0.5),
-      symbol = "circle"
-    ),
-    text = as.character(plot_df$`New Tag No`),
-    textposition = "middle center",
-    textfont = list(size = 7, color = "black"),
-    hovertext = hover_text,
-    hoverinfo = "text",
-    customdata = tag_ids,
-    showlegend = FALSE
-  ) %>%
-    plotly::layout(
-      xaxis = list(
-        title = "",
-        range = c(gx_min, gx_max),
-        scaleanchor = "y",
-        scaleratio = 1,
-        showgrid = FALSE,
-        zeroline = FALSE,
-        showticklabels = FALSE
-      ),
-      yaxis = list(
-        title = "",
-        range = c(gy_min, y_max_ext),
-        showgrid = FALSE,
-        zeroline = FALSE,
-        showticklabels = FALSE
-      ),
-      shapes = all_shapes,
-      annotations = all_annotations,
-      plot_bgcolor = "white",
-      paper_bgcolor = "white",
-      margin = list(l = 20, r = 20, t = 20, b = 20),
-      autosize = FALSE
-    ) %>%
-    plotly::config(
-      responsive = TRUE,
-      displayModeBar = TRUE,
-      scrollZoom = TRUE,
-      doubleClick = "reset",
-      displaylogo = FALSE,
-      toImageButtonOptions = list(format = "png", scale = 2)
-    ) %>%
-    htmlwidgets::onRender(
-      "function(el) {
-         el.on('plotly_click', function(eventData) {
-           if (!eventData.points || eventData.points.length === 0) return;
-           var tag = eventData.points[0].customdata;
-           if (!tag) return;
-           var anchor = document.getElementById('checklist-tag-' + tag);
-           if (anchor) {
-             anchor.scrollIntoView({behavior: 'smooth', block: 'center'});
-           }
-         });
-       }"
-    )
-
-  p
-}
-
-.build_monitora_subplot_plot_interactive <- function(sp_data,
-                                                     subplot_size = 10,
-                                                     highlight_palms,
-                                                     language = "en") {
-  if (is.null(sp_data) || !nrow(sp_data)) {
-    return(NULL)
-  }
-
-  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
-
-  use_x10 <- all(c("x10", "y10") %in% names(sp_data))
-  x_col <- if (use_x10) "x10" else "X"
-  y_col <- if (use_x10) "y10" else "Y"
-  size_limit <- if (use_x10) 10 else subplot_size
-
-  if (!all(c(x_col, y_col, "New Tag No", "D") %in% names(sp_data))) {
-    return(NULL)
-  }
-
-  pt_status <- as.character(sp_data$Status)
-  pt_colors <- dplyr::case_when(
-    grepl("Collected|Coletados|Collect\u00e9s|\u5df2\u91c7\u96c6|P\u00e2ri sonswa", pt_status) ~ "gray80",
-    grepl("Palms|Palmeiras|Palmiers|\u68d5\u6988\u79d1|Kwatis", pt_status) ~ "gold",
-    TRUE ~ "#EF4444"
-  )
-
-  diams <- suppressWarnings(as.numeric(sp_data$diameter))
-  diams[!is.finite(diams)] <- 0
-  pt_sizes <- pmax(4, sqrt(diams) * 3.5)
-
-  tag_ids <- gsub("[^A-Za-z0-9-]", "", trimws(as.character(sp_data$`New Tag No`)))
-
-  status_label <- dplyr::case_when(
-    highlight_palms & sp_data$Family == "Arecaceae" ~ tr["palms"],
-    !is.na(sp_data$Collected) & sp_data$Collected != "" ~ tr["collected"],
-    TRUE ~ tr["uncollected"]
-  )
-  hover_text <- paste0(
-    "<b>", tr["hover_tag"], ":", "</b> ", sp_data$`New Tag No`, "<br>",
-    "<b>", tr["hover_species"], ":", "</b> ", sp_data$`Original determination`, "<br>",
-    "<b>", tr["hover_dbh"], ":", "</b> ", round(sp_data$D/10, 1), " cm<br>",
-    "<b>", tr["status"], ":", "</b> ", status_label
-  )
-
-  plotly::plot_ly(
-    x = sp_data[[x_col]],
-    y = sp_data[[y_col]],
-    type = "scatter",
-    mode = "markers+text",
-    marker = list(
-      color = pt_colors,
-      size = pt_sizes,
-      line = list(color = "black", width = 0.8),
-      symbol = "circle"
-    ),
-    text = as.character(sp_data$`New Tag No`),
-    textposition = "middle center",
-    textfont = list(size = 8, color = "black"),
-    hovertext = hover_text,
-    hoverinfo = "text",
-    customdata = tag_ids,
-    showlegend = FALSE
-  ) %>%
-    plotly::layout(
-      xaxis = list(
-        title = "X (m)",
-        range = c(-0.5, size_limit + 0.5),
-        scaleanchor = "y",
-        scaleratio = 1,
-        showgrid = TRUE,
-        gridcolor = "gray90",
-        zeroline = FALSE
-      ),
-      yaxis = list(
-        title = "Y (m)",
-        range = c(-0.5, size_limit + 0.5),
-        showgrid = TRUE,
-        gridcolor = "gray90",
-        zeroline = FALSE
-      ),
-      shapes = list(list(
-        type = "rect",
-        x0 = 0, x1 = size_limit, y0 = 0, y1 = size_limit,
-        line = list(color = "darkolivegreen", width = 2),
-        fillcolor = "rgba(0,0,0,0)",
-        layer = "below"
-      )),
-      plot_bgcolor = "white",
-      paper_bgcolor = "white",
-      margin = list(l = 30, r = 10, t = 30, b = 30)
-    ) %>%
-    plotly::config(
-      responsive = TRUE,
-      displaylogo = FALSE
-    ) %>%
-    htmlwidgets::onRender(
-      "function(el) {
-         el.on('plotly_click', function(d) {
-           if (!d.points || !d.points.length) return;
-           var t = d.points[0].customdata;
-           if (!t) return;
-           var a = document.getElementById('checklist-tag-' + t);
-           if (a) a.scrollIntoView({behavior: 'smooth', block: 'center'});
-         });
-       }"
-    )
-}
-
-
-.build_uncollected_priority_plot_interactive <- function(fp_coords,
-                                                         priority_obj,
-                                                         subplot_size,
-                                                         plot_width_m,
-                                                         plot_length_m,
-                                                         plot_name,
-                                                         plot_code,
-                                                         language = "en") {
-
-  tr <- setNames(.tr_dict_vec(dict$key, language = language), dict$key)
-
-  n_rows <- floor(plot_length_m / subplot_size)
-  n_cols <- floor(plot_width_m / subplot_size)
-
-  subplot_grid <- expand.grid(
-    col = seq_len(n_cols) - 1L,
-    row = seq_len(n_rows) - 1L
-  ) %>%
-    tibble::as_tibble() %>%
-    dplyr::mutate(
-      T1 = as.character(col * n_rows + row + 1L),
-      xmin = col * subplot_size,
-      xmax = xmin + subplot_size,
-      ymin = dplyr::if_else(
-        col %% 2 == 0,
-        row * subplot_size,
-        (n_rows - row - 1L) * subplot_size
-      ),
-      ymax = ymin + subplot_size
-    )
-
-  selected_tbl <- priority_obj$priority_table %>%
-    dplyr::select(subplot, visit_order, n_new_species)
-
-  subplot_grid <- subplot_grid %>%
-    dplyr::left_join(selected_tbl, by = c("T1" = "subplot")) %>%
-    dplyr::mutate(
-      selected = !is.na(visit_order),
-      fill_color = dplyr::if_else(selected, "rgba(120,120,120,0.7)", "rgba(235,235,235,1)")
-    )
-
-  uncollected_pts <- fp_coords %>%
-    dplyr::mutate(
-      Family = trimws(as.character(Family)),
-      Collected = trimws(as.character(Collected)),
-      diameter = suppressWarnings(as.numeric(diameter))
-    ) %>%
-    dplyr::filter((is.na(Collected) | Collected == "") & Family != "Arecaceae")
-
-  shapes <- c(
-    lapply(seq_len(nrow(subplot_grid)), function(i) {
-      list(
-        type = "rect",
-        x0 = subplot_grid$xmin[i],
-        x1 = subplot_grid$xmax[i],
-        y0 = subplot_grid$ymin[i],
-        y1 = subplot_grid$ymax[i],
-        line = list(
-          color = if (isTRUE(subplot_grid$selected[i])) "black" else "white",
-          width = if (isTRUE(subplot_grid$selected[i])) 1.3 else 0.5
-        ),
-        fillcolor = subplot_grid$fill_color[i],
-        layer = "below"
-      )
-    })
-  )
-
-  annotations <- c(
-    lapply(seq_len(nrow(subplot_grid)), function(i) {
-      txt <- subplot_grid$T1[i]
-      list(
-        x = (subplot_grid$xmin[i] + subplot_grid$xmax[i]) / 2,
-        y = (subplot_grid$ymin[i] + subplot_grid$ymax[i]) / 2,
-        text = txt,
-        showarrow = FALSE,
-        font = list(
-          size = if (isTRUE(subplot_grid$selected[i])) 11 else 9,
-          color = if (isTRUE(subplot_grid$selected[i])) "black" else "gray55"
-        ),
-        xref = "x",
-        yref = "y"
-      )
-    })
-  )
-
-  hover_text <- paste0(
-    "<b>", tr["hover_tag"], ":</b> ", uncollected_pts$`New Tag No`, "<br>",
-    "<b>", tr["hover_species"], ":</b> ", uncollected_pts$`Original determination`, "<br>",
-    "<b>", tr["subplot"], ":</b> ", uncollected_pts$T1, "<br>",
-    "<b>", tr["hover_dbh"], ":</b> ", round(suppressWarnings(as.numeric(uncollected_pts$D)) / 10, 1), " cm"
-  )
-
-  sizes <- uncollected_pts$diameter
-  sizes[!is.finite(sizes)] <- 0
-  sizes <- pmax(6, 2 + sizes * 3)
-
-  plotly::plot_ly(
-    x = uncollected_pts$global_x,
-    y = uncollected_pts$global_y,
-    type = "scatter",
-    mode = "markers+text",
-    marker = list(
-      color = "red",
-      size = sizes,
-      line = list(color = "black", width = 0.5),
-      symbol = "circle"
-    ),
-    text = as.character(uncollected_pts$`New Tag No`),
-    textposition = "middle center",
-    textfont = list(size = 7, color = "black"),
-    hovertext = hover_text,
-    hoverinfo = "text",
-    showlegend = FALSE
-  ) %>%
-    plotly::layout(
-      title = list(
-        text = paste0(
-          "<b>", tr["priority_subplots"], ": ", plot_name, "</b><br>",
-          "<sup>", tr["plot_code"], ": ", plot_code, "</sup>"
-        ),
-        x = 0.5
-      ),
-      xaxis = list(
-        title = tr["x_m"],
-        range = c(0, plot_width_m),
-        tickmode = "array",
-        tickvals = seq(0, plot_width_m, by = subplot_size),
-        ticktext = as.character(seq(0, plot_width_m, by = subplot_size)),
-        scaleanchor = "y",
-        scaleratio = 1,
-        showgrid = FALSE,
-        zeroline = FALSE
-      ),
-      yaxis = list(
-        title = tr["y_m"],
-        range = c(0, plot_length_m),
-        tickmode = "array",
-        tickvals = seq(0, plot_length_m, by = subplot_size),
-        ticktext = as.character(seq(0, plot_length_m, by = subplot_size)),
-        showgrid = FALSE,
-        zeroline = FALSE
-      ),
-      shapes = shapes,
-      annotations = annotations,
-      plot_bgcolor = "white",
-      paper_bgcolor = "white",
-      margin = list(l = 60, r = 40, t = 80, b = 60)
-    ) %>%
-    plotly::config(
-      responsive = TRUE,
-      displayModeBar = TRUE,
-      scrollZoom = TRUE,
-      displaylogo = FALSE,
-      toImageButtonOptions = list(format = "png", scale = 2)
-    )
-}
-
 # Get percentual values ####
 .collection_percentual <- function(fp_sheet, dir = getwd(),
                                    plot_name = "",
@@ -1834,142 +1061,6 @@ forplot_balance <- function(fp_file_path = NULL,
   invisible(output_file)
 }
 
-
-.render_plot_report <- function(rmd_path,
-                                output_path,
-                                output_name,
-                                params,
-                                format = c("pdf", "html"),
-                                latex_engine = "pdflatex") {
-
-  format <- match.arg(format)
-
-  if (!dir.exists(output_path)) {
-    dir.create(output_path, recursive = TRUE)
-  }
-
-  final_out <- if (grepl("[/\\\\]", output_name)) {
-    output_name
-  } else {
-    file.path(output_path, output_name)
-  }
-
-  render_env <- new.env(parent = globalenv())
-
-  if (identical(format, "html")) {
-    if (!isTRUE(suppressWarnings(rmarkdown::pandoc_available()))) {
-      # No pandoc (e.g. forplotR running in the browser through webR):
-      # knitr + markdown, same content, single self-contained file.
-      .render_html_report_knitr(rmd_path, final_out, params = params, envir = render_env)
-      message("Full HTML report saved to: ", final_out)
-      return(invisible(final_out))
-    }
-    rmarkdown::render(
-      input = rmd_path,
-      output_file = basename(final_out),
-      output_dir = dirname(final_out),
-      params = params,
-      envir = render_env,
-      clean = TRUE,
-      output_format = rmarkdown::html_document(
-        toc = TRUE,
-        toc_depth = 2,
-        number_sections = TRUE,
-        self_contained = TRUE
-      )
-    )
-
-    message("Full HTML report saved to: ", final_out)
-    return(invisible(final_out))
-  }
-
-  wd <- getwd()
-  old_logs <- list.files(
-    path = wd,
-    pattern = "^file[0-9a-f]+\\.log$",
-    full.names = TRUE
-  )
-
-  temp_pdf <- tempfile(fileext = ".pdf")
-
-  extra_deps <- NULL
-  if (identical(latex_engine, "xelatex")) {
-    extra_deps <- rmarkdown::latex_dependency("ctex", options = "fontset=fandol")
-  }
-
-  rmarkdown::render(
-    input = rmd_path,
-    output_file = basename(temp_pdf),
-    output_dir = tempdir(),
-    params = params,
-    envir = render_env,
-    clean = FALSE,
-    output_format = rmarkdown::pdf_document(
-      keep_tex = TRUE,
-      latex_engine = latex_engine,
-      fig_caption = TRUE,
-      extra_dependencies = extra_deps
-    )
-  )
-
-  preamble_lines <- c(
-    "\\makeatletter",
-    "\\providecommand{\\vcenteredhbox}[1]{\\begingroup",
-    "  \\setbox0=\\hbox{#1}\\parbox{\\wd0}{\\box0}\\endgroup}",
-    "\\renewcommand{\\@dotsep}{4}",
-    "\\renewcommand{\\contentsname}{\\hspace*{-1cm}}",
-    "\\makeatother"
-  )
-
-  tex_candidates <- list.files(tempdir(), pattern = "\\.tex$", full.names = TRUE)
-  tex_file <- tex_candidates[which.max(file.info(tex_candidates)$mtime)]
-
-  if (file.exists(tex_file)) {
-    tex_lines <- readLines(tex_file, warn = FALSE)
-    insert_idx <- grep("\\\\begin\\{document\\}", tex_lines)[1]
-
-    if (!is.na(insert_idx)) {
-      new_tex_lines <- append(tex_lines, preamble_lines, after = insert_idx - 1)
-      writeLines(new_tex_lines, tex_file)
-    }
-
-    if (!requireNamespace("tinytex", quietly = TRUE)) {
-      stop(
-        "Package 'tinytex' is required to render the PDF report. ",
-        "Install it with install.packages('tinytex') or use render_pdf = FALSE.",
-        call. = FALSE
-      )
-    }
-    tinytex::latexmk(tex_file, engine = latex_engine)
-  }
-
-  built_pdf <- sub("\\.tex$", ".pdf", tex_file)
-
-  if (!file.exists(built_pdf)) {
-    stop("PDF was not generated from the temporary .tex file.", call. = FALSE)
-  }
-
-  file.copy(built_pdf, final_out, overwrite = TRUE)
-
-  new_logs <- list.files(
-    path = wd,
-    pattern = "^file[0-9a-f]+\\.log$",
-    full.names = TRUE
-  )
-  extra_logs <- setdiff(new_logs, old_logs)
-  if (length(extra_logs)) unlink(extra_logs, force = TRUE)
-
-  log_files <- list.files(
-    path = output_path,
-    pattern = "^file[0-9a-f]+\\.log$",
-    full.names = TRUE
-  )
-  if (length(log_files)) unlink(log_files, force = TRUE)
-
-  message("Full PDF report saved to: ", final_out)
-
-  invisible(final_out)
-}
 
 .detect_coordinate_mode <- function(df) {
   has_local_xy <- .has_any(df, c("X")) && .has_any(df, c("Y"))

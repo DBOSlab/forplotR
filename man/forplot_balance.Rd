@@ -86,11 +86,12 @@ inputs, the function falls back to \code{"1"} when no value is available.}
 \item{team}{Optional team or PI name. If provided, overrides the team
 extracted from the input file metadata.}
 
-\item{render_html}{Logical. If \code{TRUE}, renders the HTML report. Uses
-pandoc when available; otherwise the report is rendered with \pkg{knitr}
-and the suggested package \pkg{markdown} into the same single-file HTML.}
+\item{render_html}{Logical. If \code{TRUE}, writes the field report as a
+single self-contained HTML file (see \emph{Field report}).}
 
-\item{render_pdf}{Logical. If \code{TRUE}, renders the PDF report.}
+\item{render_pdf}{Logical. If \code{TRUE}, prints the field report to PDF
+(A4) with a headless Chrome, Chromium or Edge. Skipped with a warning when
+no such browser is found.}
 
 \item{write_xlsx}{Logical. If \code{TRUE}, writes the Excel summary workbook.}
 
@@ -132,7 +133,8 @@ date. Only the most recent census is plotted.}
 Invisibly returns a list with paths to generated outputs:
 \describe{
 \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
-\item{pdf_report}{Path to the rendered PDF report, or \code{NULL} if not generated.}
+\item{pdf_report}{Path to the PDF report, or \code{NULL} if not generated
+(including when no Chrome, Chromium or Edge browser is available).}
 \item{xlsx_report}{Path to the Excel summary workbook, or \code{NULL} if not generated.}
 \item{output_dir}{Directory where outputs were written.}
 }
@@ -158,7 +160,7 @@ sheets, Query Library exports, and MONITORA layouts. Depending on the selected
 \item extracts or overrides plot metadata;
 \item cleans coordinates and diameter values and computes plot geometry;
 \item generates whole-plot and subplot-level maps, with optional palm highlighting;
-\item renders HTML and/or PDF reports;
+\item writes the field report (HTML) and optionally prints it to PDF;
 \item optionally writes an Excel workbook summarizing collection balance per subplot.
 }
 
@@ -179,11 +181,32 @@ summary files to disk.
 }
 }
 
+\section{Field report}{
+
+The report is a single self-contained HTML file designed to be used in the
+field, on a phone (offline) or printed. It contains a summary of the
+collection balance with footnotes on how each number is computed, a
+clickable grid of subplots coloured by what remains to collect, whole-plot
+maps with the tag of every stem (all stems, with voucher, pending and, when
+\code{highlight_palms = TRUE}, palms), a priority route, one A4 page per
+subplot (map, tree table with stems pending collection first, and blank
+columns for new DBH, status, voucher number and notes) and a checklist
+appendix. Maps are inline SVG, so the file opens without internet. In a
+browser the report has a search box for tags and subplots; tapping a stem on
+a subplot map highlights its row in the table. MONITORA plots are drawn as
+the cross of four arms of the protocol.
+
+The PDF report is the same HTML printed by a headless Chrome, Chromium or
+Microsoft Edge, one A4 page per subplot. The browser is found automatically
+or through the \code{FORPLOTR_CHROME} environment variable. When none is
+available, the PDF is skipped with a warning; the HTML report can then be
+printed to PDF from any browser.
+}
+
 \section{Side effects}{
 
 The function creates output files on disk, including map images, an optional
-HTML report, an optional PDF report, and an optional Excel workbook. Temporary
-intermediate files used during report rendering are removed before exit.
+HTML report, an optional PDF report, and an optional Excel workbook.
 }
 
 \examples{

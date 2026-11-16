@@ -68,20 +68,11 @@ importFrom(openxlsx,
   write.xlsx,
   writeData
 )
-importFrom(plotly,
-  config,
-  layout,
-  plot_ly
-)
 importFrom(readr,
   locale,
   read_delim
 )
 importFrom(readxl,read_excel)
-importFrom(rmarkdown,
-  pdf_document,
-  render
-)
 importFrom(stats,
   na.omit,
   setNames
