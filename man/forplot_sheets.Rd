@@ -9,6 +9,7 @@ forplot_sheets(
   herb_file_path = NULL,
   input_type = c("forestplots", "monitora"),
   sheet = 1,
+  header_row = NULL,
   station_name = NULL,
   language = "en",
   herbarium_format = "jabot",
@@ -42,6 +43,11 @@ and "monitora". For \code{"monitora"}, the function converts the input table
 to a forestplots-like structure before filling the herbarium template.}
 
 \item{sheet}{Sheet index or name to read from the input Excel file.}
+
+\item{header_row}{Row of the spreadsheet that holds the column names. The
+default \code{NULL} finds it automatically (see \code{\link[=detect_header_row]{detect_header_row()}}),
+which copes with sheets that start with rows of plot metadata and with
+bilingual column names. Give a number to force it.}
 
 \item{station_name}{Optional station name or station number used to filter
 MONITORA data before conversion. For \code{input_type = "monitora"}, this

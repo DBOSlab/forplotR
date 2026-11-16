@@ -338,7 +338,8 @@
 #'
 #' @keywords internal
 #' @noRd
-.read_best_plot_sheet <- function(path, sheet = NULL, extra_headers = NULL) {
+.read_best_plot_sheet <- function(path, sheet = NULL, extra_headers = NULL,
+                                  header_row = NULL) {
   if (!grepl("\\.xlsx?$", path, ignore.case = TRUE)) {
     stop("This helper expects an Excel workbook path.", call. = FALSE)
   }
@@ -368,12 +369,14 @@
       readxl::read_excel(
         path,
         sheet = s,
+        range = if (is.null(header_row)) NULL else readxl::cell_limits(c(1L, 1L), c(NA_integer_, NA_integer_)),
         col_names = FALSE,
         .name_repair = "minimal"
       )
     )
 
     if (!is.data.frame(temp0) || !nrow(temp0) || ncol(temp0) < 3L) next
+    if (!is.null(header_row) && header_row > nrow(temp0)) next
 
     max_r <- min(15L, nrow(temp0))
 
@@ -399,7 +402,14 @@
 
     header_row_idx <- which.max(scores)
 
-    if (!length(header_row_idx) || scores[header_row_idx] == 0) next
+    if (!is.null(header_row)) {
+      header_row_idx <- header_row
+    } else if (!length(header_row_idx) || scores[header_row_idx] == 0) {
+      # no exact name: accept bilingual or accented header names as well
+      header_row_idx <- .score_header_rows(temp0, max_scan = max_r,
+                                           extra_targets = extra_headers)$row
+      if (is.na(header_row_idx)) next
+    }
 
     header_bottom <- as.character(unlist(temp0[header_row_idx, , drop = TRUE]))
     header_bottom[is.na(header_bottom)] <- ""
@@ -470,7 +480,8 @@
                                         sheet = NULL,
                                         plot_code = NULL,
                                         split_plots = FALSE,
-                                        col_map = NULL) {
+                                        col_map = NULL,
+                                        header_row = NULL) {
   if (!file.exists(path)) {
     stop("Input file does not exist.", call. = FALSE)
   }
@@ -482,7 +493,8 @@
     "Voucher","Silica","Collected","Census Notes","CAP","Basal Area"
   )
 
-  in_dat <- .read_best_plot_sheet(path, sheet = sheet, extra_headers = unname(col_map))
+  in_dat <- .read_best_plot_sheet(path, sheet = sheet, extra_headers = unname(col_map),
+                                  header_row = header_row)
   sheet_used <- attr(in_dat, "sheet_name")
   names(in_dat) <- trimws(names(in_dat))
   in_dat <- .apply_col_map(in_dat, col_map)
@@ -919,7 +931,8 @@
 .monitora_to_field_sheet_df <- function(path,
                                         sheet = 1,
                                         station_name = NULL,
-                                        col_map = NULL) {
+                                        col_map = NULL,
+                                        header_row = NULL) {
   if (!file.exists(path)) {
     stop("The provided MONITORA file does not exist.", call. = FALSE)
   }
@@ -932,6 +945,7 @@
     readxl::read_excel(
       path,
       sheet = sheet,
+      range = if (is.null(header_row)) NULL else readxl::cell_limits(c(as.integer(header_row), 1L), c(NA_integer_, NA_integer_)),
       .name_repair = "minimal",
       col_types = "text"
     )
@@ -2532,8 +2546,9 @@
 #' \itemize{
 #'   \item \code{"field_sheet"}: standard ForestPlots field sheet with metadata
 #'   row, header row, and data rows.
-#'   \item \code{"field_sheet_ti"}: Indigenous Land / Panará-style field sheet
-#'   using fixed positional remapping into the canonical schema.
+#'   \item \code{"field_sheet_ti"}: Indigenous Land / Panará-style field sheet;
+#'   columns are recognised by name (either side of a bilingual label) and,
+#'   failing that, by their fixed position in the template.
 #'   \item \code{"fp_query_sheet"}: ForestPlots Query Library export converted
 #'   internally to the canonical field-sheet structure.
 #'   \item \code{"monitora"}: MONITORA spreadsheet converted internally to the
@@ -2554,6 +2569,7 @@
 #' @param station_name Optional character or numeric. Station name or station
 #'   identifier used to filter MONITORA spreadsheets when applicable. Ignored
 #'   for the other input types.
+#' @param header_row Row holding the column names; `NULL` detects it.
 #'
 #' @return A named list containing:
 #'   \describe{
@@ -2571,8 +2587,10 @@
                                   verbose = TRUE,
                                   require_spatial = TRUE,
                                   col_map = NULL,
-                                  has_user_meta = FALSE) {
+                                  has_user_meta = FALSE,
+                                  header_row = NULL) {
 
+  header_row <- .arg_check_header_row(header_row)
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(
     input_type,
@@ -2590,7 +2608,8 @@
       raw <- .monitora_to_field_sheet_df(
         path = fp_file_path,
         station_name = station_name,
-        col_map = col_map
+        col_map = col_map,
+        header_row = header_row
       )
 
       meta <- attr(raw, "plot_meta")
@@ -2609,7 +2628,8 @@
     },
 
     "fp_query_sheet" = {
-      raw <- .fp_query_to_field_sheet_df(path = fp_file_path, col_map = col_map)
+      raw <- .fp_query_to_field_sheet_df(path = fp_file_path, col_map = col_map,
+                                         header_row = header_row)
 
       meta <- attr(raw, "plot_meta")
 
@@ -2623,21 +2643,18 @@
     },
 
     "field_sheet" = {
-      raw <- suppressMessages(
-        readxl::read_excel(
-          fp_file_path,
-          sheet = 1,
-          col_names = FALSE,
-          .name_repair = "minimal"
-        )
+      raw <- .read_raw_table(fp_file_path)
+
+      header_row_idx <- .resolve_header_row(
+        raw, header_row = header_row, extra_targets = unname(col_map), fallback = 2L
       )
-
-      raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
-
+      above <- raw[seq_len(header_row_idx - 1L), , drop = FALSE]
+      meta <- .parse_plot_metadata(above)
       metadata_row <- .safe_char_row(raw)
 
       has_meta <- any(grepl("^\\s*(Plotcode:|Plot Code:|Plot Name:|Team:|PI:)",
-                            metadata_row, ignore.case = TRUE))
+                            metadata_row, ignore.case = TRUE)) ||
+        !is.na(meta$plot_code) || !is.na(meta$plot_name) || length(meta$team) > 0L
 
       if (!has_meta && !isTRUE(has_user_meta)) {
         stop(
@@ -2647,41 +2664,33 @@
         )
       }
 
-      header_row_idx <- .find_field_header_row(raw, extra_targets = unname(col_map))
-
       header <- raw[header_row_idx, ] |> unlist() |> as.character()
+      cols <- .canonical_header(header)
       header[is.na(header) | header == ""] <- paste0("NA_col_", seq_along(header))[is.na(header) | header == ""]
 
       raw <- raw[-seq_len(header_row_idx), , drop = FALSE]
       colnames(raw) <- make.unique(trimws(header))
       fp_sheet <- raw[, !is.na(colnames(raw)) & colnames(raw) != "", drop = FALSE]
 
+      # Columns mapped by the user come first; the others are then recognised
+      # by name (case, accents and either side of "Name | Translation")
       fp_sheet <- .apply_col_map(fp_sheet, col_map)
+      fp_sheet <- .fill_canonical_columns(fp_sheet, cols, user_keys = names(col_map))
 
       if (!("Collected" %in% names(fp_sheet))) {
         fp_sheet$Collected <- NA_character_
       }
 
-      list(
-        fp_sheet = as.data.frame(fp_sheet, stringsAsFactors = FALSE, check.names = FALSE),
-        team = .grab_meta_from_row(metadata_row, "Team"),
-        plot_name = .grab_meta_from_row(metadata_row, "Plot Name"),
-        plot_code = .grab_meta_from_row(metadata_row, "Plotcode"),
-        census_no_fp = ""
+      if (isTRUE(verbose)) .report_header(header_row_idx, meta, cols)
+
+      c(
+        list(fp_sheet = as.data.frame(fp_sheet, stringsAsFactors = FALSE, check.names = FALSE)),
+        .harmonized_metadata(metadata_row, meta, header_row_idx)
       )
     },
 
     "field_sheet_ti" = {
-      raw <- suppressMessages(
-        readxl::read_excel(
-          fp_file_path,
-          sheet = 1,
-          col_names = FALSE,
-          .name_repair = "minimal"
-        )
-      )
-
-      raw <- as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
+      raw <- .read_raw_table(fp_file_path)
 
       metadata_row <- .safe_char_row(raw)
 
@@ -2692,17 +2701,33 @@
         )
       }
 
-      raw_data <- raw[-c(1, 2), , drop = FALSE]
+      # The header used to be assumed on row 2; it is now detected, and row 2
+      # is only the fallback when no row looks like a header
+      header_row_idx <- .resolve_header_row(
+        raw, header_row = header_row, extra_targets = unname(col_map), fallback = 2L
+      )
+      meta <- .parse_plot_metadata(raw[seq_len(header_row_idx - 1L), , drop = FALSE])
 
-      hdr <- as.character(unlist(raw[2, , drop = TRUE]))
+      raw_data <- raw[-seq_len(header_row_idx), , drop = FALSE]
+
+      hdr <- as.character(unlist(raw[header_row_idx, , drop = TRUE]))
+      cols <- .canonical_header(hdr)
       empty_hdr <- is.na(hdr) | !nzchar(trimws(hdr))
       hdr[empty_hdr] <- paste0("NA_col_", seq_along(hdr))[empty_hdr]
       names(raw_data) <- make.unique(trimws(hdr))
 
-      # Mapped column when supplied, otherwise the fixed TI position
+      named <- function(key) {
+        i <- cols$position[!is.na(cols$canonical) & cols$canonical == key]
+        if (length(i)) i[1L] else NA_integer_
+      }
+
+      # Column mapped by the user, else the column recognised by its name,
+      # else the fixed position of the TI template
       ti_col <- function(key, pos) {
         cl <- .mapped_col(raw_data, col_map, key)
         if (!is.na(cl)) return(raw_data[[cl]])
+        i <- named(key)
+        if (!is.na(i)) return(raw_data[[i]])
         if (ncol(raw_data) >= pos) return(raw_data[[pos]])
         rep(NA, nrow(raw_data))
       }
@@ -2723,34 +2748,45 @@
       temp$Family <- as.character(ti_col("Family", 6))
 
       sp_col <- .mapped_col(raw_data, col_map, "Original determination")
+      local_i <- named("Local name")
       temp$`Original determination` <- if (!is.na(sp_col)) {
         as.character(raw_data[[sp_col]])
+      } else if (!is.na(named("Original determination")) && !is.na(local_i)) {
+        # scientific and local names sit in their own, named columns
+        as.character(raw_data[[named("Original determination")]])
       } else {
         paste0(as.character(raw_data[[8]]), " | ", as.character(raw_data[[7]]))
       }
 
-      temp$Morphospecies <- as.character(raw_data[[9]])
+      temp$Morphospecies <- as.character(ti_col("Morphospecies", 9))
       temp$D <- suppressWarnings(as.numeric(ti_col("D", 10)))
-      temp$POM <- suppressWarnings(as.numeric(raw_data[[11]]))
+      temp$POM <- suppressWarnings(as.numeric(ti_col("POM", 11)))
       temp$ExtraD <- NA_character_
       temp$ExtraPOM <- NA_character_
-      temp$Flag1 <- as.character(raw_data[[12]])
+      temp$Flag1 <- as.character(ti_col("Flag1", 12))
       temp$LI <- NA_character_
       temp$CI <- NA_character_
       temp$CF <- NA_character_
-      temp$Height <- suppressWarnings(as.numeric(raw_data[[13]]))
+      temp$Height <- suppressWarnings(as.numeric(ti_col("Height", 13)))
       temp$Voucher <- as.character(ti_col("Voucher", 14))
-      temp$Silica <- as.character(raw_data[[15]])
+      temp$Silica <- as.character(ti_col("Silica", 15))
       temp$Collected <- as.character(ti_col("Collected", 16))
-      temp$`Census Notes` <- as.character(raw_data[[17]])
-      temp$CAP <- suppressWarnings(as.numeric(raw_data[[20]]))
+      temp$`Census Notes` <- as.character(ti_col("Census Notes", 17))
+      temp$CAP <- suppressWarnings(as.numeric(ti_col("CAP", 20)))
 
-      list(
-        fp_sheet = temp,
-        team = .grab_meta_from_row(metadata_row, "Team"),
-        plot_name = .grab_meta_from_row(metadata_row, "Plot Name"),
-        plot_code = .grab_meta_from_row(metadata_row, "Plotcode"),
-        census_no_fp = ""
+      if (!is.na(local_i)) {
+        temp$`Local name` <- as.character(raw_data[[local_i]])
+      }
+      vern_i <- named("Vernacular name")
+      if (!is.na(vern_i)) {
+        temp$`Vernacular name` <- as.character(raw_data[[vern_i]])
+      }
+
+      if (isTRUE(verbose)) .report_header(header_row_idx, meta, cols)
+
+      c(
+        list(fp_sheet = temp),
+        .harmonized_metadata(metadata_row, meta, header_row_idx)
       )
     }
   )
@@ -2863,6 +2899,67 @@
   } else {
     ""
   }
+}
+
+# Whole worksheet as read by readxl without column names, at true row numbers
+.read_raw_table <- function(path, sheet = 1) {
+  raw <- suppressMessages(
+    readxl::read_excel(
+      path,
+      sheet = sheet,
+      range = readxl::cell_limits(c(1L, 1L), c(NA_integer_, NA_integer_)),
+      col_names = FALSE,
+      .name_repair = "minimal"
+    )
+  )
+  as.data.frame(raw, stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+# Give recognised columns their canonical name, unless that name is taken
+.fill_canonical_columns <- function(df, cols, user_keys = character()) {
+  cols <- cols[cols$position <= ncol(df), , drop = FALSE]
+  # a later column that repeats a canonical name steps aside ("D" -> "D_2")
+  dup <- cols[!is.na(cols$duplicate_of) & !(cols$duplicate_of %in% user_keys), , drop = FALSE]
+  for (i in seq_len(nrow(dup))) {
+    if (!(dup$column[i] %in% names(df))) names(df)[dup$position[i]] <- dup$column[i]
+  }
+  known <- cols[!is.na(cols$canonical), , drop = FALSE]
+  for (i in seq_len(nrow(known))) {
+    key <- known$canonical[i]
+    if (key %in% user_keys || key %in% names(df)) next
+    names(df)[known$position[i]] <- key
+  }
+  df
+}
+
+# Plot descriptors of a harmonized field sheet: the classic "Label: value"
+# first row wins, then whatever was parsed from the rows above the header
+.harmonized_metadata <- function(metadata_row, meta, header_row) {
+  pick <- function(old, new) {
+    if (.safe_nzchar(old)) old else if (length(new) && !all(is.na(new))) paste(new, collapse = ", ") else ""
+  }
+  list(
+    team = pick(.grab_meta_from_row(metadata_row, "Team"), meta$team),
+    plot_name = pick(.grab_meta_from_row(metadata_row, "Plot Name"), meta$plot_name),
+    plot_code = pick(.grab_meta_from_row(metadata_row, "Plotcode"), meta$plot_code),
+    census_no_fp = "",
+    census_date = meta$date,
+    team_members = meta$team,
+    header_row = header_row
+  )
+}
+
+# Tell the user where the header was found and which names were repeated
+.report_header <- function(header_row, meta, cols) {
+  message(.header_message(header_row, meta))
+  dup <- cols[!is.na(cols$duplicate_of), , drop = FALSE]
+  for (i in seq_len(nrow(dup))) {
+    first <- match(dup$duplicate_of[i], cols$column)
+    message("Column ", dup$position[i], " ('", dup$header[i], "') repeats the name '",
+            dup$duplicate_of[i], "'; using column ", cols$position[first], " ('",
+            cols$header[first], "') and keeping the other as '", dup$column[i], "'.")
+  }
+  invisible(NULL)
 }
 
 .replace_empty_with_na <- function(df) {

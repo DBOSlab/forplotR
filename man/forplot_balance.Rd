@@ -24,6 +24,7 @@ forplot_balance(
   verbose = TRUE,
   dir = file.path(tempdir(), "Results_map_plot"),
   filename = "plot_specimen",
+  header_row = NULL,
   colname_tagno = NULL,
   colname_stemgroup = NULL,
   colname_subplot = NULL,
@@ -106,6 +107,11 @@ session ends; supply a path to keep the outputs.}
 
 \item{filename}{Basename for generated output files, without extension.}
 
+\item{header_row}{Row of the spreadsheet that holds the column names. The
+default \code{NULL} finds it automatically (see \code{\link[=detect_header_row]{detect_header_row()}}),
+which copes with sheets that start with rows of plot metadata. Give a
+number to force it.}
+
 \item{colname_tagno, colname_stemgroup, colname_subplot, colname_x, colname_y, colname_family, colname_species, colname_dbh, colname_voucher, colname_collected}{Optional column names in the input file to map to the internal schema,
 respectively: tree tag (\code{"New Tag No"}), stem group
 (\code{"New Stem Grouping"}), subplot (\code{"T1"}; for MONITORA, the
@@ -175,7 +181,10 @@ summary files to disk.
 
 \describe{
 \item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
-\item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+\item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout: rows of
+plot metadata, then a header that may be bilingual
+(\code{"Name | Translation"}). Columns are recognised by name and, failing
+that, by their fixed position in the template.}
 \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
 \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
 }

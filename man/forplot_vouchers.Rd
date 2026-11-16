@@ -9,7 +9,8 @@ forplot_vouchers(
   output_dir = file.path(tempdir(), "voucher_imgs"),
   input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
   station_name = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  header_row = NULL
 )
 }
 \arguments{
@@ -30,6 +31,11 @@ for the other input types.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints detailed messages during
 processing.}
+
+\item{header_row}{Row of the spreadsheet that holds the column names. The
+default \code{NULL} finds it automatically (see \code{\link[=detect_header_row]{detect_header_row()}}),
+which copes with sheets that start with rows of plot metadata. Give a
+number to force it.}
 }
 \value{
 Invisibly returns the harmonized field-sheet data frame used

@@ -51,7 +51,10 @@
 #' @section Input types:
 #' \describe{
 #'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field-sheet layout.}
-#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout: rows of
+#'   plot metadata, then a header that may be bilingual
+#'   (\code{"Name | Translation"}). Columns are recognised by name and, failing
+#'   that, by their fixed position in the template.}
 #'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export converted internally to a field-sheet-like schema.}
 #'   \item{\code{"monitora"}}{MONITORA layout converted internally and plotted using MONITORA geometry.}
 #' }
@@ -166,6 +169,11 @@
 #' (\code{tempdir()}), which is deleted when the R session ends; supply a path
 #' to keep the map.
 #'
+#' @param header_row Row of the spreadsheet that holds the column names. The
+#' default \code{NULL} finds it automatically (see [detect_header_row()]),
+#' which copes with sheets that start with rows of plot metadata. Give a
+#' number to force it.
+#'
 #' @param colname_tagno,colname_stemgroup,colname_subplot,colname_x,colname_y,colname_family,colname_species,colname_dbh,colname_voucher,colname_collected
 #' Optional column names in the input file to map to the internal schema,
 #' respectively: tree tag (\code{"New Tag No"}), stem group
@@ -276,6 +284,7 @@ forplot_map <- function(fp_file_path = NULL,
                         language = c("en", "pt", "es", "fr", "ma", "pa"),
                         embed_voucher_imgs = FALSE,
                         dir = NULL,
+                        header_row = NULL,
                         colname_tagno = NULL,
                         colname_stemgroup = NULL,
                         colname_subplot = NULL,
@@ -374,6 +383,7 @@ forplot_map <- function(fp_file_path = NULL,
         language = language,
         embed_voucher_imgs = embed_voucher_imgs,
         dir = dir,
+        header_row = header_row,
         colname_tagno = colname_tagno,
         colname_stemgroup = colname_stemgroup,
         colname_subplot = colname_subplot,
@@ -431,7 +441,8 @@ forplot_map <- function(fp_file_path = NULL,
     station_name = station_name,
     verbose = verbose,
     col_map = col_map,
-    has_user_meta = .safe_nzchar(plot_name) || .safe_nzchar(plot_code)
+    has_user_meta = .safe_nzchar(plot_name) || .safe_nzchar(plot_code),
+    header_row = header_row
   )
 
   fp_sheet <- fp_loaded$fp_sheet

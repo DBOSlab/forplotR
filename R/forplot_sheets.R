@@ -50,6 +50,11 @@
 #'
 #' @param sheet Sheet index or name to read from the input Excel file.
 #'
+#' @param header_row Row of the spreadsheet that holds the column names. The
+#' default \code{NULL} finds it automatically (see [detect_header_row()]),
+#' which copes with sheets that start with rows of plot metadata and with
+#' bilingual column names. Give a number to force it.
+#'
 #' @param station_name Optional station name or station number used to filter
 #' MONITORA data before conversion. For \code{input_type = "monitora"}, this
 #' value is matched against station-related columns in the input dataset.
@@ -180,6 +185,7 @@ forplot_sheets <- function(fp_file_path = NULL,
                            herb_file_path = NULL,
                            input_type = c("forestplots", "monitora"),
                            sheet = 1,
+                           header_row = NULL,
                            station_name = NULL,
                            language = "en",
                            herbarium_format = "jabot",
@@ -237,15 +243,17 @@ forplot_sheets <- function(fp_file_path = NULL,
   alt <- .arg_check_alt(alt)
 
   #### Load Data ####
+  header_row <- .arg_check_header_row(header_row)
+
   if (identical(input_type, "forestplots")) {
-    fp_sheet <- suppressMessages(
-      readxl::read_excel(fp_file_path, sheet = sheet)
-    )
+    fp_sheet <- .read_forestplots_for_labels(fp_file_path, sheet = sheet,
+                                             header_row = header_row)
   } else if (identical(input_type, "monitora")) {
     fp_sheet <- .monitora_to_field_sheet_df(
       path = fp_file_path,
       sheet = sheet,
-      station_name = station_name
+      station_name = station_name,
+      header_row = header_row
     )
   }
 
@@ -635,6 +643,67 @@ forplot_sheets <- function(fp_file_path = NULL,
 }
 #_______________________________________________________________________________
 # Auxiliary functions
+
+#' Read a ForestPlots-like field sheet in the layout forplot_sheets() expects
+#'
+#' The label workflow was written for the classic field sheet: metadata on
+#' row 1 ("Team: ...", "Date: dd/mm/yyyy"), header on row 2, canonical column
+#' names. That sheet is read exactly as before. Any other arrangement (header
+#' on another row, bilingual labels such as "Team | Sapêrate: ..." or
+#' "D | Wy") is read from its real header row and handed over in the same
+#' shape: metadata as column names, canonical header as the first data row.
+#'
+#' @keywords internal
+#' @noRd
+.read_forestplots_for_labels <- function(path, sheet = 1, header_row = NULL) {
+  classic <- suppressMessages(readxl::read_excel(path, sheet = sheet))
+
+  top <- .read_raw_rows(path, sheet = sheet, n_max = max(20L, header_row))
+  hr <- if (nrow(top)) .resolve_header_row(top, header_row = header_row, fallback = 2L) else 2L
+
+  first_row <- if (nrow(classic)) trimws(as.character(unlist(classic[1L, , drop = TRUE]))) else character()
+  is_classic <- is.null(header_row) && hr == 2L &&
+    all(c("Collected", "D") %in% first_row) &&
+    any(grepl("^Date: \\d{2}/\\d{2}/(\\d{2}|\\d{4})$", names(classic)))
+  if (is_classic) return(classic)
+
+  dat <- read_plot_sheet(path, sheet = sheet, header_row = hr, verbose = FALSE)
+  meta <- attr(dat, "metadata")
+
+  # templates without the full ForestPlots schema (LI, CI, CF, ...) get the
+  # missing columns empty, so the label notes can still be built
+  for (cl in setdiff(.field_sheet_cols(), names(dat))) {
+    dat[[cl]] <- rep(NA_character_, nrow(dat))
+  }
+
+  labels <- c(
+    if (!is.na(meta$plot_code)) paste0("Plotcode: ", meta$plot_code),
+    if (!is.na(meta$plot_name)) paste0("Plot Name: ", meta$plot_name),
+    if (!is.na(meta$date)) paste0("Date: ", format(meta$date, "%d/%m/%Y")),
+    if (length(meta$team)) paste0("Team: ", paste(meta$team, collapse = ", "))
+  )
+  # no parsed metadata: keep whatever was written above the header
+  if (!length(labels) && hr > 1L) {
+    above <- as.character(unlist(top[hr - 1L, , drop = TRUE]))
+    labels <- above[!is.na(above) & nzchar(trimws(above))]
+  }
+
+  body <- as.data.frame(lapply(dat, function(v) {
+    if (is.numeric(v)) format(v, digits = 15, trim = TRUE, scientific = FALSE) else as.character(v)
+  }), stringsAsFactors = FALSE, check.names = FALSE)
+  body[] <- lapply(seq_along(body), function(i) {
+    v <- body[[i]]
+    v[is.na(dat[[i]])] <- NA_character_
+    v
+  })
+  out <- rbind(stats::setNames(as.data.frame(as.list(names(dat)), stringsAsFactors = FALSE), names(body)), body)
+
+  nm <- paste0("...", seq_len(ncol(out)))
+  k <- min(length(labels), ncol(out))
+  nm[seq_len(k)] <- labels[seq_len(k)]
+  names(out) <- make.unique(nm)
+  tibble::as_tibble(out, .name_repair = "minimal")
+}
 
 .clean_text <- function(x) {
   x <- as.character(x)

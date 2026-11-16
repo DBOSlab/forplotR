@@ -34,7 +34,10 @@
 #' @section Input types:
 #' \describe{
 #'   \item{\code{"field_sheet"}}{Standard ForestPlots.net field sheet.}
-#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout with direct column mapping.}
+#'   \item{\code{"field_sheet_ti"}}{Indigenous Land field-sheet layout: rows of
+#'   plot metadata, then a header that may be bilingual
+#'   (\code{"Name | Translation"}). Columns are recognised by name and, failing
+#'   that, by their fixed position in the template.}
 #'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
 #'   \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
 #' }
@@ -138,6 +141,11 @@
 #' session ends; supply a path to keep the outputs.
 #'
 #' @param filename Basename for generated output files, without extension.
+#'
+#' @param header_row Row of the spreadsheet that holds the column names. The
+#' default \code{NULL} finds it automatically (see [detect_header_row()]),
+#' which copes with sheets that start with rows of plot metadata. Give a
+#' number to force it.
 #'
 #' @param colname_tagno,colname_stemgroup,colname_subplot,colname_x,colname_y,colname_family,colname_species,colname_dbh,colname_voucher,colname_collected
 #' Optional column names in the input file to map to the internal schema,
@@ -260,6 +268,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             verbose = TRUE,
                             dir = file.path(tempdir(), "Results_map_plot"),
                             filename = "plot_specimen",
+                            header_row = NULL,
                             colname_tagno = NULL,
                             colname_stemgroup = NULL,
                             colname_subplot = NULL,
@@ -276,6 +285,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             colname_census_year = NULL) {
 
   .validate_subplot_size(subplot_size)
+  header_row <- .arg_check_header_row(header_row)
 
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
@@ -372,6 +382,7 @@ forplot_balance <- function(fp_file_path = NULL,
         filename = paste0(filename, "_station_", st),
         language = language,
         verbose = verbose,
+        header_row = header_row,
         colname_tagno = colname_tagno,
         colname_stemgroup = colname_stemgroup,
         colname_subplot = colname_subplot,
@@ -398,7 +409,8 @@ forplot_balance <- function(fp_file_path = NULL,
     station_name = station_name,
     verbose = verbose,
     col_map = col_map,
-    has_user_meta = .safe_nzchar(arg_plot_name) || .safe_nzchar(arg_plot_code)
+    has_user_meta = .safe_nzchar(arg_plot_name) || .safe_nzchar(arg_plot_code),
+    header_row = header_row
   )
 
   balance <- .prepare_balance_data(

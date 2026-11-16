@@ -26,6 +26,7 @@
     doc_title       = c("Collection balance", "Balan\u00e7o de coleta", "Balance de colecta", "Bilan de collecte", "\u91c7\u96c6\u5e73\u8861"),
     census          = c("census", "censo", "censo", "recensement", "\u666e\u67e5"),
     team            = c("Team", "Equipe", "Equipo", "\u00c9quipe", "\u56e2\u961f"),
+    date            = c("Date", "Data", "Fecha", "Date", "\u65e5\u671f"),
     subplots_of     = c("%d subplots of %s \u00d7 %s m", "%d subparcelas de %s \u00d7 %s m", "%d subparcelas de %s \u00d7 %s m", "%d sous-parcelles de %s \u00d7 %s m", "%d \u4e2a %s \u00d7 %s \u7c73\u5b50\u6837\u5730"),
     individuals     = c("Individuals", "Indiv\u00edduos", "Individuos", "Individus", "\u4e2a\u4f53"),
     in_subplots     = c("in %d subplots", "em %d subparcelas", "en %d subparcelas", "dans %d sous-parcelles", "\u5206\u5e03\u4e8e %d \u4e2a\u5b50\u6837\u5730"),
@@ -665,7 +666,8 @@
 #' Build the field report as one HTML string
 #'
 #' @param lay Layout from `.field_report_layout()`.
-#' @param meta List with `plot_name`, `plot_code`, `plot_census_no_fp`, `team`.
+#' @param meta List with `plot_name`, `plot_code`, `plot_census_no_fp`, `team`
+#'   and, optionally, `census_date` (a `Date`).
 #' @keywords internal
 #' @noRd
 .field_report_html <- function(lay, meta, language = "en", highlight_palms = TRUE,
@@ -702,6 +704,11 @@
   }
   team_txt <- if (.safe_nzchar(as.character(meta$team))) paste0('<p class="meta">', tr[["team"]], ": ", .fr_esc(meta$team), "</p>") else ""
   ver <- tryCatch(as.character(utils::packageVersion("forplotR")), error = function(e) "")
+  date_txt <- if (inherits(meta$census_date, "Date") && length(meta$census_date) == 1L && !is.na(meta$census_date)) {
+    paste0(" \u00b7 ", tr[["date"]], ": ", format(meta$census_date, "%d/%m/%Y"))
+  } else {
+    ""
+  }
 
   fns <- c(
     if (n_indet > 0) sprintf(tr[["fn_indet"]], n_indet),
@@ -725,7 +732,7 @@
     '<header class="doc-head">',
     sprintf('<p class="kicker">%s%s</p>', tr[["doc_title"]], census),
     sprintf('<h1>%s <span>%s</span></h1>', pn, pc),
-    sprintf('<p class="meta">%s%s</p>', size_txt, if (nzchar(ver)) paste0(" \u00b7 forplotR ", ver) else ""),
+    sprintf('<p class="meta">%s%s%s</p>', size_txt, date_txt, if (nzchar(ver)) paste0(" \u00b7 forplotR ", ver) else ""),
     team_txt, '</header>',
     '<dl class="kpi">',
     kpi(tr[["individuals"]], n_all, sprintf(tr[["in_subplots"]], sum(c$n > 0))),
