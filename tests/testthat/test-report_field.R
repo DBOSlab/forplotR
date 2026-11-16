@@ -197,6 +197,8 @@ test_that("forplot_balance puts the phytosociology section before the appendix a
   for (f in c("_family_plot.png", "_species_plot.png", "_dbh_classes.png")) {
     expect_true(file.exists(file.path(res$output_dir, paste0("rus", f))), info = f)
   }
+})
+
 test_that(".find_chrome honours the FORPLOTR_CHROME environment variable", {
   fake <- withr::local_tempfile(fileext = ".exe")
   writeLines("", fake)

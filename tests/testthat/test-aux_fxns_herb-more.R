@@ -447,3 +447,11 @@ test_that(".load_resource_once reports a failed occurrence load", {
   expect_false(res$ok)
   expect_identical(res$already_loaded, "A::b::c")
 })
+
+test_that(".parse_census_identity keeps going when some vouchers have no collector", {
+  out <- .parse_census_identity(c("D. Cardoso 100", "", "123"))
+  expect_s3_class(out, "data.frame")
+  expect_equal(nrow(out), 3L)
+  expect_false(anyNA(out$primary_key[1]))
+  expect_true(all(is.na(out$primary_key[2:3])))
+})
