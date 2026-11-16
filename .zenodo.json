@@ -29,5 +29,12 @@
       "relation": "isSupplementTo",
       "scheme": "url"
     }
+  ],
+  "contributors": [
+    {
+      "name": "Viana, Pedro Lage",
+      "type": "Supervisor",
+      "affiliation": "Instituto Nacional da Mata Atlântica (INMA)"
+    }
   ]
 }

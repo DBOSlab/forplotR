@@ -106,6 +106,13 @@ vignette("forplotR")
 Full documentation and articles are available on the [`forplotR`
 website](https://dboslab.github.io/forplotR-website/).
 
+## Authors
+
+`forplotR` is the product of the master's degree of Giulia C. Ottino at the
+Escola Nacional de Botânica Tropical (ENBT/JBRJ), advised by Domingos Cardoso
+(JBRJ) and co-advised by Pedro Lage Viana (Instituto Nacional da Mata
+Atlântica, INMA).
+
 ## Citation
 
 ``` r
