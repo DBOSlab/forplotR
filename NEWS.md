@@ -3,8 +3,11 @@
 - The field report in Panará (`language = "pa"`) is no longer all in
   Portuguese: its labels (title, team, date, individuals, families, with
   voucher, pending, palms, subplot, tag, DBH, species, checklist and others)
-  now come from the package's Panará dictionary. Explanatory sentences and
-  the labels the dictionary does not have stay in Portuguese.
+  now come from the package's Panará dictionary, as do the titles of the
+  figures and tables of the floristics section (reworded to what the
+  dictionary has: the IVI figures are titled "most common families" and "most
+  abundant species"). Explanatory sentences and the labels the dictionary
+  does not have stay in Portuguese.
 
 - `read_plot_header()` lists the columns of a field sheet from its detected
   header row, with the exact name each column has when the sheet is read
