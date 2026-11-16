@@ -21,15 +21,18 @@
   a helper column `"D"`), the first one in the sheet is used and the other is
   kept as `D_2`; a message says which is which.
 - The census date read from the sheet is shown in the field report.
-- The field report (HTML and PDF) has a header with official logos again.
-  `forplot_balance()` gains `logos`: logo names (`"forplotR"`, `"jbrj"`,
-  `"ci"`, `"iakio"`), presets and paths to your own image files, in the order
-  they should appear. The default is forplotR + JBRJ; the `"panara"` preset
-  adds Conservação Internacional and the Iakiô Panará association and is
-  used automatically for `input_type = "field_sheet_ti"` (pass
-  `logos = c("forplotR", "jbrj")` to keep only the two standard ones, or
-  `FALSE` for none). The logos are in `inst/logos/`, keep their proportions
-  and share one height in both formats.
+- The field report (HTML and PDF) has a header with official logos again, and
+  the map can show them too. `forplot_balance()` and `forplot_map()` gain
+  `logos`: logo names, presets and paths to your own image files, in the
+  order they should appear. Logos shipped in `inst/logos/`: `"forplotR"`,
+  `"jbrj"`, `"ci"` (Conservação Internacional), `"iakio"` (Associação Iakiô
+  Panará), `"monitora"` (Programa MONITORA) and `"forestplots"`
+  (ForestPlots.net). Presets: `"default"` (forplotR + JBRJ), `"panara"`
+  (plus CI and Iakiô), `"monitora"` and `"forestplots"` (the two standard
+  logos plus that partner). In the report the default is forplotR + JBRJ,
+  or `"panara"` for `input_type = "field_sheet_ti"`; in the map it is the
+  forplotR logo alone. `FALSE` shows none. Logos keep their proportions and
+  share one height.
 - `LICENSE.md` with the full text of the MIT licence.
 - `inst/extdata/panara_field_sheet_template.xlsx`: the blank field-sheet
   template of the Panará Indigenous Land (metadata labels and bilingual

@@ -24,7 +24,7 @@ svg{display:block;width:100%;height:auto}
 /* official logos on the cover: same height, own proportions, one baseline */
 .logos{display:flex;align-items:center;flex-wrap:wrap;gap:14px 26px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid var(--line)}
 .logos a{display:block;line-height:0}
-.logos img{display:block;height:72px;width:auto;max-width:180px;object-fit:contain}
+.logos img{display:block;height:72px;width:auto;max-width:200px;object-fit:contain}
 
 /* top bar */
 .bar{position:sticky;top:0;z-index:5;display:flex;gap:6px;align-items:center;padding:8px 12px;background:var(--acc);color:#fff}

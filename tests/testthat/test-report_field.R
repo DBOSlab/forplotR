@@ -295,3 +295,25 @@ test_that("the report cover carries the logos", {
   expect_false(grepl('<div class="logos">', none, fixed = TRUE))
   expect_error(forplot_balance("x.xlsx", logos = "nope"), "Unknown logo")
 })
+
+test_that("MONITORA and ForestPlots logos work as a preset or as a single logo", {
+  def <- .resolve_report_logos("default")
+  mon <- .resolve_report_logos("monitora")
+  expect_identical(nrow(mon), 3L)
+  expect_identical(mon[1:2, ], def)
+  expect_match(mon$alt[3], "MONITORA", fixed = TRUE)
+  fp <- .resolve_report_logos("ForestPlots")
+  expect_identical(fp$alt, c(def$alt, "ForestPlots.net"))
+
+  # in a list they are just that logo, in the order given
+  one <- .resolve_report_logos(c("forestplots", "forplotR"))
+  expect_identical(one$alt, c("ForestPlots.net", "forplotR"))
+  all6 <- .resolve_report_logos(c("forplotR", "jbrj", "ci", "iakio", "monitora", "forestplots"))
+  expect_identical(nrow(all6), 6L)
+  expect_true(all(startsWith(all6$src, "data:image/png;base64,")))
+  expect_true(all(nzchar(all6$url)))
+
+  # `auto` is what NULL stands for when the input type does not decide
+  expect_identical(.resolve_report_logos(NULL, "monitora", auto = "forplotR")$alt, "forplotR")
+  expect_identical(nrow(.resolve_report_logos(NULL, "field_sheet_ti", auto = "forplotR")), 4L)
+})

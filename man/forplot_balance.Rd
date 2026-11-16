@@ -109,16 +109,19 @@ session ends; supply a path to keep the outputs.}
 \item{filename}{Basename for generated output files, without extension.}
 
 \item{logos}{Logos shown at the top of the HTML and PDF report. A character
-vector that may mix logo names (\code{"forplotR"}, \code{"jbrj"},
-\code{"ci"}, \code{"iakio"}), presets and paths to your own image files
-(PNG, SVG or JPEG), in the order they should appear. Presets:
-\code{"default"} is forplotR + JBRJ; \code{"panara"} adds Conservação
-Internacional and the Iakiô Panará association. The default \code{NULL}
-uses \code{"default"}, or \code{"panara"} when
-\code{input_type = "field_sheet_ti"}; pass \code{c("forplotR", "jbrj")} to
-keep only the two standard logos there. \code{FALSE} or \code{"none"}
-leaves the report without logos. Logos keep their proportions and share
-one height.}
+vector that may mix logo names, presets and paths to your own image files
+(PNG, SVG or JPEG), in the order they should appear. Logos shipped with the
+package: \code{"forplotR"}, \code{"jbrj"} (Jardim Botânico do Rio de
+Janeiro), \code{"ci"} (Conservação Internacional), \code{"iakio"}
+(Associação Iakiô Panará), \code{"monitora"} (Programa MONITORA, ICMBio)
+and \code{"forestplots"} (ForestPlots.net). Presets: \code{"default"} is
+forplotR + JBRJ; \code{"panara"} adds CI and Iakiô; \code{"monitora"} and
+\code{"forestplots"}, given alone, add that partner logo to the two
+standard ones. The default \code{NULL} uses \code{"default"}, or
+\code{"panara"} when \code{input_type = "field_sheet_ti"}; pass
+\code{c("forplotR", "jbrj")} to keep only the two standard logos there.
+\code{FALSE} or \code{"none"} leaves the report without logos. Logos keep
+their proportions and share one height.}
 
 \item{header_row}{Row of the spreadsheet that holds the column names. The
 default \code{NULL} finds it automatically (see \code{\link[=detect_header_row]{detect_header_row()}}),

@@ -678,7 +678,11 @@
     ci = list(file = "ci.png", alt = "Conserva\u00e7\u00e3o Internacional Brasil (CI)",
               url = "https://brasil.conservation.org/"),
     iakio = list(file = "iakio.png", alt = "Associa\u00e7\u00e3o Iaki\u00f4 Panar\u00e1",
-                 url = "https://www.instagram.com/associacao.iakio/")
+                 url = "https://www.instagram.com/associacao.iakio/"),
+    monitora = list(file = "monitora.png", alt = "Programa MONITORA (ICMBio)",
+                    url = "https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora"),
+    forestplots = list(file = "forestplots.png", alt = "ForestPlots.net",
+                       url = "https://forestplots.net/")
   )
 }
 
@@ -689,7 +693,9 @@
 .report_logo_presets <- function() {
   list(
     default = c("forplotr", "jbrj"),
-    panara = c("forplotr", "jbrj", "ci", "iakio")
+    panara = c("forplotr", "jbrj", "ci", "iakio"),
+    monitora = c("forplotr", "jbrj", "monitora"),
+    forestplots = c("forplotr", "jbrj", "forestplots")
   )
 }
 
@@ -697,20 +703,24 @@
 #'
 #' @param logos `NULL` (automatic), `FALSE`/`"none"`/`character(0)` (no logos),
 #'   or a character vector mixing logo names (`"forplotR"`, `"jbrj"`, `"ci"`,
-#'   `"iakio"`), presets (`"default"`, `"panara"`) and paths to image files.
+#'   `"iakio"`, `"monitora"`, `"forestplots"`), presets (`"default"`,
+#'   `"panara"`, `"monitora"`, `"forestplots"`) and paths to image files.
 #' @param input_type Canonical input type; with `logos = NULL`, the Indigenous
 #'   Land field sheet gets the `"panara"` preset.
+#' @param auto What `logos = NULL` stands for when `input_type` does not decide
+#'   it (a preset or logo name).
 #' @return Data frame with `src` (data URI), `alt` and `url`; zero rows for none.
 #' @keywords internal
 #' @noRd
-.resolve_report_logos <- function(logos = NULL, input_type = "field_sheet") {
+.resolve_report_logos <- function(logos = NULL, input_type = "field_sheet",
+                                  auto = "default") {
   empty <- data.frame(src = character(), alt = character(), url = character(),
                       stringsAsFactors = FALSE)
   presets <- .report_logo_presets()
   catalog <- .report_logo_catalog()
 
   if (is.null(logos)) {
-    logos <- if (identical(input_type, "field_sheet_ti")) "panara" else "default"
+    logos <- if (identical(input_type, "field_sheet_ti")) "panara" else auto
   }
   if (isFALSE(logos)) return(empty)
   if (!is.character(logos) || anyNA(logos)) {
@@ -721,10 +731,13 @@
   logos <- logos[nzchar(logos)]
   if (!length(logos) || identical(tolower(logos), "none")) return(empty)
 
-  # presets expand in place; a logo named twice is shown once
+  # presets expand in place; a logo named twice is shown once. "monitora" and
+  # "forestplots" are both a logo and a preset: alone they are the preset (the
+  # partner logo next to forplotR and JBRJ), in a list they are just the logo.
   items <- unlist(lapply(logos, function(x) {
     key <- tolower(x)
-    if (key %in% names(presets)) presets[[key]] else x
+    is_preset <- key %in% names(presets) && (length(logos) == 1L || !(key %in% names(catalog)))
+    if (is_preset) presets[[key]] else x
   }), use.names = FALSE)
   items <- items[!duplicated(tolower(items))]
 
@@ -748,7 +761,7 @@
                         stringsAsFactors = FALSE))
     }
     stop("Unknown logo '", x, "'. Use one of: ",
-         paste(c("forplotR", "jbrj", "ci", "iakio"), collapse = ", "),
+         paste(c("forplotR", "jbrj", "ci", "iakio", "monitora", "forestplots"), collapse = ", "),
          "; a preset (", paste(names(presets), collapse = ", "),
          "); \"none\"; or the path to an image file.", call. = FALSE)
   })
