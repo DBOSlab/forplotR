@@ -1,5 +1,18 @@
 # forplotR (development version)
 
+- The field report of `forplot_balance()` ends with a floristic and
+  phytosociological overview: richness, density and basal area per hectare,
+  Shannon, Simpson and Pielou indices, the families and species with the
+  highest importance value (IVI, stacked by relative density, frequency and
+  dominance), stems per diameter class, and full tables of phytosociological
+  parameters for every family and species. The PNG charts use the same
+  palette, and the diameter classes are also saved
+  (`<filename>_dbh_classes.png`).
+- Phytosociological parameters now treat a name used in more than one family
+  (e.g. "Indet indet") as one taxon per family instead of merging them.
+- Pedro Lage Viana (Instituto Nacional da Mata Atlântica) added as thesis
+  co-advisor.
+
 - `forplot_balance()` writes a new field report: a single self-contained HTML
   file for use on a phone (offline) or printed, one A4 page per subplot. It
   has a summary of the collection balance with footnotes on how each number

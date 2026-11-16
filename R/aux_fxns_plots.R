@@ -2131,10 +2131,11 @@
       )
   }
 
+  # A taxon is a name within its family: "Indet indet" in Myrtaceae and in
+  # Rubiaceae are different taxa.
   species_stats <- df_clean %>%
-    dplyr::group_by(species = Species) %>%
+    dplyr::group_by(species = Species, family = Family) %>%
     dplyr::summarise(
-      family = dplyr::first(stats::na.omit(Family)),
       abundance = dplyr::n(),
       n_subplots = dplyr::n_distinct(T1),
       basal_area_m2 = sum(basal_area_m2),
@@ -2173,6 +2174,20 @@
   )
 }
 
+
+#' Display label of a taxon, unique within a table
+#'
+#' Names that occur in more than one family (typically "Indet indet") get the
+#' family in parentheses.
+#'
+#' @keywords internal
+#' @noRd
+.taxon_label <- function(name, family = NULL) {
+  name <- as.character(name)
+  if (is.null(family)) return(name)
+  dup <- name %in% name[duplicated(name)]
+  ifelse(dup, paste0(name, " (", family, ")"), name)
+}
 
 #' Prepare taxonomic dashboard tables and plots
 #'
@@ -2261,14 +2276,6 @@
     )
   )
 
-  family_counts <- df %>%
-    dplyr::count(Family, name = "count", sort = TRUE) %>%
-    dplyr::slice_head(n = 10)
-
-  species_counts <- df %>%
-    dplyr::count(Species, name = "count", sort = TRUE) %>%
-    dplyr::slice_head(n = 10)
-
   subplot_stats <- df %>%
     dplyr::group_by(subplot = as.character(T1)) %>%
     dplyr::summarise(
@@ -2289,44 +2296,59 @@
 
   subplot_stats$subplot <- factor(subplot_stats$subplot, levels = subplot_stats$subplot)
 
-  family_plot <- ggplot2::ggplot(
-    family_counts,
-    ggplot2::aes(x = stats::reorder(Family, count), y = count)
-  ) +
-    ggplot2::geom_col(fill = "#3d5941") +
-    ggplot2::coord_flip() +
-    ggplot2::theme_bw() +
-    ggplot2::labs(
-      title = lab$family_plot,
-      x = NULL,
-      y = lab$x_ind
+  # IVI charts (PNG exports): stacked relative density, frequency and
+  # dominance, same validated palette as the HTML report.
+  ivi_cols <- c("#2f7d4f", "#2f6db3", "#b5730f")
+  .ivi_plot <- function(m, name_col, n, title, italic = FALSE) {
+    m <- as.data.frame(m)
+    if (!nrow(m)) {
+      return(ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::labs(title = title))
+    }
+    lbl <- .taxon_label(m[[name_col]], if (name_col == "species") m$family else NULL)
+    m$label <- lbl
+    m <- utils::head(m[order(-m$importance_value), , drop = FALSE], n)
+    m$taxon <- factor(m$label, levels = rev(m$label))
+    long <- data.frame(
+      taxon = rep(m$taxon, 3),
+      component = factor(rep(c("RD", "RF", "RDo"), each = nrow(m)), levels = c("RDo", "RF", "RD")),
+      value = c(m$relative_density, m$relative_frequency,
+                ifelse(is.finite(m$relative_dominance), m$relative_dominance, 0))
     )
-
-  species_plot <- ggplot2::ggplot(
-    species_counts,
-    ggplot2::aes(x = stats::reorder(Species, count), y = count)
-  ) +
-    ggplot2::geom_col(fill = "darkolivegreen") +
-    ggplot2::coord_flip() +
-    ggplot2::theme_bw() +
-    ggplot2::labs(
-      title = lab$species_plot,
-      x = NULL,
-      y = lab$x_ind
-    )
+    ggplot2::ggplot(long, ggplot2::aes(x = value, y = taxon, fill = component)) +
+      ggplot2::geom_col(width = 0.66, colour = "white", linewidth = 0.4) +
+      ggplot2::scale_fill_manual(values = stats::setNames(rev(ivi_cols), c("RDo", "RF", "RD")),
+                                 breaks = c("RD", "RF", "RDo"), name = NULL) +
+      ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.04))) +
+      ggplot2::labs(title = title, x = "IVI", y = NULL) +
+      ggplot2::theme_minimal(base_size = 13) +
+      ggplot2::theme(
+        panel.grid.major.y = ggplot2::element_blank(),
+        panel.grid.minor = ggplot2::element_blank(),
+        panel.grid.major.x = ggplot2::element_line(colour = "#E6E1D6", linewidth = 0.4),
+        axis.line.y = ggplot2::element_line(colour = "#1b1b1b", linewidth = 0.4),
+        axis.text.y = ggplot2::element_text(colour = "#1b1b1b", face = if (italic) "italic" else "plain"),
+        plot.title = ggplot2::element_text(face = "bold"),
+        plot.title.position = "plot",
+        legend.position = "top", legend.justification = "left"
+      )
+  }
+  ttl <- sub("^[^.]+[.][[:space:]]*", "", .field_report_strings(language)[c("fig_fam", "fig_spp", "fig_dbh")])
+  family_plot <- .ivi_plot(phytosoc$family_metrics, "family", 10, ttl[[1]])
+  species_plot <- .ivi_plot(phytosoc$species_metrics, "species", 15, ttl[[2]], italic = TRUE)
 
   subplot_plot <- ggplot2::ggplot(
     subplot_stats,
     ggplot2::aes(x = subplot, y = pct)
   ) +
-    ggplot2::geom_col(fill = "olivedrab4") +
-    ggplot2::theme_bw() +
+    ggplot2::geom_col(fill = "#2f7d4f") +
+    ggplot2::theme_minimal() +
     ggplot2::labs(
       title = lab$subplot_plot,
       x = lab$subplot,
       y = lab$x_pct
     ) +
     ggplot2::theme(
+      panel.grid.minor = ggplot2::element_blank(),
       axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1)
     )
 
@@ -2380,13 +2402,18 @@
       dbh_df,
       ggplot2::aes(x = dbh_class, y = count)
     ) +
-      ggplot2::geom_col(fill = "#543005") +
-      ggplot2::theme_bw() +
+      ggplot2::geom_col(fill = "#2f7d4f", width = 0.74) +
+      ggplot2::theme_minimal(base_size = 13) +
       ggplot2::labs(
+        title = ttl[[3]],
         x = lab$dbh_x,
         y = lab$dbh_y
       ) +
       ggplot2::theme(
+        panel.grid.major.x = ggplot2::element_blank(),
+        panel.grid.minor = ggplot2::element_blank(),
+        plot.title = ggplot2::element_text(face = "bold"),
+        plot.title.position = "plot",
         axis.text.x = ggplot2::element_text(
           angle = 90,
           vjust = 0.5,

@@ -120,6 +120,60 @@
                         "Los brazos se dibujan m\u00e1s cerca del centro que en el campo; dentro de cada brazo las distancias est\u00e1n a escala.",
                         "Les bras sont dessin\u00e9s plus pr\u00e8s du centre que sur le terrain ; \u00e0 l'int\u00e9rieur de chaque bras, les distances sont \u00e0 l'\u00e9chelle.",
                         "\u5404\u81c2\u7ed8\u5236\u5f97\u6bd4\u5b9e\u5730\u66f4\u9760\u8fd1\u4e2d\u5fc3\uff1b\u6bcf\u4e2a\u81c2\u5185\u7684\u8ddd\u79bb\u6309\u6bd4\u4f8b\u7ed8\u5236\u3002"),
+    phyto_title     = c("Floristic and phytosociological overview", "Flor\u00edstica e fitossociologia", "Flor\u00edstica y fitosociolog\u00eda", "Floristique et phytosociologie", "\u690d\u7269\u533a\u7cfb\u4e0e\u690d\u7269\u7fa4\u843d\u5b66\u6982\u51b5"),
+    phyto_short     = c("Floristics", "Flor\u00edstica", "Flor\u00edstica", "Floristique", "\u690d\u7269\u533a\u7cfb"),
+    phyto_lede      = c("Parameters computed from all stems of the census (Mueller-Dombois & Ellenberg 1974). The sampling unit for frequency is the subplot.",
+                        "Par\u00e2metros calculados com todos os fustes do censo (Mueller-Dombois & Ellenberg 1974). A unidade amostral da frequ\u00eancia \u00e9 a subparcela.",
+                        "Par\u00e1metros calculados con todos los fustes del censo (Mueller-Dombois & Ellenberg 1974). La unidad de muestreo de la frecuencia es la subparcela.",
+                        "Param\u00e8tres calcul\u00e9s sur toutes les tiges du recensement (Mueller-Dombois & Ellenberg 1974). L'unit\u00e9 d'\u00e9chantillonnage de la fr\u00e9quence est la sous-parcelle.",
+                        "\u53c2\u6570\u57fa\u4e8e\u672c\u6b21\u666e\u67e5\u7684\u5168\u90e8\u830e\u5e72\u8ba1\u7b97\uff08Mueller-Dombois & Ellenberg 1974\uff09\u3002\u9891\u5ea6\u7684\u62bd\u6837\u5355\u5143\u4e3a\u5b50\u6837\u5730\u3002"),
+    k_species       = c("Species", "Esp\u00e9cies", "Especies", "Esp\u00e8ces", "\u7269\u79cd"),
+    k_genera        = c("Genera", "G\u00eaneros", "G\u00e9neros", "Genres", "\u5c5e"),
+    k_density       = c("Density", "Densidade", "Densidad", "Densit\u00e9", "\u5bc6\u5ea6"),
+    u_density       = c("stems/ha", "fustes/ha", "fustes/ha", "tiges/ha", "\u830e\u5e72/\u516c\u9877"),
+    k_ba            = c("Basal area", "\u00c1rea basal", "\u00c1rea basal", "Surface terri\u00e8re", "\u80f8\u9ad8\u65ad\u9762\u79ef"),
+    u_ba            = c("m\u00b2/ha", "m\u00b2/ha", "m\u00b2/ha", "m\u00b2/ha", "\u5e73\u65b9\u7c73/\u516c\u9877"),
+    k_taxa_ctx      = c("names as determined", "nomes como determinados", "nombres como determinados", "noms tels que d\u00e9termin\u00e9s", "\u6309\u9274\u5b9a\u540d\u79f0"),
+    k_div_ctx       = c("diversity", "diversidade", "diversidad", "diversit\u00e9", "\u591a\u6837\u6027"),
+    k_even_ctx      = c("evenness", "equabilidade", "equitatividad", "\u00e9quitabilit\u00e9", "\u5747\u5300\u5ea6"),
+    fn_taxa         = c("S counts the names as written in the determination column; each name with \u201cindet\u201d counts as one taxon.",
+                        "S conta os nomes como est\u00e3o na coluna de determina\u00e7\u00e3o; cada nome com \u201cindet\u201d conta como um t\u00e1xon.",
+                        "S cuenta los nombres tal como est\u00e1n en la columna de determinaci\u00f3n; cada nombre con \u201cindet\u201d cuenta como un tax\u00f3n.",
+                        "S compte les noms tels qu'\u00e9crits dans la colonne de d\u00e9termination ; chaque nom avec \u00ab indet \u00bb compte comme un taxon.",
+                        "S \u6309\u9274\u5b9a\u5217\u4e2d\u7684\u540d\u79f0\u8ba1\u6570\uff1b\u6bcf\u4e2a\u542b\u201cindet\u201d\u7684\u540d\u79f0\u8ba1\u4e3a\u4e00\u4e2a\u5206\u7c7b\u5355\u5143\u3002"),
+    fn_area         = c("Density and basal area per hectare use %s ha sampled; basal area is computed from the diameter of each stem.",
+                        "Densidade e \u00e1rea basal por hectare usam %s ha amostrados; a \u00e1rea basal \u00e9 calculada com o di\u00e2metro de cada fuste.",
+                        "La densidad y el \u00e1rea basal por hect\u00e1rea usan %s ha muestreadas; el \u00e1rea basal se calcula con el di\u00e1metro de cada fuste.",
+                        "La densit\u00e9 et la surface terri\u00e8re par hectare utilisent %s ha \u00e9chantillonn\u00e9s ; la surface terri\u00e8re est calcul\u00e9e \u00e0 partir du diam\u00e8tre de chaque tige.",
+                        "\u6bcf\u516c\u9877\u5bc6\u5ea6\u548c\u80f8\u9ad8\u65ad\u9762\u79ef\u57fa\u4e8e %s \u516c\u9877\u6837\u5730\u9762\u79ef\uff1b\u80f8\u9ad8\u65ad\u9762\u79ef\u7531\u6bcf\u4e2a\u830e\u5e72\u7684\u76f4\u5f84\u8ba1\u7b97\u3002"),
+    fn_div          = c("H\u2032 = \u2212\u03a3 p\u1d62 ln p\u1d62; 1 \u2212 D = 1 \u2212 \u03a3 p\u1d62\u00b2; J\u2032 = H\u2032 / ln S, where p\u1d62 is the proportion of stems of taxon i.",
+                        "H\u2032 = \u2212\u03a3 p\u1d62 ln p\u1d62; 1 \u2212 D = 1 \u2212 \u03a3 p\u1d62\u00b2; J\u2032 = H\u2032 / ln S, em que p\u1d62 \u00e9 a propor\u00e7\u00e3o de fustes do t\u00e1xon i.",
+                        "H\u2032 = \u2212\u03a3 p\u1d62 ln p\u1d62; 1 \u2212 D = 1 \u2212 \u03a3 p\u1d62\u00b2; J\u2032 = H\u2032 / ln S, donde p\u1d62 es la proporci\u00f3n de fustes del tax\u00f3n i.",
+                        "H\u2032 = \u2212\u03a3 p\u1d62 ln p\u1d62 ; 1 \u2212 D = 1 \u2212 \u03a3 p\u1d62\u00b2 ; J\u2032 = H\u2032 / ln S, o\u00f9 p\u1d62 est la proportion de tiges du taxon i.",
+                        "H\u2032 = \u2212\u03a3 p\u1d62 ln p\u1d62\uff1b1 \u2212 D = 1 \u2212 \u03a3 p\u1d62\u00b2\uff1bJ\u2032 = H\u2032 / ln S\uff0c\u5176\u4e2d p\u1d62 \u4e3a\u5206\u7c7b\u5355\u5143 i \u7684\u830e\u5e72\u6bd4\u4f8b\u3002"),
+    fn_ivi          = c("RD relative density, RF relative frequency, RDo relative dominance (basal area), AF absolute frequency (% of subplots); IVI = RD + RF + RDo, summing to 300 over all taxa.",
+                        "DR densidade relativa, FR frequ\u00eancia relativa, DoR domin\u00e2ncia relativa (\u00e1rea basal), FA frequ\u00eancia absoluta (% das subparcelas); IVI = DR + FR + DoR, que soma 300 no conjunto dos t\u00e1xons.",
+                        "DR densidad relativa, FR frecuencia relativa, DoR dominancia relativa (\u00e1rea basal), FA frecuencia absoluta (% de las subparcelas); IVI = DR + FR + DoR, que suma 300 en el conjunto de los taxones.",
+                        "DR densit\u00e9 relative, FR fr\u00e9quence relative, DoR dominance relative (surface terri\u00e8re), FA fr\u00e9quence absolue (% des sous-parcelles) ; IVI = DR + FR + DoR, dont la somme vaut 300 sur l'ensemble des taxons.",
+                        "RD \u76f8\u5bf9\u5bc6\u5ea6\uff0cRF \u76f8\u5bf9\u9891\u5ea6\uff0cRDo \u76f8\u5bf9\u663e\u8457\u5ea6\uff08\u80f8\u9ad8\u65ad\u9762\u79ef\uff09\uff0cAF \u7edd\u5bf9\u9891\u5ea6\uff08\u5b50\u6837\u5730\u767e\u5206\u6bd4\uff09\uff1bIVI = RD + RF + RDo\uff0c\u5168\u90e8\u5206\u7c7b\u5355\u5143\u4e4b\u548c\u4e3a 300\u3002"),
+    ab_rd           = c("RD", "DR", "DR", "DR", "RD"),
+    ab_rf           = c("RF", "FR", "FR", "FR", "RF"),
+    ab_rdo          = c("RDo", "DoR", "DoR", "DoR", "RDo"),
+    ab_af           = c("AF", "FA", "FA", "FA", "AF"),
+    ab_ba           = c("BA", "AB", "AB", "ST", "BA"),
+    comp_rd         = c("relative density", "densidade relativa", "densidad relativa", "densit\u00e9 relative", "\u76f8\u5bf9\u5bc6\u5ea6"),
+    comp_rf         = c("relative frequency", "frequ\u00eancia relativa", "frecuencia relativa", "fr\u00e9quence relative", "\u76f8\u5bf9\u9891\u5ea6"),
+    comp_rdo        = c("relative dominance", "domin\u00e2ncia relativa", "dominancia relativa", "dominance relative", "\u76f8\u5bf9\u663e\u8457\u5ea6"),
+    fig_fam         = c("Figure 1. Families with the highest importance value (IVI)", "Figura 1. Fam\u00edlias com maior valor de import\u00e2ncia (IVI)", "Figura 1. Familias con mayor valor de importancia (IVI)", "Figure 1. Familles \u00e0 plus forte valeur d'importance (IVI)", "\u56fe 1. \u91cd\u8981\u503c\uff08IVI\uff09\u6700\u9ad8\u7684\u79d1"),
+    fig_spp         = c("Figure 2. Species with the highest importance value (IVI)", "Figura 2. Esp\u00e9cies com maior valor de import\u00e2ncia (IVI)", "Figura 2. Especies con mayor valor de importancia (IVI)", "Figure 2. Esp\u00e8ces \u00e0 plus forte valeur d'importance (IVI)", "\u56fe 2. \u91cd\u8981\u503c\uff08IVI\uff09\u6700\u9ad8\u7684\u7269\u79cd"),
+    fig_dbh         = c("Figure 3. Stems per diameter class", "Figura 3. Fustes por classe de di\u00e2metro", "Figura 3. Fustes por clase diam\u00e9trica", "Figure 3. Tiges par classe de diam\u00e8tre", "\u56fe 3. \u5404\u5f84\u7ea7\u830e\u5e72\u6570"),
+    dbh_axis        = c("DBH class (cm)", "Classe de DAP (cm)", "Clase de DAP (cm)", "Classe de DHP (cm)", "\u80f8\u5f84\u7ea7\uff08\u5398\u7c73\uff09"),
+    top_note        = c("First %d by IVI; every taxon is in the tables below.", "Os %d primeiros por IVI; todos os t\u00e1xons est\u00e3o nas tabelas abaixo.", "Los %d primeros por IVI; todos los taxones est\u00e1n en las tablas siguientes.", "Les %d premiers par IVI ; tous les taxons figurent dans les tableaux ci-dessous.", "\u6309 IVI \u6392\u540d\u524d %d\uff1b\u5168\u90e8\u5206\u7c7b\u5355\u5143\u89c1\u4e0b\u8868\u3002"),
+    tab_fam         = c("Table 1. Phytosociological parameters of the families, by IVI", "Tabela 1. Par\u00e2metros fitossociol\u00f3gicos das fam\u00edlias, por IVI", "Tabla 1. Par\u00e1metros fitosociol\u00f3gicos de las familias, por IVI", "Tableau 1. Param\u00e8tres phytosociologiques des familles, par IVI", "\u8868 1. \u5404\u79d1\u7684\u690d\u7269\u7fa4\u843d\u5b66\u53c2\u6570\uff08\u6309 IVI \u6392\u5e8f\uff09"),
+    tab_spp         = c("Table 2. Phytosociological parameters of the species, by IVI", "Tabela 2. Par\u00e2metros fitossociol\u00f3gicos das esp\u00e9cies, por IVI", "Tabla 2. Par\u00e1metros fitosociol\u00f3gicos de las especies, por IVI", "Tableau 2. Param\u00e8tres phytosociologiques des esp\u00e8ces, par IVI", "\u8868 2. \u5404\u7269\u79cd\u7684\u690d\u7269\u7fa4\u843d\u5b66\u53c2\u6570\uff08\u6309 IVI \u6392\u5e8f\uff09"),
+    col_spp         = c("Spp.", "Spp.", "Spp.", "Esp.", "\u79cd\u6570"),
+    col_sub         = c("Subpl.", "Subp.", "Subp.", "S.-p.", "\u5b50\u6837\u5730"),
+    no_dbh          = c("No valid diameters: relative dominance and basal area are not available, so IVI = RD + RF.", "Sem di\u00e2metros v\u00e1lidos: domin\u00e2ncia relativa e \u00e1rea basal indispon\u00edveis, ent\u00e3o IVI = DR + FR.", "Sin di\u00e1metros v\u00e1lidos: dominancia relativa y \u00e1rea basal no disponibles, por lo que IVI = DR + FR.", "Pas de diam\u00e8tres valides : dominance relative et surface terri\u00e8re indisponibles, donc IVI = DR + FR.", "\u65e0\u6709\u6548\u80f8\u5f84\uff1a\u76f8\u5bf9\u663e\u8457\u5ea6\u548c\u80f8\u9ad8\u65ad\u9762\u79ef\u4e0d\u53ef\u7528\uff0c\u56e0\u6b64 IVI = RD + RF\u3002"),
     print_pdf       = c("Print or save as PDF", "Imprimir ou salvar em PDF", "Imprimir o guardar como PDF", "Imprimer ou enregistrer en PDF", "\u6253\u5370\u6216\u4fdd\u5b58\u4e3a PDF")
   )
   langs <- c("en", "pt", "es", "fr", "ma")
@@ -425,6 +479,187 @@
 }
 
 
+# Floristics and phytosociology ------------------------------------------------
+#
+# Charts are inline SVG with a validated three-colour palette for the IVI
+# components (relative density, relative frequency, relative dominance; it
+# passes colour-vision-deficiency checks and is reinforced by gaps between
+# segments, a legend, tooltips and the full tables). Every figure has its
+# table: Table 1 (families) and Table 2 (species).
+
+.fr_nice_step <- function(maxv, target = 5) {
+  if (!is.finite(maxv) || maxv <= 0) return(1)
+  raw <- maxv / target
+  mag <- 10^floor(log10(raw))
+  for (m in c(1, 2, 2.5, 5, 10)) if (m * mag >= raw) return(m * mag)
+  10 * mag
+}
+
+.fr_trunc <- function(x, n = 30) {
+  x <- as.character(x)
+  ifelse(nchar(x) > n, paste0(substr(x, 1, n - 1), "\u2026"), x)
+}
+
+# Horizontal stacked bars of the IVI components for the first `n` taxa.
+.fr_ivi_svg <- function(df, name_col, tr, n = 10, italic = FALSE, aria = "") {
+  df <- as.data.frame(df)
+  if (!nrow(df)) return("")
+  df[[name_col]] <- .taxon_label(df[[name_col]], if (name_col == "species") df$family else NULL)
+  df <- utils::head(df[order(-df$importance_value), , drop = FALSE], n)
+  comp <- cbind(df$relative_density, df$relative_frequency, df$relative_dominance)
+  comp[!is.finite(comp)] <- 0
+  tot <- rowSums(comp)
+  W <- 680; lw <- 200; rw <- 48; top <- 6; bh <- 15; gap <- 9
+  H <- top + nrow(df) * (bh + gap) + 22
+  step <- .fr_nice_step(max(tot))
+  vmax <- max(step, ceiling(max(tot) / step) * step)
+  k <- (W - lw - rw) / vmax
+  ticks <- seq(0, vmax, by = step)
+  base_y <- H - 20
+  grid <- paste(sprintf('<line class="gl" x1="%.1f" y1="%d" x2="%.1f" y2="%.1f"/><text class="ax" x="%.1f" y="%.1f">%s</text>',
+                        lw + ticks * k, top, lw + ticks * k, base_y, lw + ticks * k, base_y + 14,
+                        format(ticks, trim = TRUE)), collapse = "")
+  lab <- c(tr[["ab_rd"]], tr[["ab_rf"]], tr[["ab_rdo"]])
+  rows <- vapply(seq_len(nrow(df)), function(i) {
+    y <- top + (i - 1) * (bh + gap)
+    nm <- as.character(df[[name_col]][i])
+    x0 <- lw
+    segs <- ""
+    for (j in 1:3) {
+      w <- comp[i, j] * k
+      if (w <= 0) next
+      segs <- paste0(segs, sprintf('<rect class="s%d" x="%.1f" y="%d" width="%.1f" height="%d"><title>%s \u00b7 %s %s</title></rect>',
+                                   j, x0, y, w, bh, .fr_esc(nm), lab[j], formatC(comp[i, j], format = "f", digits = 1)))
+      x0 <- x0 + w
+    }
+    sprintf('<g><text class="nm%s" x="%d" y="%.1f">%s<title>%s</title></text>%s<text class="vl" x="%.1f" y="%.1f">%s</text></g>',
+            if (italic) " it" else "", lw - 8, y + bh * 0.75, .fr_esc(.fr_trunc(nm)), .fr_esc(nm), segs,
+            lw + tot[i] * k + 6, y + bh * 0.75, formatC(tot[i], format = "f", digits = 1))
+  }, character(1))
+  sprintf('<svg class="chart ivi" viewBox="0 0 %d %d" role="img" aria-label="%s">%s%s<line class="bl" x1="%d" y1="%d" x2="%d" y2="%.1f"/></svg>',
+          W, H, .fr_esc(aria), grid, paste(rows, collapse = ""), lw, top - 2, lw, base_y)
+}
+
+# Diameter classes (cm) with an adaptive class width.
+.fr_dbh_classes <- function(dbh_cm) {
+  d <- dbh_cm[is.finite(dbh_cm) & dbh_cm > 0]
+  if (!length(d)) return(NULL)
+  rng <- ceiling(max(d)) - floor(min(d))
+  w <- if (rng <= 100) 10 else if (rng <= 200) 20 else if (rng <= 400) 25 else 50
+  b0 <- floor(min(d) / w) * w
+  breaks <- seq(b0, ceiling(max(d) / w) * w + w, by = w)
+  cls <- cut(d, breaks = breaks, right = FALSE, include.lowest = TRUE)
+  n <- as.integer(table(cls))
+  keep <- seq_len(max(which(n > 0)))
+  data.frame(lo = breaks[keep], hi = breaks[keep + 1], n = n[keep])
+}
+
+.fr_dbh_svg <- function(dbh_cm, tr) {
+  cl <- .fr_dbh_classes(dbh_cm)
+  if (is.null(cl)) return("")
+  W <- 680; H <- 250; l <- 48; r <- 12; t <- 10; b <- 44
+  slot <- (W - l - r) / nrow(cl)
+  step <- .fr_nice_step(max(cl$n))
+  vmax <- max(step, ceiling(max(cl$n) / step) * step)
+  k <- (H - t - b) / vmax
+  ticks <- seq(0, vmax, by = step)
+  grid <- paste(sprintf('<line class="gl" x1="%d" y1="%.1f" x2="%d" y2="%.1f"/><text class="ax end" x="%d" y="%.1f">%s</text>',
+                        l, H - b - ticks * k, W - r, H - b - ticks * k, l - 6, H - b - ticks * k + 3, format(ticks, trim = TRUE)), collapse = "")
+  bw <- slot * 0.74
+  fs <- if (nrow(cl) > 14) 8.5 else 10
+  bars <- paste(sprintf('<rect class="s1" x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="2"><title>%s\u2013%s cm \u00b7 %d %s</title></rect><text class="ax" x="%.1f" y="%d" style="font-size:%.1fpx">%s\u2013%s</text>',
+                        l + (seq_len(nrow(cl)) - 1) * slot + (slot - bw) / 2, H - b - cl$n * k, bw, pmax(cl$n * k, 0),
+                        cl$lo, cl$hi, cl$n, tr[["stems"]],
+                        l + (seq_len(nrow(cl)) - 0.5) * slot, H - b + 14, fs, cl$lo, cl$hi), collapse = "")
+  sprintf('<svg class="chart dbh" viewBox="0 0 %d %d" role="img" aria-label="%s">%s%s<line class="bl" x1="%d" y1="%d" x2="%d" y2="%d"/><text class="ax" x="%.1f" y="%d">%s</text><text class="ax" transform="translate(12 %.1f) rotate(-90)">%s</text></svg>',
+          W, H, .fr_esc(tr[["fig_dbh"]]), grid, bars, l, H - b, W - r, H - b,
+          l + (W - l - r) / 2, H - 6, tr[["dbh_axis"]], t + (H - t - b) / 2, tr[["stems"]])
+}
+
+.fr_num_cell <- function(x, digits = 1) {
+  ifelse(is.finite(x), formatC(x, format = "f", digits = digits, big.mark = ","), "\u2013")
+}
+
+#' Floristic and phytosociological section of the field report
+#'
+#' @param phyto Result of `.calculate_phytosociological_metrics()`.
+#' @param dbh_cm Diameters (cm) of the stems in the report.
+#' @param area_ha Sampled area in hectares (for density and basal area).
+#' @keywords internal
+#' @noRd
+.fr_phyto_html <- function(phyto, dbh_cm, area_ha, tr, n_fig_fam = 10, n_fig_spp = 15) {
+  sp <- as.data.frame(phyto$species_metrics)
+  fa <- as.data.frame(phyto$family_metrics)
+  if (!nrow(sp)) return("")
+  dv <- phyto$diversity_metrics
+  has_ba <- any(is.finite(sp$relative_dominance))
+
+  S <- nrow(sp)
+  gen <- sub(" .*", "", sp$species)
+  n_gen <- length(unique(gen[!grepl("^indet$", gen, ignore.case = TRUE)]))
+  n_fam <- length(unique(fa$family[fa$family != "Indet"]))
+  N <- sum(sp$abundance)
+  ba_tot <- sum(sp$basal_area_m2, na.rm = TRUE)
+  pielou <- if (S > 1) dv$shannon_index / log(S) else NA_real_
+  area_ok <- !is.null(area_ha) && is.finite(area_ha) && area_ha > 0
+
+  kpi <- function(label, value, ctx = "") sprintf(
+    '<div class="kpi-i"><dt><span>%s</span></dt><dd><span class="v">%s</span><span class="c">%s</span></dd></div>', label, value, ctx)
+  strip <- paste0(
+    '<dl class="kpi k4">',
+    kpi(paste0(tr[["k_species"]], " (S)"), S, paste0(tr[["k_taxa_ctx"]], "<sup>1</sup>")),
+    kpi(tr[["k_genera"]], n_gen, tr[["identified"]]),
+    kpi(tr[["families"]], n_fam, tr[["identified"]]),
+    kpi(tr[["k_density"]], if (area_ok) .fr_num_cell(N / area_ha, 0) else "\u2013", paste0(tr[["u_density"]], "<sup>2</sup>")),
+    kpi(tr[["k_ba"]], if (area_ok && has_ba) .fr_num_cell(ba_tot / area_ha, 2) else "\u2013", paste0(tr[["u_ba"]], "<sup>2</sup>")),
+    kpi("Shannon H\u2032", .fr_num_cell(dv$shannon_index, 2), paste0(tr[["k_div_ctx"]], "<sup>3</sup>")),
+    kpi("Simpson 1 \u2212 D", .fr_num_cell(dv$simpson_index, 3), paste0(tr[["k_div_ctx"]], "<sup>3</sup>")),
+    kpi("Pielou J\u2032", .fr_num_cell(pielou, 2), paste0(tr[["k_even_ctx"]], "<sup>3</sup>")),
+    '</dl>')
+  fns <- c(tr[["fn_taxa"]],
+           if (area_ok) sprintf(tr[["fn_area"]], format(round(area_ha, 4), trim = TRUE, drop0trailing = TRUE)) else tr[["fn_area"]],
+           tr[["fn_div"]], tr[["fn_ivi"]], if (!has_ba) tr[["no_dbh"]])
+  fns[2] <- sub("%s", "\u2013", fns[2], fixed = TRUE)
+
+  legend <- paste0('<p class="leg"><i class="k-s1"></i>', tr[["ab_rd"]], " ", tr[["comp_rd"]],
+                   ' <i class="k-s2"></i>', tr[["ab_rf"]], " ", tr[["comp_rf"]],
+                   if (has_ba) paste0(' <i class="k-s3"></i>', tr[["ab_rdo"]], " ", tr[["comp_rdo"]]) else "", '</p>')
+  fig <- function(cap, svg, note) paste0('<figure class="fig"><figcaption>', cap, '</figcaption>', legend, svg,
+                                         '<p class="note">', note, '</p></figure>')
+
+  th_num <- function(x, title) sprintf('<th class="r" title="%s">%s</th>', .fr_esc(title), x)
+  fam_rows <- paste(sprintf('<tr><td>%s</td><td class="r">%d</td><td class="r">%d</td><td class="r">%d</td><td class="r">%s</td><td class="r">%s</td><td class="r">%s</td><td class="r b">%s</td></tr>',
+                            .fr_esc(fa$family), as.integer(fa$abundance), as.integer(fa$n_species), as.integer(fa$n_subplots),
+                            .fr_num_cell(fa$relative_density, 2), .fr_num_cell(fa$relative_frequency, 2),
+                            .fr_num_cell(fa$relative_dominance, 2), .fr_num_cell(fa$importance_value, 2)), collapse = "")
+  fam_tbl <- paste0('<table class="tbl phy"><caption>', tr[["tab_fam"]], '</caption><thead><tr><th>', tr[["family"]], '</th>',
+                    th_num("N", tr[["n_stems"]]), th_num(tr[["col_spp"]], tr[["k_species"]]), th_num(tr[["col_sub"]], tr[["subplot"]]),
+                    th_num(tr[["ab_rd"]], tr[["comp_rd"]]), th_num(tr[["ab_rf"]], tr[["comp_rf"]]), th_num(tr[["ab_rdo"]], tr[["comp_rdo"]]),
+                    th_num("IVI", "IVI"), '</tr></thead><tbody>', fam_rows, '</tbody></table>')
+  sp_rows <- paste(sprintf('<tr><td><i>%s</i></td><td>%s</td><td class="r">%d</td><td class="r">%d</td><td class="r">%s</td><td class="r">%s</td><td class="r">%s</td><td class="r">%s</td><td class="r">%s</td><td class="r b">%s</td></tr>',
+                           .fr_esc(sp$species), .fr_esc(sp$family), as.integer(sp$abundance), as.integer(sp$n_subplots),
+                           .fr_num_cell(sp$absolute_frequency, 1), .fr_num_cell(sp$relative_density, 2), .fr_num_cell(sp$relative_frequency, 2),
+                           .fr_num_cell(sp$relative_dominance, 2), .fr_num_cell(sp$basal_area_m2, 3), .fr_num_cell(sp$importance_value, 2)), collapse = "")
+  sp_tbl <- paste0('<table class="tbl phy"><caption>', tr[["tab_spp"]], '</caption><thead><tr><th>', tr[["species"]], '</th><th>', tr[["family"]], '</th>',
+                   th_num("N", tr[["n_stems"]]), th_num(tr[["col_sub"]], tr[["subplot"]]), th_num(paste0(tr[["ab_af"]], " %"), tr[["ab_af"]]),
+                   th_num(tr[["ab_rd"]], tr[["comp_rd"]]), th_num(tr[["ab_rf"]], tr[["comp_rf"]]), th_num(tr[["ab_rdo"]], tr[["comp_rdo"]]),
+                   th_num(paste0(tr[["ab_ba"]], " (m\u00b2)"), tr[["k_ba"]]), th_num("IVI", "IVI"), '</tr></thead><tbody>', sp_rows, '</tbody></table>')
+
+  nf <- min(n_fig_fam, nrow(fa)); ns <- min(n_fig_spp, nrow(sp))
+  dbh_svg <- .fr_dbh_svg(dbh_cm, tr)
+  paste0(
+    '<section class="page phyto" id="phyto"><h2>', tr[["phyto_title"]], '</h2><p class="lede">', tr[["phyto_lede"]], '</p>',
+    strip, '<ol class="fn">', paste(sprintf("<li>%s</li>", fns), collapse = ""), '</ol>',
+    fig(tr[["fig_fam"]], .fr_ivi_svg(fa, "family", tr, nf, FALSE, tr[["fig_fam"]]), sprintf(tr[["top_note"]], nf)),
+    '</section>',
+    '<section class="page phyto" id="phyto-2">',
+    fig(tr[["fig_spp"]], .fr_ivi_svg(sp, "species", tr, ns, TRUE, tr[["fig_spp"]]), sprintf(tr[["top_note"]], ns)),
+    if (nzchar(dbh_svg)) paste0('<figure class="fig"><figcaption>', tr[["fig_dbh"]], '</figcaption>', dbh_svg, '</figure>') else "",
+    '</section>',
+    '<section class="page phyto" id="phyto-tables">', fam_tbl, sp_tbl, '</section>')
+}
+
+
 # HTML -------------------------------------------------------------------------
 
 #' Build the field report as one HTML string
@@ -434,7 +669,7 @@
 #' @keywords internal
 #' @noRd
 .field_report_html <- function(lay, meta, language = "en", highlight_palms = TRUE,
-                               plot_area_ha = NULL) {
+                               plot_area_ha = NULL, phyto = NULL) {
   tr <- .field_report_strings(language)
   d <- lay$trees
   c <- lay$cells
@@ -609,6 +844,10 @@
   chk_html <- paste0('<section class="page appx" id="checklist"><h2>', tr[["appendix"]], '</h2><p class="lede">', tr[["chk_lede"]],
                      '</p><div class="chk">', paste(chk, collapse = ""), '</div></section>')
 
+  # floristics and phytosociology (after the subplot pages, before the appendix)
+  area_ha <- if (lay$kind == "monitora") 0.4 else plot_area_ha
+  phyto_html <- if (!is.null(phyto)) .fr_phyto_html(phyto, d$dbh, area_ha, tr) else ""
+
   first_lbl <- slab(c$label[min(nrow(c), if (lay$kind == "grid") 37 else 3)])
   paste0(
     '<!doctype html><html lang="', lang_attr, '"><head><meta charset="utf-8">',
@@ -618,12 +857,12 @@
     '<style>', .fr_read_asset("field_report.css"), '</style></head>',
     sprintf('<body data-not-found="%s" data-sub-prefix="%s">', .fr_esc(tr[["not_found"]]), sub_prefix),
     '<div class="bar"><a href="#summary" class="brand">', if (nzchar(pc)) pc else tr[["index"]], '</a>',
-    '<a href="#map-all">', tr[["maps"]], '</a><a href="#route">', tr[["route_short"]], '</a><a href="#checklist">', tr[["checklist"]], '</a>',
+    '<a href="#map-all">', tr[["maps"]], '</a><a href="#route">', tr[["route_short"]], '</a>', if (nzchar(phyto_html)) paste0('<a href="#phyto">', tr[["phyto_short"]], '</a>') else "", '<a href="#checklist">', tr[["checklist"]], '</a>',
     sprintf('<form class="find" onsubmit="return false"><input id="find" type="search" placeholder="%s" aria-label="%s" autocomplete="off"></form>',
             .fr_esc(sprintf(tr[["find_ph"]], first_lbl)), .fr_esc(tr[["find_label"]])),
     sprintf('<button class="print" type="button" onclick="window.print()" title="%s">PDF</button></div>', .fr_esc(tr[["print_pdf"]])),
     .fr_mini_symbol(lay),
-    '<main>', summary_html, maps_html, route_html, subs_html, chk_html, '</main>',
+    '<main>', summary_html, maps_html, route_html, subs_html, phyto_html, chk_html, '</main>',
     '<script>', .fr_read_asset("field_report.js"), '</script></body></html>')
 }
 
@@ -634,10 +873,10 @@
 #' @noRd
 .write_field_report <- function(file, fp_coords, input_type, subplot_size,
                                 plot_width_m, plot_length_m, highlight_palms,
-                                meta, language, plot_area_ha = NULL) {
+                                meta, language, plot_area_ha = NULL, phyto = NULL) {
   lay <- .field_report_layout(fp_coords, input_type, subplot_size,
                               plot_width_m, plot_length_m, highlight_palms)
-  html <- .field_report_html(lay, meta, language, highlight_palms, plot_area_ha)
+  html <- .field_report_html(lay, meta, language, highlight_palms, plot_area_ha, phyto)
   con <- file(file, open = "wb")
   on.exit(close(con), add = TRUE)
   writeBin(charToRaw(enc2utf8(html)), con)

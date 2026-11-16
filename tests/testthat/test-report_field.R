@@ -132,3 +132,69 @@ test_that("forplot_balance writes the field report without pandoc or LaTeX", {
   expect_true(grepl("REBIO Augusto Ruschi", html, fixed = TRUE))
   expect_lt(file.size(res$html_report), 3e6)
 })
+
+test_that("phytosociology section reports diversity, charts and full tables", {
+  coords <- .rus01_coords()
+  lay <- .field_report_layout(coords, "field_sheet", 10, 100, 100, TRUE)
+  phy <- .calculate_phytosociological_metrics(coords, plot_size_ha = 1, subplot_size_m = 10)
+  tr <- .field_report_strings("en")
+  html <- .fr_phyto_html(phy, lay$trees$dbh, 1, tr)
+
+  for (id in c("phyto", "phyto-2", "phyto-tables")) {
+    expect_true(grepl(sprintf(' id="%s"', id), html, fixed = TRUE), info = id)
+  }
+  # one row per family and per taxon in the tables
+  fam_tbl <- regmatches(html, regexpr("<caption>Table 1.*?</table>", html))
+  sp_tbl <- regmatches(html, regexpr("<caption>Table 2.*?</table>", html))
+  expect_equal(lengths(regmatches(fam_tbl, gregexpr("<tr><td>", fam_tbl))), nrow(phy$family_metrics))
+  expect_equal(lengths(regmatches(sp_tbl, gregexpr("<tr><td>", sp_tbl))), nrow(phy$species_metrics))
+  # IVI sums to 300 over all taxa
+  expect_equal(sum(phy$species_metrics$importance_value), 300, tolerance = 0.5)
+  expect_equal(sum(phy$family_metrics$importance_value), 300, tolerance = 0.5)
+  # a name used in several families is one taxon per family
+  expect_gt(sum(phy$species_metrics$species == "Indet indet"), 1)
+  expect_true(grepl("Indet indet (Myrtaceae)", html, fixed = TRUE))
+  # density per hectare and the three components in the legend
+  expect_true(grepl(">936<", html, fixed = TRUE))
+  expect_equal(lengths(regmatches(html, gregexpr('class="k-s[123]"', html))), 6L)  # two IVI figures
+  expect_true(grepl('class="chart dbh"', html, fixed = TRUE))
+})
+
+test_that("phytosociology helpers handle edge cases", {
+  expect_equal(.fr_nice_step(0), 1)
+  expect_equal(.fr_nice_step(48), 10)
+  expect_equal(.fr_nice_step(7), 2)
+  expect_identical(.fr_trunc("abc", 30), "abc")
+  expect_equal(nchar(.fr_trunc(strrep("a", 40), 30)), 30L)
+  expect_null(.fr_dbh_classes(c(NA, -1, 0)))
+  cl <- .fr_dbh_classes(c(10.2, 12, 25, 31, 99))
+  expect_equal(sum(cl$n), 5L)
+  expect_equal(cl$hi - cl$lo, rep(10, nrow(cl)))
+  expect_identical(.fr_dbh_svg(numeric(), .field_report_strings("en")), "")
+  expect_identical(.taxon_label(c("A b", "A b", "C d"), c("F1", "F2", "F1")), c("A b (F1)", "A b (F2)", "C d"))
+  expect_identical(.taxon_label(c("x", "y")), c("x", "y"))
+
+  # no diameters: no basal area, no relative dominance, a note in the report
+  coords <- .rus01_coords()
+  coords$D <- NA
+  phy <- suppressMessages(.calculate_phytosociological_metrics(coords, 1, 10))
+  html <- .fr_phyto_html(phy, rep(NA_real_, nrow(coords)), 1, .field_report_strings("pt"))
+  expect_true(grepl("Sem diâmetros válidos", html, fixed = TRUE))
+  expect_false(grepl('class="chart dbh"', html, fixed = TRUE))
+  expect_identical(.fr_phyto_html(list(species_metrics = data.frame()), numeric(), 1, .field_report_strings("en")), "")
+})
+
+test_that("forplot_balance puts the phytosociology section before the appendix and exports the charts", {
+  fp <- withr::local_tempfile(fileext = ".xlsx")
+  openxlsx::write.xlsx(RUS01, fp)
+  out <- withr::local_tempdir()
+  res <- suppressMessages(suppressWarnings(forplot_balance(
+    fp, plot_size = 1, subplot_size = 10, render_pdf = FALSE, write_xlsx = FALSE,
+    dir = out, filename = "rus", verbose = FALSE)))
+  html <- paste(readLines(res$html_report, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_lt(regexpr(' id="phyto"', html), regexpr(' id="checklist"', html))
+  expect_gt(regexpr(' id="phyto"', html), regexpr(' id="s-100"', html))
+  for (f in c("_family_plot.png", "_species_plot.png", "_dbh_classes.png")) {
+    expect_true(file.exists(file.path(res$output_dir, paste0("rus", f))), info = f)
+  }
+})
