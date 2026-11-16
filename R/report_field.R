@@ -14,7 +14,8 @@
 
 #' Report strings in one language
 #'
-#' Panara ("pa") has no translation of these strings yet and falls back to
+#' Panara ("pa") takes every label the package's Panara dictionary has (see
+#' `.field_report_strings_pa()`); what the dictionary does not cover stays in
 #' Portuguese.
 #'
 #' @param language One of "en", "pt", "es", "fr", "ma", "pa".
@@ -179,9 +180,85 @@
   )
   langs <- c("en", "pt", "es", "fr", "ma")
   language <- tolower(trimws(as.character(language)[1]))
-  if (identical(language, "pa")) language <- "pt"
+  panara <- identical(language, "pa")
+  if (panara) language <- "pt"
   if (!language %in% langs) language <- "en"
-  vapply(s, function(v) v[[match(language, langs)]], character(1))
+  out <- vapply(s, function(v) v[[match(language, langs)]], character(1))
+  if (panara) {
+    pa <- .field_report_strings_pa()
+    pa <- pa[names(pa) %in% names(out)]
+    out[names(pa)] <- pa
+  }
+  out
+}
+
+
+#' Panara labels of the field report, from the package's Panara dictionary
+#'
+#' The translations are not written here: each report label points to the
+#' entry of the internal dictionary `dict` (column `pa`) that says the same
+#' thing, and two labels come from the Panara field-sheet header. Labels with
+#' no equivalent in the dictionary, and all the explanatory sentences, are
+#' left out and stay in Portuguese. A dictionary entry that is not actually
+#' translated (same text as Portuguese or English) is skipped as well.
+#'
+#' @return Named character vector (report string key -> Panara text).
+#' @keywords internal
+#' @noRd
+.field_report_strings_pa <- function() {
+  from_dict <- c(
+    doc_title = "Full Plot Report",
+    census = "plot_census_no_fp",
+    team = "team",
+    individuals = "x_ind",
+    families = "families",
+    family = "hover_family",
+    species = "hover_species",
+    k_species = "species",
+    with_voucher = "collected",
+    leg_voucher = "collected",
+    pending = "uncollected",
+    pending_short = "uncollected",
+    leg_pending = "uncollected",
+    palms = "Palms",
+    leg_palm = "Palms",
+    map_all = "Total Specimens",
+    stems = "x_ind",
+    n_stems = "n_trees",
+    subplot = "subplot",
+    index = "Contents",
+    back_grid = "Back to Contents",
+    route = "Priority Subplots for Uncollected Species",
+    spp_pending = "Priority Species to Collect",
+    tag = "hover_tag",
+    dbh = "hover_dbh",
+    dbh_axis = "dbh_x",
+    checklist = "Checklist",
+    appendix = "Checklist"
+  )
+  one <- function(key, col) {
+    v <- dict[[col]][dict$key == key]
+    if (!length(v)) return(NA_character_)
+    trimws(paste(unlist(v[[1L]]), collapse = " "))
+  }
+  pa <- vapply(from_dict, one, character(1), col = "pa")
+  pt <- vapply(from_dict, one, character(1), col = "pt")
+  en <- vapply(from_dict, one, character(1), col = "en")
+  keep <- !is.na(pa) & nzchar(pa) & pa != pt & pa != en
+  out <- pa[keep]
+
+  # "Family" in the dictionary is "species of family"; the column header of
+  # its own tables is the family word alone
+  fam_tbl <- unlist(dict$pa[dict$key == "family_tbl"])
+  if (length(fam_tbl)) out[["family"]] <- trimws(fam_tbl[[1L]])
+  sub_pl <- one("Subplots", "pa")
+  if (!is.na(sub_pl) && nzchar(sub_pl)) {
+    out[["subplots_of"]] <- paste0("%d ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L), " \u00b7 %s \u00d7 %s m")
+    out[["in_subplots"]] <- paste0("%d ", tolower(substr(sub_pl, 1L, 1L)), substring(sub_pl, 2L))
+  }
+
+  # from the header of the Panara field sheet ("Date | Haka", "Notas de campo | ...")
+  c(out, date = "Haka", notes = "Mipypari jins\u00e3")
 }
 
 

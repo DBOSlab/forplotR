@@ -3958,7 +3958,7 @@ dict <- tibble::tibble(
     "Kwatis\u00f4m\u1ebdra",
     "T\u00e4 sokkjaraa r\u00eat\u00e2 kuk\u00e2ra kran",
     "R\u00eat\u00e3 kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2",
-    "R\u00eat\u00e3 kuk\ue2ra krep\u00e3\u00e3 s\u00e2\u00e2 ",
+    "R\u00eat\u00e3 kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 ",
     "Issi pyr\u00e3h\u00e3 p\u00e2rijnsim\u1ebdra",
     "Kuk\u00e2ra krep\u00e3\u00e3 s\u00e2\u00e2 pyti",
     "Junti h\u1ebd si m\u1ebdra",

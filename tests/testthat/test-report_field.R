@@ -18,14 +18,14 @@
   setdiff(unique(refs), ids)
 }
 
-test_that("strings exist in every language, with Panara falling back to Portuguese", {
+test_that("strings exist in every language, Panara included", {
   en <- .field_report_strings("en")
   for (lg in c("pt", "es", "fr", "ma", "pa")) {
     x <- .field_report_strings(lg)
     expect_identical(names(x), names(en))
     expect_false(any(is.na(x) | !nzchar(x)))
   }
-  expect_identical(.field_report_strings("pa"), .field_report_strings("pt"))
+  expect_identical(names(.field_report_strings("pa")), names(.field_report_strings("pt")))
   expect_identical(.field_report_strings("xx"), en)
   # placeholders survive translation
   for (lg in c("pt", "es", "fr", "ma")) {
@@ -179,7 +179,7 @@ test_that("phytosociology helpers handle edge cases", {
   coords$D <- NA
   phy <- suppressMessages(.calculate_phytosociological_metrics(coords, 1, 10))
   html <- .fr_phyto_html(phy, rep(NA_real_, nrow(coords)), 1, .field_report_strings("pt"))
-  expect_true(grepl("Sem diâmetros válidos", html, fixed = TRUE))
+  expect_true(grepl("Sem di\u00e2metros v\u00e1lidos", html, fixed = TRUE))
   expect_false(grepl('class="chart dbh"', html, fixed = TRUE))
   expect_identical(.fr_phyto_html(list(species_metrics = data.frame()), numeric(), 1, .field_report_strings("en")), "")
 })
@@ -316,4 +316,54 @@ test_that("MONITORA and ForestPlots logos work as a preset or as a single logo",
   # `auto` is what NULL stands for when the input type does not decide
   expect_identical(.resolve_report_logos(NULL, "monitora", auto = "forplotR")$alt, "forplotR")
   expect_identical(nrow(.resolve_report_logos(NULL, "field_sheet_ti", auto = "forplotR")), 4L)
+})
+
+
+# Panara -----------------------------------------------------------------------
+
+test_that("the Panara report takes its labels from the Panara dictionary", {
+  pa <- .field_report_strings("pa")
+  pt <- .field_report_strings("pt")
+  expect_identical(names(pa), names(pt))
+
+  # labels the dictionary covers come from it, word for word
+  d <- function(key) trimws(paste(unlist(dict$pa[dict$key == key][[1]]), collapse = " "))
+  expect_identical(pa[["team"]], d("team"))
+  expect_identical(pa[["with_voucher"]], d("collected"))
+  expect_identical(pa[["pending"]], d("uncollected"))
+  expect_identical(pa[["palms"]], d("Palms"))
+  expect_identical(pa[["tag"]], d("hover_tag"))
+  expect_identical(pa[["subplot"]], d("subplot"))
+  expect_identical(pa[["doc_title"]], d("Full Plot Report"))
+  expect_identical(pa[["date"]], "Haka")
+  expect_false(any(c("team", "with_voucher", "pending", "palms", "tag", "species",
+                     "family", "individuals", "subplot") %in% names(pa)[pa == pt]))
+  expect_gte(sum(pa != pt), 30L)
+
+  # what the dictionary does not cover stays in Portuguese, never English
+  expect_identical(pa[["fn_palms"]], pt[["fn_palms"]])
+  expect_identical(pa[["route_lede"]], pt[["route_lede"]])
+  # format strings keep their placeholders
+  expect_identical(sprintf(pa[["subplots_of"]], 100L, "10", "10"),
+                   paste0("100 ", tolower(d("Subplots")), " \u00b7 10 \u00d7 10 m"))
+  expect_true(grepl("%d", pa[["in_subplots"]], fixed = TRUE))
+
+  # dictionary entries that are not really translated are not used
+  untranslated <- vapply(seq_len(nrow(dict)), function(i) {
+    identical(unlist(dict$pa[i]), unlist(dict$pt[i]))
+  }, logical(1))
+  expect_false(any(.field_report_strings_pa() %in% unlist(dict$pa[untranslated])))
+  # no private-use or replacement characters in the Panara column
+  expect_false(any(grepl("[\ue000-\uf8ff\ufffd]", unlist(dict$pa))))
+
+  lay <- .field_report_layout(.rus01_coords(), "field_sheet", 10, 100, 100, TRUE)
+  meta <- list(plot_name = "Ruschi", plot_code = "RUS01", plot_census_no_fp = "1",
+               team = "A, B", census_date = as.Date("2014-11-26"))
+  html <- .field_report_html(lay, meta, "pa", TRUE, plot_area_ha = 1)
+  expect_true(grepl(paste0(d("team"), ": A, B"), html, fixed = TRUE))
+  expect_true(grepl("Haka: 26/11/2014", html, fixed = TRUE))
+  expect_true(grepl(d("collected"), html, fixed = TRUE))
+  # the label of the figure is Panara; the footnote that explains it is a
+  # sentence, which the dictionary does not have
+  expect_false(grepl("<span>Com voucher</span>", html, fixed = TRUE))
 })
