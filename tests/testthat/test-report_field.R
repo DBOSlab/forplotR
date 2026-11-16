@@ -197,4 +197,37 @@ test_that("forplot_balance puts the phytosociology section before the appendix a
   for (f in c("_family_plot.png", "_species_plot.png", "_dbh_classes.png")) {
     expect_true(file.exists(file.path(res$output_dir, paste0("rus", f))), info = f)
   }
+test_that(".find_chrome honours the FORPLOTR_CHROME environment variable", {
+  fake <- withr::local_tempfile(fileext = ".exe")
+  writeLines("", fake)
+  withr::local_envvar(FORPLOTR_CHROME = fake, CHROMOTE_CHROME = "",
+                      PAGEDOWN_CHROME = "")
+  expect_identical(.find_chrome(), fake)
+
+  withr::local_envvar(FORPLOTR_CHROME = file.path(tempdir(), "no-such-browser"))
+  found <- .find_chrome()
+  expect_true(is.null(found) || file.exists(found))
+})
+
+test_that("a browser that fails to print gives a warning and no PDF", {
+  html <- withr::local_tempfile(fileext = ".html")
+  writeLines("<html><body>x</body></html>", html)
+  pdf <- file.path(withr::local_tempdir(), "out.pdf")
+  writeLines("stale", pdf)
+  # Rscript stands in for a browser: it rejects the arguments and exits
+  rscript <- file.path(R.home("bin"),
+                       if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  local_mocked_bindings(.find_chrome = function() rscript)
+
+  expect_message(
+    expect_warning(out <- .html_to_pdf(html, pdf, verbose = TRUE, timeout = 60),
+                   "The PDF report could not be printed"),
+    "Printing the PDF report with Rscript"
+  )
+  expect_null(out)
+  expect_false(file.exists(pdf))
+})
+
+test_that("missing report assets raise an error", {
+  expect_error(.fr_read_asset("does-not-exist.css"), "Report asset not found")
 })
