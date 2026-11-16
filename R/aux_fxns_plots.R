@@ -2666,10 +2666,10 @@
 
       header <- raw[header_row_idx, ] |> unlist() |> as.character()
       cols <- .canonical_header(header)
-      header[is.na(header) | header == ""] <- paste0("NA_col_", seq_along(header))[is.na(header) | header == ""]
 
       raw <- raw[-seq_len(header_row_idx), , drop = FALSE]
-      colnames(raw) <- make.unique(trimws(header))
+      # same names as read_plot_header(): what a colname_* argument refers to
+      colnames(raw) <- cols$name
       fp_sheet <- raw[, !is.na(colnames(raw)) & colnames(raw) != "", drop = FALSE]
 
       # Columns mapped by the user come first; the others are then recognised
@@ -2712,9 +2712,8 @@
 
       hdr <- as.character(unlist(raw[header_row_idx, , drop = TRUE]))
       cols <- .canonical_header(hdr)
-      empty_hdr <- is.na(hdr) | !nzchar(trimws(hdr))
-      hdr[empty_hdr] <- paste0("NA_col_", seq_along(hdr))[empty_hdr]
-      names(raw_data) <- make.unique(trimws(hdr))
+      # same names as read_plot_header(): what a colname_* argument refers to
+      names(raw_data) <- cols$name
 
       named <- function(key) {
         i <- cols$position[!is.na(cols$canonical) & cols$canonical == key]

@@ -363,3 +363,92 @@ test_that("forplot_sheets() reads a bilingual sheet from its real header", {
   expect_true(grepl("cm DBH", out$notes[1], fixed = TRUE))
   expect_identical(run(header_row = 2), out)
 })
+
+
+# Column names for mapping -----------------------------------------------------
+
+test_that("read_plot_header() lists the columns of the detected header, not the metadata", {
+  # four metadata rows "Key | Translation: value" before the header; an empty
+  # header cell over data, a repeated header, and a trailing empty column
+  rows <- list(
+    c("Plotcode | Codigo: ZZ01"),
+    c("Plot Name | Nome: Mata de Teste"),
+    c("Date | Data: 26/11/2014"),
+    c("Team | Equipe: Ana Souza, Bia Lima & Caio Reis"),
+    c("Placa | Tag", "Subparcela | T1", "X", "Y", "", "Familia | Family",
+      "Especie | Species", "DAP | D", "DAP | D", "Coletado | Collected", ""),
+    c("1", "1", "2", "3", "obs a", "Fabaceae", "Inga alba", "120", "999", "yes", ""),
+    c("2", "2", "5", "6", "", "Myrtaceae", "Eugenia sp.", "150", "888", "", "")
+  )
+  path <- .hd_write_raw(rows)
+  cols <- read_plot_header(path)
+
+  expect_identical(attr(cols, "header_row"), 5L)
+  expect_identical(cols$position, 1:10)
+  expect_identical(cols$name, c("Placa | Tag", "Subparcela | T1", "X", "Y", "NA_col_5",
+                                "Familia | Family", "Especie | Species", "DAP | D",
+                                "DAP | D.1", "Coletado | Collected"))
+  expect_identical(cols$header[5], "")
+  expect_identical(cols$canonical[c(1, 2, 5, 8, 9)], c("New Tag No", "T1", NA, "D", NA))
+  expect_true(all(cols$has_data))
+  expect_false(any(grepl("ZZ01|Mata de Teste|26/11/2014|Ana Souza", cols$name)))
+
+  # forcing the row gives that row, whatever it holds
+  forced <- read_plot_header(path, header_row = 1)
+  expect_identical(attr(forced, "header_row"), 1L)
+  expect_identical(forced$name[1], "Plotcode | Codigo: ZZ01")
+
+  # every listed name is exactly a column the readers know: mapping by it works
+  for (type in c("field_sheet", "field_sheet_ti")) {
+    for (nm in cols$name) {
+      cm <- .build_col_map(colname_voucher = nm)
+      h <- .harmonize_plot_input(path, type, verbose = FALSE, col_map = cm)
+      expect_identical(nrow(h$fp_sheet), 2L, info = paste(type, nm))
+    }
+    # the repeated header is reachable under its own name
+    # ... and so is the column whose header cell is empty
+    cm <- .build_col_map(colname_dbh = "DAP | D.1", colname_voucher = "NA_col_5")
+    h <- .harmonize_plot_input(path, type, verbose = FALSE, col_map = cm)
+    expect_equal(as.numeric(h$fp_sheet$D), c(999, 888), info = type)
+    expect_identical(h$fp_sheet$Voucher, c("obs a", NA), info = type)
+  }
+})
+
+test_that("read_plot_header() keeps row 1 for a plain sheet and reads other sheets", {
+  path <- withr::local_tempfile(fileext = ".xlsx")
+  plain <- data.frame(
+    `New Tag No` = c("1", "2"), T1 = c(1, 1), X = c(1, 2), Y = c(3, 4),
+    Family = c("Fabaceae", "Myrtaceae"), `Original determination` = c("Inga alba", "Eugenia sp."),
+    D = c(120, 150), Voucher = c("AB 1", NA), Collected = c("yes", NA),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+  other <- data.frame(Placa = "9", Subparcela = 3, X = 1, Y = 1, Familia = "Fabaceae",
+                      Especie = "Inga alba", DAP = 100, stringsAsFactors = FALSE)
+  writexl::write_xlsx(list(Data = plain, Outra = other), path)
+
+  cols <- read_plot_header(path)
+  expect_identical(attr(cols, "header_row"), 1L)
+  expect_identical(cols$name, names(plain))
+  expect_identical(cols$canonical, names(plain))
+
+  second <- read_plot_header(path, sheet = 2)
+  expect_identical(second$name, names(other))
+  expect_identical(read_plot_header(path, sheet = "Outra"), second)
+
+  # the blank template: header names, no data yet
+  tpl <- read_plot_header(.hd_template())
+  expect_identical(attr(tpl, "header_row"), 2L)
+  expect_identical(nrow(tpl), 20L)
+  expect_identical(tpl$name[c(10, 19)], c("D | Wy", "D"))
+  expect_false(any(tpl$has_data))
+  expect_error(read_plot_header("no-such-file.xlsx"), "existing Excel file")
+})
+
+test_that("read_plot_header() and read_plot_sheet() reject an empty worksheet", {
+  path <- withr::local_tempfile(fileext = ".xlsx")
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, "Vazia")
+  openxlsx::saveWorkbook(wb, path)
+  expect_error(read_plot_header(path), "worksheet is empty")
+  expect_error(read_plot_sheet(path), "worksheet is empty")
+})
