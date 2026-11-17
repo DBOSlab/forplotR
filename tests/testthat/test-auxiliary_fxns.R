@@ -958,7 +958,7 @@ test_that(".prepare_report_dashboard returns translated tables and plots", {
   out <- .prepare_report_dashboard(fp, input_type = "field_sheet", language = "pt")
 
   expect_type(out, "list")
-  expect_true(all(c("metrics_tbl", "species_metrics_tbl", "family_metrics_tbl", "family_plot", "species_plot", "subplot_plot", "dbh_plot", "phytosoc") %in% names(out)))
+  expect_true(all(c("metrics_tbl", "species_metrics_tbl", "family_metrics_tbl", "family_plot", "species_abundance_plot", "species_plot", "subplot_plot", "dbh_plot", "phytosoc") %in% names(out)))
   expect_true(is.data.frame(out$metrics_tbl))
   expect_true(inherits(out$family_plot, "ggplot"))
 })

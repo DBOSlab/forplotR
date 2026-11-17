@@ -167,8 +167,12 @@
     comp_rf         = c("relative frequency", "frequ\u00eancia relativa", "frecuencia relativa", "fr\u00e9quence relative", "\u76f8\u5bf9\u9891\u5ea6"),
     comp_rdo        = c("relative dominance", "domin\u00e2ncia relativa", "dominancia relativa", "dominance relative", "\u76f8\u5bf9\u663e\u8457\u5ea6"),
     fig_fam         = c("Figure 1. Families with the highest importance value (IVI)", "Figura 1. Fam\u00edlias com maior valor de import\u00e2ncia (IVI)", "Figura 1. Familias con mayor valor de importancia (IVI)", "Figure 1. Familles \u00e0 plus forte valeur d'importance (IVI)", "\u56fe 1. \u91cd\u8981\u503c\uff08IVI\uff09\u6700\u9ad8\u7684\u79d1"),
-    fig_spp         = c("Figure 2. Species with the highest importance value (IVI)", "Figura 2. Esp\u00e9cies com maior valor de import\u00e2ncia (IVI)", "Figura 2. Especies con mayor valor de importancia (IVI)", "Figure 2. Esp\u00e8ces \u00e0 plus forte valeur d'importance (IVI)", "\u56fe 2. \u91cd\u8981\u503c\uff08IVI\uff09\u6700\u9ad8\u7684\u7269\u79cd"),
-    fig_dbh         = c("Figure 3. Stems per diameter class", "Figura 3. Fustes por classe de di\u00e2metro", "Figura 3. Fustes por clase diam\u00e9trica", "Figure 3. Tiges par classe de diam\u00e8tre", "\u56fe 3. \u5404\u5f84\u7ea7\u830e\u5e72\u6570"),
+    fig_spp_n       = c("Figure 2. Species with the most individuals", "Figura 2. Esp\u00e9cies com mais indiv\u00edduos", "Figura 2. Especies con m\u00e1s individuos", "Figure 2. Esp\u00e8ces comptant le plus d'individus", "\u56fe 2. \u4e2a\u4f53\u6570\u6700\u591a\u7684\u7269\u79cd"),
+    fig_spp         = c("Figure 3. Species with the highest importance value (IVI)", "Figura 3. Esp\u00e9cies com maior valor de import\u00e2ncia (IVI)", "Figura 3. Especies con mayor valor de importancia (IVI)", "Figure 3. Esp\u00e8ces \u00e0 plus forte valeur d'importance (IVI)", "\u56fe 3. \u91cd\u8981\u503c\uff08IVI\uff09\u6700\u9ad8\u7684\u7269\u79cd"),
+    fig_dbh         = c("Figure 4. Stems per diameter class", "Figura 4. Fustes por classe de di\u00e2metro", "Figura 4. Fustes por clase diam\u00e9trica", "Figure 4. Tiges par classe de diam\u00e8tre", "\u56fe 4. \u5404\u5f84\u7ea7\u830e\u5e72\u6570"),
+    ax_ind          = c("Number of individuals", "N\u00famero de indiv\u00edduos", "N\u00famero de individuos", "Nombre d'individus", "\u4e2a\u4f53\u6570\u91cf"),
+    top_note_n      = c("First %d by number of individuals; every species is in Table 2.", "As %d primeiras por n\u00famero de indiv\u00edduos; todas as esp\u00e9cies est\u00e3o na Tabela 2.", "Las %d primeras por n\u00famero de individuos; todas las especies est\u00e1n en la Tabla 2.", "Les %d premi\u00e8res par nombre d'individus ; toutes les esp\u00e8ces figurent dans le tableau 2.", "\u6309\u4e2a\u4f53\u6570\u6392\u540d\u524d %d\uff1b\u5168\u90e8\u7269\u79cd\u89c1\u8868 2\u3002"),
+    names_note      = c(" Names: vernacular | scientific.", " Nomes: vernacular | cient\u00edfico.", " Nombres: vern\u00e1culo | cient\u00edfico.", " Noms : vernaculaire | scientifique.", "\u540d\u79f0\uff1a\u4fd7\u540d | \u5b66\u540d\u3002"),
     dbh_axis        = c("DBH class (cm)", "Classe de DAP (cm)", "Clase de DAP (cm)", "Classe de DHP (cm)", "\u80f8\u5f84\u7ea7\uff08\u5398\u7c73\uff09"),
     top_note        = c("First %d by IVI; every taxon is in the tables below.", "Os %d primeiros por IVI; todos os t\u00e1xons est\u00e3o nas tabelas abaixo.", "Los %d primeros por IVI; todos los taxones est\u00e1n en las tablas siguientes.", "Les %d premiers par IVI ; tous les taxons figurent dans les tableaux ci-dessous.", "\u6309 IVI \u6392\u540d\u524d %d\uff1b\u5168\u90e8\u5206\u7c7b\u5355\u5143\u89c1\u4e0b\u8868\u3002"),
     tab_fam         = c("Table 1. Phytosociological parameters of the families, by IVI", "Tabela 1. Par\u00e2metros fitossociol\u00f3gicos das fam\u00edlias, por IVI", "Tabla 1. Par\u00e1metros fitosociol\u00f3gicos de las familias, por IVI", "Tableau 1. Param\u00e8tres phytosociologiques des familles, par IVI", "\u8868 1. \u5404\u79d1\u7684\u690d\u7269\u7fa4\u843d\u5b66\u53c2\u6570\uff08\u6309 IVI \u6392\u5e8f\uff09"),
@@ -235,14 +239,16 @@
     dbh_axis = "dbh_x",
     checklist = "Checklist",
     appendix = "Checklist",
-    # titles reworded to what the dictionary has (e.g. the IVI figure is
-    # titled "most common families"); the numbers shown are the same
+    # titles reworded to what the dictionary has (e.g. the family IVI figure
+    # is titled "most common families"); the numbers shown are the same. The
+    # species IVI figure has no equivalent and stays in Portuguese.
     grid_cap = "Subplot Index",
     maps_cap = "General Plot",
     plot_map = "General Plot",
     phyto_title = "Metric Summary",
     fig_fam = "Most Common Families",
-    fig_spp = "Most Abundant Species",
+    fig_spp_n = "Most Abundant Species",
+    ax_ind = "dbh_y",
     fig_dbh = "DBH Classes",
     tab_fam = "Family Metrics",
     tab_spp = "Species Metrics"
@@ -596,17 +602,25 @@
   ifelse(nchar(x) > n, paste0(substr(x, 1, n - 1), "\u2026"), x)
 }
 
-# Horizontal stacked bars of the IVI components for the first `n` taxa.
-.fr_ivi_svg <- function(df, name_col, tr, n = 10, italic = FALSE, aria = "") {
-  df <- as.data.frame(df)
-  if (!nrow(df)) return("")
-  df[[name_col]] <- .taxon_label(df[[name_col]], if (name_col == "species") df$family else NULL)
-  df <- utils::head(df[order(-df$importance_value), , drop = FALSE], n)
-  comp <- cbind(df$relative_density, df$relative_frequency, df$relative_dominance)
+# Name of a taxon on a chart: "vernacular | scientific", with the scientific
+# part in italics when `italic`; the full name goes in the tooltip.
+.fr_name_svg <- function(sci, vern, italic, x, y) {
+  has_v <- !is.na(vern) && nzchar(vern)
+  full <- if (has_v) paste0(vern, " | ", sci) else sci
+  sci_t <- .fr_esc(.fr_trunc(sci, if (has_v) 28 else 30))
+  sci_t <- if (italic) paste0('<tspan class="it">', sci_t, '</tspan>') else sci_t
+  body <- if (has_v) paste0(.fr_esc(.fr_trunc(vern, 22)), " | ", sci_t) else sci_t
+  sprintf('<text class="nm" x="%d" y="%.1f">%s<title>%s</title></text>', x, y, body, .fr_esc(full))
+}
+
+# Horizontal bars, one per row of `comp` (a matrix of stacked segments
+# drawn with the classes s1, s2, s3), each ending with its value.
+.fr_hbar_svg <- function(parts, comp, value_txt, seg_lab, italic, cls, aria) {
   comp[!is.finite(comp)] <- 0
   tot <- rowSums(comp)
-  W <- 680; lw <- 200; rw <- 48; top <- 6; bh <- 15; gap <- 9
-  H <- top + nrow(df) * (bh + gap) + 22
+  has_v <- any(!is.na(parts$vern))
+  W <- 680; lw <- if (has_v) 290 else 200; rw <- 48; top <- 6; bh <- 15; gap <- 9
+  H <- top + nrow(comp) * (bh + gap) + 22
   step <- .fr_nice_step(max(tot))
   vmax <- max(step, ceiling(max(tot) / step) * step)
   k <- (W - lw - rw) / vmax
@@ -615,25 +629,58 @@
   grid <- paste(sprintf('<line class="gl" x1="%.1f" y1="%d" x2="%.1f" y2="%.1f"/><text class="ax" x="%.1f" y="%.1f">%s</text>',
                         lw + ticks * k, top, lw + ticks * k, base_y, lw + ticks * k, base_y + 14,
                         format(ticks, trim = TRUE)), collapse = "")
-  lab <- c(tr[["ab_rd"]], tr[["ab_rf"]], tr[["ab_rdo"]])
-  rows <- vapply(seq_len(nrow(df)), function(i) {
+  rows <- vapply(seq_len(nrow(comp)), function(i) {
     y <- top + (i - 1) * (bh + gap)
-    nm <- as.character(df[[name_col]][i])
+    nm <- if (is.na(parts$vern[i])) parts$sci[i] else paste0(parts$vern[i], " | ", parts$sci[i])
     x0 <- lw
     segs <- ""
-    for (j in 1:3) {
+    for (j in seq_len(ncol(comp))) {
       w <- comp[i, j] * k
       if (w <= 0) next
-      segs <- paste0(segs, sprintf('<rect class="s%d" x="%.1f" y="%d" width="%.1f" height="%d"><title>%s \u00b7 %s %s</title></rect>',
-                                   j, x0, y, w, bh, .fr_esc(nm), lab[j], formatC(comp[i, j], format = "f", digits = 1)))
+      segs <- paste0(segs, sprintf('<rect class="s%d" x="%.1f" y="%d" width="%.1f" height="%d"><title>%s \u00b7 %s</title></rect>',
+                                   j, x0, y, w, bh, .fr_esc(nm), seg_lab[i, j]))
       x0 <- x0 + w
     }
-    sprintf('<g><text class="nm%s" x="%d" y="%.1f">%s<title>%s</title></text>%s<text class="vl" x="%.1f" y="%.1f">%s</text></g>',
-            if (italic) " it" else "", lw - 8, y + bh * 0.75, .fr_esc(.fr_trunc(nm)), .fr_esc(nm), segs,
-            lw + tot[i] * k + 6, y + bh * 0.75, formatC(tot[i], format = "f", digits = 1))
+    sprintf('<g>%s%s<text class="vl" x="%.1f" y="%.1f">%s</text></g>',
+            .fr_name_svg(parts$sci[i], parts$vern[i], italic, lw - 8, y + bh * 0.75), segs,
+            lw + tot[i] * k + 6, y + bh * 0.75, value_txt[i])
   }, character(1))
-  sprintf('<svg class="chart ivi" viewBox="0 0 %d %d" role="img" aria-label="%s">%s%s<line class="bl" x1="%d" y1="%d" x2="%d" y2="%.1f"/></svg>',
-          W, H, .fr_esc(aria), grid, paste(rows, collapse = ""), lw, top - 2, lw, base_y)
+  sprintf('<svg class="chart %s" viewBox="0 0 %d %d" role="img" aria-label="%s">%s%s<line class="bl" x1="%d" y1="%d" x2="%d" y2="%.1f"/></svg>',
+          cls, W, H, .fr_esc(aria), grid, paste(rows, collapse = ""), lw, top - 2, lw, base_y)
+}
+
+.fr_parts <- function(df, name_col) {
+  sp <- name_col == "species"
+  .taxon_label_parts(df[[name_col]], if (sp) df$family else NULL,
+                     if (sp && "vernacular" %in% names(df)) df$vernacular else NULL)
+}
+
+# Horizontal stacked bars of the IVI components for the first `n` taxa; the
+# value at the end of each bar is the IVI with one decimal.
+.fr_ivi_svg <- function(df, name_col, tr, n = 10, italic = FALSE, aria = "") {
+  df <- as.data.frame(df)
+  if (!nrow(df)) return("")
+  parts <- .fr_parts(df, name_col)
+  ord <- utils::head(order(-df$importance_value), n)
+  df <- df[ord, , drop = FALSE]; parts <- parts[ord, , drop = FALSE]
+  comp <- cbind(df$relative_density, df$relative_frequency, df$relative_dominance)
+  comp[!is.finite(comp)] <- 0
+  lab <- c(tr[["ab_rd"]], tr[["ab_rf"]], tr[["ab_rdo"]])
+  seg_lab <- matrix(paste(rep(lab, each = nrow(comp)), formatC(comp, format = "f", digits = 1)), nrow = nrow(comp))
+  .fr_hbar_svg(parts, comp, formatC(rowSums(comp), format = "f", digits = 1), seg_lab, italic, "ivi", aria)
+}
+
+# Horizontal bars of the number of individuals of the first `n` species
+# (most individuals first; ties by IVI); the value is an integer.
+.fr_count_svg <- function(df, tr, n = 15, aria = "") {
+  df <- as.data.frame(df)
+  if (!nrow(df)) return("")
+  parts <- .fr_parts(df, "species")
+  ord <- utils::head(order(-df$abundance, -df$importance_value, df$species), n)
+  df <- df[ord, , drop = FALSE]; parts <- parts[ord, , drop = FALSE]
+  comp <- matrix(as.numeric(df$abundance), ncol = 1)
+  txt <- as.character(as.integer(df$abundance))
+  .fr_hbar_svg(parts, comp, txt, matrix(paste(txt, tolower(tr[["individuals"]])), ncol = 1), TRUE, "abund", aria)
 }
 
 # Diameter classes (cm) with an adaptive class width.
@@ -720,8 +767,9 @@
   legend <- paste0('<p class="leg"><i class="k-s1"></i>', tr[["ab_rd"]], " ", tr[["comp_rd"]],
                    ' <i class="k-s2"></i>', tr[["ab_rf"]], " ", tr[["comp_rf"]],
                    if (has_ba) paste0(' <i class="k-s3"></i>', tr[["ab_rdo"]], " ", tr[["comp_rdo"]]) else "", '</p>')
-  fig <- function(cap, svg, note) paste0('<figure class="fig"><figcaption>', cap, '</figcaption>', legend, svg,
-                                         '<p class="note">', note, '</p></figure>')
+  fig <- function(cap, svg, note, leg = legend) paste0('<figure class="fig"><figcaption>', cap, '</figcaption>', leg, svg,
+                                                       '<p class="note">', note, '</p></figure>')
+  names_note <- if (any(!is.na(.fr_parts(sp, "species")$vern))) tr[["names_note"]] else ""
 
   th_num <- function(x, title) sprintf('<th class="r" title="%s">%s</th>', .fr_esc(title), x)
   fam_rows <- paste(sprintf('<tr><td>%s</td><td class="r">%d</td><td class="r">%d</td><td class="r">%d</td><td class="r">%s</td><td class="r">%s</td><td class="r">%s</td><td class="r b">%s</td></tr>',
@@ -748,11 +796,14 @@
     strip, '<ol class="fn">', paste(sprintf("<li>%s</li>", fns), collapse = ""), '</ol>',
     fig(tr[["fig_fam"]], .fr_ivi_svg(fa, "family", tr, nf, FALSE, tr[["fig_fam"]]), sprintf(tr[["top_note"]], nf)),
     '</section>',
+    # species: the ranking by number of individuals first, then by IVI
     '<section class="page phyto" id="phyto-2">',
-    fig(tr[["fig_spp"]], .fr_ivi_svg(sp, "species", tr, ns, TRUE, tr[["fig_spp"]]), sprintf(tr[["top_note"]], ns)),
-    if (nzchar(dbh_svg)) paste0('<figure class="fig"><figcaption>', tr[["fig_dbh"]], '</figcaption>', dbh_svg, '</figure>') else "",
+    fig(tr[["fig_spp_n"]], .fr_count_svg(sp, tr, ns, tr[["fig_spp_n"]]), paste0(sprintf(tr[["top_note_n"]], ns), names_note), leg = ""),
+    fig(tr[["fig_spp"]], .fr_ivi_svg(sp, "species", tr, ns, TRUE, tr[["fig_spp"]]), paste0(sprintf(tr[["top_note"]], ns), names_note)),
     '</section>',
-    '<section class="page phyto" id="phyto-tables">', fam_tbl, sp_tbl, '</section>')
+    '<section class="page phyto" id="phyto-tables">',
+    if (nzchar(dbh_svg)) paste0('<figure class="fig"><figcaption>', tr[["fig_dbh"]], '</figcaption>', dbh_svg, '</figure>') else "",
+    fam_tbl, sp_tbl, '</section>')
 }
 
 
@@ -887,10 +938,13 @@
 #' @param meta List with `plot_name`, `plot_code`, `plot_census_no_fp`, `team`
 #'   and, optionally, `census_date` (a `Date`).
 #' @param logos Data frame from `.resolve_report_logos()`, or `NULL` for none.
+#' @param print_name File name (without extension) the browser should give a
+#'   PDF printed from the report; the page title is shown otherwise.
 #' @keywords internal
 #' @noRd
 .field_report_html <- function(lay, meta, language = "en", highlight_palms = TRUE,
-                               plot_area_ha = NULL, phyto = NULL, logos = NULL) {
+                               plot_area_ha = NULL, phyto = NULL, logos = NULL,
+                               print_name = NULL) {
   tr <- .field_report_strings(language)
   d <- lay$trees
   c <- lay$cells
@@ -1082,7 +1136,8 @@
     '<meta name="generator" content="forplotR ', ver, '">',
     '<title>', pc, if (nzchar(pc)) " \u00b7 " else "", tr[["doc_title"]], '</title>',
     '<style>', .fr_read_asset("field_report.css"), '</style></head>',
-    sprintf('<body data-not-found="%s" data-sub-prefix="%s">', .fr_esc(tr[["not_found"]]), sub_prefix),
+    sprintf('<body data-not-found="%s" data-sub-prefix="%s"%s>', .fr_esc(tr[["not_found"]]), sub_prefix,
+            if (length(print_name) && nzchar(print_name)) sprintf(' data-print-name="%s"', .fr_esc(print_name)) else ""),
     '<div class="bar"><a href="#summary" class="brand">', if (nzchar(pc)) pc else tr[["index"]], '</a>',
     '<a href="#map-all">', tr[["maps"]], '</a><a href="#route">', tr[["route_short"]], '</a>', if (nzchar(phyto_html)) paste0('<a href="#phyto">', tr[["phyto_short"]], '</a>') else "", '<a href="#checklist">', tr[["checklist"]], '</a>',
     sprintf('<form class="find" onsubmit="return false"><input id="find" type="search" placeholder="%s" aria-label="%s" autocomplete="off"></form>',
@@ -1101,11 +1156,11 @@
 .write_field_report <- function(file, fp_coords, input_type, subplot_size,
                                 plot_width_m, plot_length_m, highlight_palms,
                                 meta, language, plot_area_ha = NULL, phyto = NULL,
-                                logos = NULL) {
+                                logos = NULL, print_name = NULL) {
   lay <- .field_report_layout(fp_coords, input_type, subplot_size,
                               plot_width_m, plot_length_m, highlight_palms)
   html <- .field_report_html(lay, meta, language, highlight_palms, plot_area_ha, phyto,
-                             logos = logos)
+                             logos = logos, print_name = print_name)
   con <- file(file, open = "wb")
   on.exit(close(con), add = TRUE)
   writeBin(charToRaw(enc2utf8(html)), con)

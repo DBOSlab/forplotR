@@ -2085,6 +2085,7 @@
       T1 = as.character(T1),
       D = suppressWarnings(as.numeric(D))
     ) %>%
+    dplyr::mutate(Vernacular = .vernacular_names(fp_sheet)) %>%
     dplyr::filter(!is.na(Family) & Family != "") %>%
     dplyr::filter(!is.na(Species) & Species != "")
 
@@ -2153,6 +2154,7 @@
       abundance = dplyr::n(),
       n_subplots = dplyr::n_distinct(T1),
       basal_area_m2 = sum(basal_area_m2),
+      vernacular = .most_frequent(Vernacular),
       .groups = "drop"
     ) %>%
     .add_phytosoc() %>%
@@ -2188,6 +2190,83 @@
   )
 }
 
+
+#' Vernacular (e.g. indigenous) name of every row of a field sheet
+#'
+#' Takes the `Local name` column (the Panara name of the Indigenous Land
+#' template) and, where it is empty, the `Vernacular name` column.
+#'
+#' @return Character vector with one element per row, `NA` where there is none.
+#' @keywords internal
+#' @noRd
+.vernacular_names <- function(fp_sheet) {
+  out <- rep(NA_character_, nrow(fp_sheet))
+  for (col in c("Local name", "Vernacular name")) {
+    if (!col %in% names(fp_sheet)) next
+    v <- trimws(as.character(fp_sheet[[col]]))
+    fill <- is.na(out) & !is.na(v) & nzchar(v)
+    out[fill] <- v[fill]
+  }
+  out
+}
+
+#' Most frequent non-empty value (first in order of appearance on ties)
+#'
+#' @keywords internal
+#' @noRd
+.most_frequent <- function(x) {
+  x <- as.character(x)
+  x <- x[!is.na(x) & nzchar(trimws(x))]
+  if (!length(x)) return(NA_character_)
+  tab <- table(factor(x, levels = unique(x)))
+  names(tab)[which.max(tab)]
+}
+
+#' Scientific and vernacular parts of the label of each taxon
+#'
+#' The scientific part is the name as determined, made unique within the table
+#' with `.taxon_label()`. The vernacular part comes from `vernacular`; for
+#' sheets read by position, where the name is stored as
+#' "vernacular | scientific", it is split from the name itself.
+#'
+#' @param name Taxon names (as determined).
+#' @param family Families, used to tell apart repeated names; `NULL` for families.
+#' @param vernacular Vernacular names, or `NULL`.
+#' @return Data frame with character columns `sci` and `vern` (`NA` when none).
+#' @keywords internal
+#' @noRd
+.taxon_label_parts <- function(name, family = NULL, vernacular = NULL) {
+  name <- as.character(name)
+  vern <- if (is.null(vernacular)) rep(NA_character_, length(name)) else trimws(as.character(vernacular))
+  sci <- name
+  piped <- grepl("|", name, fixed = TRUE)
+  if (any(piped)) {
+    left <- trimws(sub("[|].*$", "", name[piped]))
+    right <- trimws(sub("^[^|]*[|]", "", name[piped]))
+    sci[piped] <- ifelse(nzchar(right), right, left)
+    take <- is.na(vern[piped]) | !nzchar(vern[piped])
+    vern[piped][take] <- ifelse(nzchar(right), left, NA_character_)[take]
+  }
+  sci <- .taxon_label(sci, family)
+  vern[!is.na(vern) & (!nzchar(vern) | tolower(vern) == tolower(sci))] <- NA_character_
+  data.frame(sci = sci, vern = vern, stringsAsFactors = FALSE)
+}
+
+#' Plotmath labels "vernacular | *scientific*" for a ggplot axis
+#'
+#' @param parts Data frame from `.taxon_label_parts()`.
+#' @param italic Write the scientific part in italics.
+#' @return Expression vector, one element per row of `parts`.
+#' @keywords internal
+#' @noRd
+.taxon_plotmath <- function(parts, italic = TRUE) {
+  as.expression(lapply(seq_len(nrow(parts)), function(i) {
+    s <- parts$sci[i]
+    v <- parts$vern[i]
+    sci_expr <- if (italic) bquote(italic(.(s))) else bquote(.(s))
+    if (is.na(v)) sci_expr else bquote(paste(.(v), " | ", .(sci_expr)))
+  }))
+}
 
 #' Display label of a taxon, unique within a table
 #'
@@ -2310,45 +2389,91 @@
 
   subplot_stats$subplot <- factor(subplot_stats$subplot, levels = subplot_stats$subplot)
 
-  # IVI charts (PNG exports): stacked relative density, frequency and
-  # dominance, same validated palette as the HTML report.
+  # Species and family charts (PNG exports), same validated palette as the
+  # HTML report. Taxa on the y axis are "vernacular | scientific" when the
+  # sheet has a vernacular name, with the scientific name in italics; each bar
+  # ends with its value (integer counts, IVI with one decimal), and the x axis
+  # is extended so that the value is never cut.
   ivi_cols <- c("#2f7d4f", "#2f6db3", "#b5730f")
-  .ivi_plot <- function(m, name_col, n, title, italic = FALSE) {
-    m <- as.data.frame(m)
-    if (!nrow(m)) {
-      return(ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::labs(title = title))
-    }
-    lbl <- .taxon_label(m[[name_col]], if (name_col == "species") m$family else NULL)
-    m$label <- lbl
-    m <- utils::head(m[order(-m$importance_value), , drop = FALSE], n)
-    m$taxon <- factor(m$label, levels = rev(m$label))
-    long <- data.frame(
-      taxon = rep(m$taxon, 3),
-      component = factor(rep(c("RD", "RF", "RDo"), each = nrow(m)), levels = c("RDo", "RF", "RD")),
-      value = c(m$relative_density, m$relative_frequency,
-                ifelse(is.finite(m$relative_dominance), m$relative_dominance, 0))
-    )
-    ggplot2::ggplot(long, ggplot2::aes(x = value, y = taxon, fill = component)) +
-      ggplot2::geom_col(width = 0.66, colour = "white", linewidth = 0.4) +
-      ggplot2::scale_fill_manual(values = stats::setNames(rev(ivi_cols), c("RDo", "RF", "RD")),
-                                 breaks = c("RD", "RF", "RDo"), name = NULL) +
-      ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = c(0, 0.04))) +
-      ggplot2::labs(title = title, x = "IVI", y = NULL) +
-      ggplot2::theme_minimal(base_size = 13) +
+  .bar_theme <- function() {
+    ggplot2::theme_minimal(base_size = 13) +
       ggplot2::theme(
         panel.grid.major.y = ggplot2::element_blank(),
         panel.grid.minor = ggplot2::element_blank(),
         panel.grid.major.x = ggplot2::element_line(colour = "#E6E1D6", linewidth = 0.4),
         axis.line.y = ggplot2::element_line(colour = "#1b1b1b", linewidth = 0.4),
-        axis.text.y = ggplot2::element_text(colour = "#1b1b1b", face = if (italic) "italic" else "plain"),
+        axis.text.y = ggplot2::element_text(colour = "#1b1b1b"),
         plot.title = ggplot2::element_text(face = "bold"),
         plot.title.position = "plot",
         legend.position = "top", legend.justification = "left"
       )
   }
-  ttl <- sub("^[^.]+[.][[:space:]]*", "", .field_report_strings(language)[c("fig_fam", "fig_spp", "fig_dbh")])
-  family_plot <- .ivi_plot(phytosoc$family_metrics, "family", 10, ttl[[1]])
-  species_plot <- .ivi_plot(phytosoc$species_metrics, "species", 15, ttl[[2]], italic = TRUE)
+  # first `n` rows of `m` by `ord`, with an axis key and the axis labels
+  .bar_rows <- function(m, name_col, n, ord, italic) {
+    m <- as.data.frame(m)
+    sp <- name_col == "species"
+    parts <- .taxon_label_parts(m[[name_col]], if (sp) m$family else NULL,
+                                if (sp && "vernacular" %in% names(m)) m$vernacular else NULL)
+    keep <- utils::head(ord(m), n)
+    m <- m[keep, , drop = FALSE]
+    parts <- parts[keep, , drop = FALSE]
+    # very long vernacular names would squeeze the bars
+    long <- !is.na(parts$vern) & nchar(parts$vern) > 28
+    parts$vern[long] <- paste0(substr(parts$vern[long], 1, 27), intToUtf8(8230L))
+    m$key <- factor(seq_len(nrow(m)), levels = rev(seq_len(nrow(m))))
+    lbl <- if (italic || any(!is.na(parts$vern))) .taxon_plotmath(parts, italic) else parts$sci
+    list(m = m, labels = stats::setNames(lbl, as.character(seq_len(nrow(m)))))
+  }
+  .value_scale <- function(max_value) {
+    top <- if (is.finite(max_value) && max_value > 0) max_value * 1.15 else 1
+    ggplot2::scale_x_continuous(limits = c(0, top), expand = c(0, 0))
+  }
+  .ivi_plot <- function(m, name_col, n, title, italic = FALSE) {
+    if (!NROW(m)) {
+      return(ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::labs(title = title))
+    }
+    r <- .bar_rows(m, name_col, n, function(x) order(-x$importance_value), italic)
+    m <- r$m
+    rdo <- ifelse(is.finite(m$relative_dominance), m$relative_dominance, 0)
+    long <- data.frame(
+      key = rep(m$key, 3),
+      component = factor(rep(c("RD", "RF", "RDo"), each = nrow(m)), levels = c("RDo", "RF", "RD")),
+      value = c(m$relative_density, m$relative_frequency, rdo)
+    )
+    tot <- data.frame(key = m$key, total = m$relative_density + m$relative_frequency + rdo)
+    tot$label <- formatC(tot$total, format = "f", digits = 1)
+    ggplot2::ggplot(long, ggplot2::aes(x = value, y = key)) +
+      ggplot2::geom_col(ggplot2::aes(fill = component), width = 0.66, colour = "white", linewidth = 0.4) +
+      ggplot2::geom_text(data = tot, ggplot2::aes(x = total, y = key, label = label),
+                         hjust = -0.2, size = 3.6, colour = "#1b1b1b", inherit.aes = FALSE) +
+      ggplot2::scale_fill_manual(values = stats::setNames(rev(ivi_cols), c("RDo", "RF", "RD")),
+                                 breaks = c("RD", "RF", "RDo"), name = NULL) +
+      ggplot2::scale_y_discrete(labels = r$labels) +
+      .value_scale(max(tot$total)) +
+      ggplot2::labs(title = title, x = "IVI", y = NULL) +
+      .bar_theme()
+  }
+  .count_plot <- function(m, n, title, x_lab) {
+    if (!NROW(m)) {
+      return(ggplot2::ggplot() + ggplot2::theme_void() + ggplot2::labs(title = title))
+    }
+    # most individuals first; ties by IVI, then by name
+    r <- .bar_rows(m, "species", n, function(x) order(-x$abundance, -x$importance_value, x$species), TRUE)
+    m <- r$m
+    ggplot2::ggplot(m, ggplot2::aes(x = abundance, y = key)) +
+      ggplot2::geom_col(fill = ivi_cols[[1]], width = 0.66, colour = "white", linewidth = 0.4) +
+      ggplot2::geom_text(ggplot2::aes(label = as.integer(abundance)),
+                         hjust = -0.2, size = 3.6, colour = "#1b1b1b") +
+      ggplot2::scale_y_discrete(labels = r$labels) +
+      .value_scale(max(m$abundance)) +
+      ggplot2::labs(title = title, x = x_lab, y = NULL) +
+      .bar_theme()
+  }
+  fr_str <- .field_report_strings(language)
+  ttl <- sub("^[^.]+[.][[:space:]]*", "", fr_str[c("fig_fam", "fig_spp_n", "fig_spp", "fig_dbh")])
+  family_plot <- .ivi_plot(phytosoc$family_metrics, "family", 10, ttl[["fig_fam"]])
+  species_abundance_plot <- .count_plot(phytosoc$species_metrics, 15, ttl[["fig_spp_n"]], fr_str[["ax_ind"]])
+  species_plot <- .ivi_plot(phytosoc$species_metrics, "species", 15, ttl[["fig_spp"]], italic = TRUE)
 
   subplot_plot <- ggplot2::ggplot(
     subplot_stats,
@@ -2419,7 +2544,7 @@
       ggplot2::geom_col(fill = "#2f7d4f", width = 0.74) +
       ggplot2::theme_minimal(base_size = 13) +
       ggplot2::labs(
-        title = ttl[[3]],
+        title = ttl[["fig_dbh"]],
         x = lab$dbh_x,
         y = lab$dbh_y
       ) +
@@ -2505,6 +2630,7 @@
     species_metrics_tbl = species_metrics_tbl,
     family_metrics_tbl = family_metrics_tbl,
     family_plot = family_plot,
+    species_abundance_plot = species_abundance_plot,
     species_plot = species_plot,
     subplot_plot = subplot_plot,
     dbh_plot = dbh_plot,

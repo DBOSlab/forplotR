@@ -1,5 +1,44 @@
 # forplotR (development version)
 
+- The species chart of `forplot_balance()` is now two charts: the species with
+  the most individuals (the simple ranking used before the IVI chart, now with
+  the first 15 species and the same taxon rule as the IVI: a name within its
+  family) followed by the species with the highest importance value (IVI).
+  Each has its own figure and caption in the field report (Figures 2 and 3;
+  stems per diameter class is now Figure 4) and its own PNG file. Every bar of
+  the species and family charts ends with its value (integer counts, IVI with
+  one decimal), and the x axis is extended so the value is never cut.
+- When the field sheet has a vernacular name (the `Local name` column of the
+  Indigenous Land template, e.g. the Panará name, or a `Vernacular name`
+  column), species are labelled "vernacular | scientific" in both charts, in
+  the PNG files and in the report, with the scientific name in italics.
+  Without a vernacular name, only the scientific name is shown. In Panará,
+  the dictionary's "most abundant species" now titles the ranking; the IVI
+  species chart has no equivalent in the dictionary and stays in Portuguese.
+- Output files of `forplot_balance()` are named in the language of the call,
+  from one dictionary of file names (`R/i18n_files.R`): Portuguese for `"pt"`
+  and `"pa"`, Spanish, French, and English for `"en"` and `"ma"` (Chinese
+  characters cannot be used in file names). Names are snake_case ASCII. Old
+  and new names (English): `_full_report` (unchanged), `_general`,
+  `_collected`, `_uncollected`, `_uncollected_palms`,
+  `_priority_uncollected_species`, `_dbh_classes` (unchanged);
+  `_species_plot` -> `_species_ivi`; `_family_plot` -> `_families_ivi`;
+  new `_species_abundance`. In Portuguese: `_relatorio_completo`, `_geral`,
+  `_coletados`, `_nao_coletados`, `_palmeiras_nao_coletadas`,
+  `_especies_prioritarias_nao_coletadas`, `_especies_abundancia`,
+  `_especies_ivi`, `_familias_ivi`, `_classes_dap`, `_balanco_coleta`.
+- The Excel summary now carries the prefix too
+  (`<filename>_collection_balance.xlsx`, `<filename>_balanco_coleta.xlsx`),
+  so two runs in the same folder no longer overwrite each other.
+- `filename` now defaults to `NULL`, which uses the word for "plot" in the
+  report language (`plot`, `parcela`, `parcelle`) instead of
+  `"plot_specimen"`. Calls that pass `filename` are not affected. With
+  several MONITORA stations, the station suffix follows the language too
+  (`_station_`, `_estacao_`, `_estacion_`).
+- A PDF printed from the HTML report in a browser is offered with the name of
+  the report file (e.g. `RUS01_relatorio_completo.pdf`) instead of the page
+  title ("RUS01 · Balanço de coleta"); the tab keeps the title.
+
 - The field report in Panará (`language = "pa"`) is no longer all in
   Portuguese: its labels (title, team, date, individuals, families, with
   voucher, pending, palms, subplot, tag, DBH, species, checklist and others)

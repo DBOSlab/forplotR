@@ -212,7 +212,7 @@ figure{margin:0}figcaption{font-size:13px;font-weight:600;margin-bottom:6px}
 .chart .ax{font:10px var(--sans);fill:var(--mut);text-anchor:middle;font-variant-numeric:tabular-nums}
 .chart .ax.end{text-anchor:end}
 .chart .nm{font:12px var(--sans);fill:var(--ink);text-anchor:end}
-.chart .nm.it{font-style:italic}
+.chart .nm.it,.chart .nm .it{font-style:italic}
 .chart .vl{font:600 11px var(--sans);fill:var(--ink);font-variant-numeric:tabular-nums}
 .chart rect{stroke:var(--sf);stroke-width:1.5}
 .chart .s1{fill:var(--s1)}.chart .s2{fill:var(--s2)}.chart .s3{fill:var(--s3)}

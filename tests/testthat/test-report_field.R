@@ -194,7 +194,7 @@ test_that("forplot_balance puts the phytosociology section before the appendix a
   html <- paste(readLines(res$html_report, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_lt(regexpr(' id="phyto"', html), regexpr(' id="checklist"', html))
   expect_gt(regexpr(' id="phyto"', html), regexpr(' id="s-100"', html))
-  for (f in c("_family_plot.png", "_species_plot.png", "_dbh_classes.png")) {
+  for (f in c("_families_ivi.png", "_species_abundance.png", "_species_ivi.png", "_dbh_classes.png")) {
     expect_true(file.exists(file.path(res$output_dir, paste0("rus", f))), info = f)
   }
 })
