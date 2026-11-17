@@ -71,6 +71,7 @@ utils::globalVariables(
 
     # From .calculate_phytosociological_metrics
     "absolute_frequency", "relative_dominance", "basal_area_m2",
+    "Vernacular", "component", "value",
 
     NULL
   )
