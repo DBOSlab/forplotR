@@ -125,10 +125,16 @@ that opens offline on a phone and prints one A4 page per subplot. It has a
 summary of the balance, a clickable grid of subplots, whole-plot maps with the
 tag of every stem, a priority route, a page per subplot with its map, the tree
 table (stems pending collection first) and blank columns for remeasurement,
-a floristic and phytosociological overview (diversity indices, importance
-value of families and species, diameter classes and full tables), and a
-checklist appendix. `render_pdf = TRUE` prints the same file to PDF when
-Chrome, Chromium or Edge is installed.
+a floristic and phytosociological overview (diversity indices, the species
+with the most individuals, importance value of families and species, diameter
+classes and full tables), and a checklist appendix. `render_pdf = TRUE` prints
+the same file to PDF when Chrome, Chromium or Edge is installed.
+
+Output files are named after `language`: with the default English, the
+report is `plot_full_report.html` and the summary `plot_collection_balance.xlsx`;
+with `language = "pt"` (or `"pa"`), `parcela_relatorio_completo.html` and
+`parcela_balanco_coleta.xlsx`. The prefix is `filename` (see
+`?forplot_balance`, section *Output files*).
 
 ## 4. Herbarium label spreadsheet
 

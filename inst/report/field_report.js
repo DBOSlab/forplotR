@@ -60,4 +60,12 @@
     if (tr) mark(tr);
   });
   if (/^#r\d+$/.test(location.hash)) mark(document.getElementById(location.hash.slice(1)));
+  // Browsers name a saved PDF after the page title; while printing, use the
+  // file name of the report (snake_case, no accents) instead of the title.
+  var printName = body.getAttribute('data-print-name');
+  if (printName) {
+    var shown = document.title;
+    window.addEventListener('beforeprint', function () { document.title = printName; });
+    window.addEventListener('afterprint', function () { document.title = shown; });
+  }
 })();

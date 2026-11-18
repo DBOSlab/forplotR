@@ -91,18 +91,49 @@
 #' Ellenberg (1974), with the subplot as the sampling unit for frequency. It
 #' gives richness (species, genera, families), density and basal area per
 #' hectare, Shannon \eqn{H'}, Simpson \eqn{1 - D} and Pielou \eqn{J'}; the
-#' families and species with the highest importance value (IVI = relative
-#' density + relative frequency + relative dominance) as stacked bar charts;
+#' species with the most individuals; the families and species with the
+#' highest importance value (IVI = relative density + relative frequency +
+#' relative dominance) as stacked bar charts;
 #' the distribution of stems per diameter class; and the full tables of
 #' phytosociological parameters of every family and species. A name used in
 #' more than one family (e.g. "Indet indet") is treated as one taxon per
-#' family. The same charts are also saved as PNG files.
+#' family. Each bar ends with its value (number of individuals as an integer,
+#' IVI with one decimal). When the sheet has a vernacular name (the
+#' \code{"Local name"} column of the Indigenous Land template, or a
+#' \code{"Vernacular name"} column), species are labelled
+#' \code{"vernacular | scientific"}, with the scientific name in italics. The
+#' same charts are also saved as PNG files.
 #'
 #' The PDF report is the same HTML printed by a headless Chrome, Chromium or
 #' Microsoft Edge, one A4 page per subplot. The browser is found automatically
 #' or through the \code{FORPLOTR_CHROME} environment variable. When none is
 #' available, the PDF is skipped with a warning; the HTML report can then be
 #' printed to PDF from any browser.
+#'
+#' @section Output files:
+#' Every file is named \code{<filename>_<name>.<ext>}, where \code{<name>}
+#' follows \code{language}: Portuguese for \code{"pt"} and \code{"pa"}
+#' (Panará), Spanish for \code{"es"}, French for \code{"fr"} and English for
+#' \code{"en"} and \code{"ma"} (Mandarin, whose characters cannot be used in
+#' file names). Names are in snake_case, without accents or spaces, so that
+#' they can be published as URLs. In Portuguese / English:
+#' \describe{
+#'   \item{\code{relatorio_completo.html} / \code{full_report.html}}{Field report (also \code{.pdf}).}
+#'   \item{\code{geral.png} / \code{general.png}}{Map of all stems.}
+#'   \item{\code{coletados.png} / \code{collected.png}}{Map of the stems with voucher.}
+#'   \item{\code{nao_coletados.png} / \code{uncollected.png}}{Map of the stems pending collection.}
+#'   \item{\code{palmeiras_nao_coletadas.png} / \code{uncollected_palms.png}}{Map of the palms.}
+#'   \item{\code{especies_prioritarias_nao_coletadas.png} / \code{priority_uncollected_species.png}}{Priority subplots.}
+#'   \item{\code{familias_ivi.png} / \code{families_ivi.png}}{Families with the highest IVI.}
+#'   \item{\code{especies_abundancia.png} / \code{species_abundance.png}}{Species with the most individuals.}
+#'   \item{\code{especies_ivi.png} / \code{species_ivi.png}}{Species with the highest IVI.}
+#'   \item{\code{classes_dap.png} / \code{dbh_classes.png}}{Stems per diameter class.}
+#'   \item{\code{balanco_coleta.xlsx} / \code{collection_balance.xlsx}}{Collection balance per subplot.}
+#' }
+#' With several MONITORA stations, the prefix gets the station:
+#' \code{<filename>_estacao_<station>} (\code{_station_} in English).
+#' A PDF printed from the HTML report in a browser is offered with the name of
+#' the report file instead of the page title.
 #'
 #' @section Side effects:
 #' The function creates output files on disk, including map images, an optional
@@ -174,7 +205,11 @@
 #' session temporary directory (\code{tempdir()}), which is deleted when the R
 #' session ends; supply a path to keep the outputs.
 #'
-#' @param filename Basename for generated output files, without extension.
+#' @param filename Prefix of the names of the output files, without
+#' extension. The default \code{NULL} uses the word for "plot" in the report
+#' language (\code{"parcela"} in Portuguese, Panará and Spanish,
+#' \code{"plot"} in English and Mandarin, \code{"parcelle"} in French). See
+#' \emph{Output files}.
 #'
 #' @param logos Logos shown at the top of the HTML and PDF report. A character
 #' vector that may mix logo names, presets and paths to your own image files
@@ -325,7 +360,7 @@ forplot_balance <- function(fp_file_path = NULL,
                             write_xlsx = TRUE,
                             verbose = TRUE,
                             dir = file.path(tempdir(), "Results_map_plot"),
-                            filename = "plot_specimen",
+                            filename = NULL,
                             logos = NULL,
                             header_row = NULL,
                             colname_tagno = NULL,
@@ -413,6 +448,11 @@ forplot_balance <- function(fp_file_path = NULL,
   language <- match.arg(tolower(trimws(as.character(language))),
                         c("en", "pt", "es", "fr", "ma", "pa"))
 
+  if (is.null(filename)) filename <- .out_name("default_prefix", language)
+  if (!is.character(filename) || length(filename) != 1L || is.na(filename) || !nzchar(trimws(filename))) {
+    stop("`filename` must be NULL or a single non-empty string.", call. = FALSE)
+  }
+
   # validated before anything is read or written
   report_logos <- .resolve_report_logos(logos, input_type)
 
@@ -446,7 +486,7 @@ forplot_balance <- function(fp_file_path = NULL,
         render_pdf = render_pdf,
         write_xlsx = write_xlsx,
         dir = dir,
-        filename = paste0(filename, "_station_", st),
+        filename = paste0(filename, "_", .out_name("station", language), "_", st),
         language = language,
         verbose = verbose,
         logos = logos,
@@ -517,8 +557,9 @@ forplot_balance <- function(fp_file_path = NULL,
   plot_census_no_fp <- balance$metadata$plot_census_no_fp
   team <- balance$metadata$team
 
-  final_html <- file.path(foldername, paste0(filename, "_full_report.html"))
-  final_pdf  <- file.path(foldername, paste0(filename, "_full_report.pdf"))
+  out_path <- function(key, ext) file.path(foldername, .out_name(key, language, filename, ext))
+  final_html <- out_path("report", "html")
+  final_pdf  <- out_path("report", "pdf")
 
   # PNG exports -------------------------------------------------------------
   if (verbose) {
@@ -537,36 +578,43 @@ forplot_balance <- function(fp_file_path = NULL,
   }
 
   map_pngs <- list(
-    general = balance$plots$base,
-    collected = balance$plots$collected,
-    uncollected = balance$plots$uncollected,
-    uncollected_palms = balance$plots$palms,
-    priority_uncollected_species = balance$plots$priority
+    map_general = balance$plots$base,
+    map_collected = balance$plots$collected,
+    map_uncollected = balance$plots$uncollected,
+    map_uncollected_palms = balance$plots$palms,
+    map_priority = balance$plots$priority
   )
 
   for (nm in names(map_pngs)) {
     if (is.null(map_pngs[[nm]])) next
     ggplot2::ggsave(
-      filename = file.path(foldername, paste0(filename, "_", nm, ".png")),
+      filename = out_path(nm, "png"),
       plot = map_pngs[[nm]],
       width = export_size$width, height = export_size$height, units = "in", dpi = 300
     )
   }
 
+  # species: the ranking by number of individuals, then the IVI chart
   ggplot2::ggsave(
-    filename = file.path(foldername, paste0(filename, "_species_plot.png")),
+    filename = out_path("chart_species_abund", "png"),
+    plot = balance$dashboard$species_abundance_plot,
+    width = 10, height = 7.5, units = "in", dpi = 300, bg = "white"
+  )
+
+  ggplot2::ggsave(
+    filename = out_path("chart_species_ivi", "png"),
     plot = balance$dashboard$species_plot,
     width = 10, height = 7.5, units = "in", dpi = 300, bg = "white"
   )
 
   ggplot2::ggsave(
-    filename = file.path(foldername, paste0(filename, "_family_plot.png")),
+    filename = out_path("chart_family_ivi", "png"),
     plot = balance$dashboard$family_plot,
     width = 10, height = 6.5, units = "in", dpi = 300, bg = "white"
   )
 
   ggplot2::ggsave(
-    filename = file.path(foldername, paste0(filename, "_dbh_classes.png")),
+    filename = out_path("chart_dbh_classes", "png"),
     plot = balance$dashboard$dbh_plot,
     width = 9, height = 5.5, units = "in", dpi = 300, bg = "white"
   )
@@ -595,7 +643,8 @@ forplot_balance <- function(fp_file_path = NULL,
       language = language,
       plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL,
       phyto = balance$dashboard$phytosoc,
-      logos = report_logos
+      logos = report_logos,
+      print_name = tools::file_path_sans_ext(basename(final_pdf))
     )
     if (isTRUE(render_html)) {
       html_report <- final_html
@@ -611,6 +660,7 @@ forplot_balance <- function(fp_file_path = NULL,
       xlsx_report <- .collection_percentual(
         fp_sheet = fp_coords,
         dir = foldername,
+        file = .out_name("balance_xlsx", language, filename, "xlsx"),
         plot_name = plot_name,
         plot_code = plot_code,
         plot_census_no_fp = plot_census_no_fp,
@@ -986,6 +1036,7 @@ forplot_balance <- function(fp_file_path = NULL,
 
 # Get percentual values ####
 .collection_percentual <- function(fp_sheet, dir = getwd(),
+                                   file = "collection_balance.xlsx",
                                    plot_name = "",
                                    plot_code = "",
                                    plot_census_no_fp = "",
@@ -995,7 +1046,7 @@ forplot_balance <- function(fp_file_path = NULL,
                                    subplot_size = 10) {
   if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
 
-  output_file <- file.path(dir, "collection_balance.xlsx")
+  output_file <- file.path(dir, file)
 
   fp_sheet <- fp_sheet %>%
     dplyr::mutate(

@@ -24,7 +24,7 @@ forplot_balance(
   write_xlsx = TRUE,
   verbose = TRUE,
   dir = file.path(tempdir(), "Results_map_plot"),
-  filename = "plot_specimen",
+  filename = NULL,
   logos = NULL,
   header_row = NULL,
   colname_tagno = NULL,
@@ -110,7 +110,11 @@ and report rendering.}
 session temporary directory (\code{tempdir()}), which is deleted when the R
 session ends; supply a path to keep the outputs.}
 
-\item{filename}{Basename for generated output files, without extension.}
+\item{filename}{Prefix of the names of the output files, without
+extension. The default \code{NULL} uses the word for "plot" in the report
+language (\code{"parcela"} in Portuguese, Panará and Spanish,
+\code{"plot"} in English and Mandarin, \code{"parcelle"} in French). See
+\emph{Output files}.}
 
 \item{logos}{Logos shown at the top of the HTML and PDF report. A character
 vector that may mix logo names, presets and paths to your own image files
@@ -263,18 +267,51 @@ The floristic and phytosociological overview follows Mueller-Dombois &
 Ellenberg (1974), with the subplot as the sampling unit for frequency. It
 gives richness (species, genera, families), density and basal area per
 hectare, Shannon \eqn{H'}, Simpson \eqn{1 - D} and Pielou \eqn{J'}; the
-families and species with the highest importance value (IVI = relative
-density + relative frequency + relative dominance) as stacked bar charts;
+species with the most individuals; the families and species with the
+highest importance value (IVI = relative density + relative frequency +
+relative dominance) as stacked bar charts;
 the distribution of stems per diameter class; and the full tables of
 phytosociological parameters of every family and species. A name used in
 more than one family (e.g. "Indet indet") is treated as one taxon per
-family. The same charts are also saved as PNG files.
+family. Each bar ends with its value (number of individuals as an integer,
+IVI with one decimal). When the sheet has a vernacular name (the
+\code{"Local name"} column of the Indigenous Land template, or a
+\code{"Vernacular name"} column), species are labelled
+\code{"vernacular | scientific"}, with the scientific name in italics. The
+same charts are also saved as PNG files.
 
 The PDF report is the same HTML printed by a headless Chrome, Chromium or
 Microsoft Edge, one A4 page per subplot. The browser is found automatically
 or through the \code{FORPLOTR_CHROME} environment variable. When none is
 available, the PDF is skipped with a warning; the HTML report can then be
 printed to PDF from any browser.
+}
+
+\section{Output files}{
+
+Every file is named \code{<filename>_<name>.<ext>}, where \code{<name>}
+follows \code{language}: Portuguese for \code{"pt"} and \code{"pa"}
+(Panará), Spanish for \code{"es"}, French for \code{"fr"} and English for
+\code{"en"} and \code{"ma"} (Mandarin, whose characters cannot be used in
+file names). Names are in snake_case, without accents or spaces, so that
+they can be published as URLs. In Portuguese / English:
+\describe{
+\item{\code{relatorio_completo.html} / \code{full_report.html}}{Field report (also \code{.pdf}).}
+\item{\code{geral.png} / \code{general.png}}{Map of all stems.}
+\item{\code{coletados.png} / \code{collected.png}}{Map of the stems with voucher.}
+\item{\code{nao_coletados.png} / \code{uncollected.png}}{Map of the stems pending collection.}
+\item{\code{palmeiras_nao_coletadas.png} / \code{uncollected_palms.png}}{Map of the palms.}
+\item{\code{especies_prioritarias_nao_coletadas.png} / \code{priority_uncollected_species.png}}{Priority subplots.}
+\item{\code{familias_ivi.png} / \code{families_ivi.png}}{Families with the highest IVI.}
+\item{\code{especies_abundancia.png} / \code{species_abundance.png}}{Species with the most individuals.}
+\item{\code{especies_ivi.png} / \code{species_ivi.png}}{Species with the highest IVI.}
+\item{\code{classes_dap.png} / \code{dbh_classes.png}}{Stems per diameter class.}
+\item{\code{balanco_coleta.xlsx} / \code{collection_balance.xlsx}}{Collection balance per subplot.}
+}
+With several MONITORA stations, the prefix gets the station:
+\code{<filename>_estacao_<station>} (\code{_station_} in English).
+A PDF printed from the HTML report in a browser is offered with the name of
+the report file instead of the page title.
 }
 
 \section{Side effects}{
