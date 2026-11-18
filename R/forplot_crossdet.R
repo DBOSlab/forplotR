@@ -1199,8 +1199,10 @@ forplot_crossdet <- function(fp_file_path,
 #' @keywords internal
 #' @noRd
 .inventory_collection_codes <- function(inv) {
-  key <- gsub("[^a-z]", "", tolower(names(inv)))
-  i <- which(key == "collectioncode")
+  # either side of a bilingual "collectionCode | Sigla do herbario" header
+  key <- lapply(strsplit(names(inv), "|", fixed = TRUE),
+                function(p) gsub("[^a-z]", "", tolower(p)))
+  i <- which(vapply(key, function(k) "collectioncode" %in% k, logical(1)))
   if (!length(i)) return(rep(NA_character_, nrow(inv)))
   x <- toupper(trimws(as.character(inv[[i[1]]])))
   x[is.na(x) | !nzchar(x)] <- NA_character_

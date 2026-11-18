@@ -717,7 +717,9 @@
 
   # Herbarium of each voucher (Darwin Core collectionCode), when present;
   # forplot_crossdet() checks each voucher in that herbarium
-  cc_i <- which(gsub("[^a-z]", "", tolower(names(in_dat))) == "collectioncode")
+  cc_i <- which(vapply(strsplit(names(in_dat), "|", fixed = TRUE),
+                       function(p) "collectioncode" %in% gsub("[^a-z]", "", tolower(p)),
+                       logical(1)))
   if (length(cc_i) && nrow(in_dat) == nrow(out)) {
     out$collectionCode <- as.character(in_dat[[cc_i[1]]])
   }

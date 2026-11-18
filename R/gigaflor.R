@@ -47,6 +47,13 @@
 .gigaflor_prepare <- function(fp_sheet, verbose = TRUE) {
   df <- as.data.frame(fp_sheet, stringsAsFactors = FALSE, check.names = FALSE)
 
+  # Bilingual headers ("Main Stem Tag | Placa do fuste principal", as in the
+  # Portuguese GigaFlor sheet): GigaFlor columns go by their English side
+  short <- trimws(sub("\\s*\\|.*$", "", names(df)))
+  rename <- grepl("|", names(df), fixed = TRUE) & nzchar(short) &
+    !(short %in% names(df)) & !duplicated(short)
+  names(df)[rename] <- short[rename]
+
   # The template is pre-formatted far below the data: drop rows with no tag,
   # family, species or measurement
   key <- intersect(c("New Tag No", "Family", "Original determination", "D", "CAP", "X", "Y"),
