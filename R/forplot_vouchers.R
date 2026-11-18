@@ -14,7 +14,10 @@
 #' and `input_type = "monitora"`, the function relies on the existing internal
 #' converters. For `input_type = "field_sheet_ti"`, it applies the same direct
 #' positional remapping used in the package workflow for Indigenous Land /
-#' Panará-style field sheets.
+#' Panará-style field sheets. For `input_type = "gigaflor"`, the GigaFlor
+#' network field sheet is read from its `"Data"` worksheet, with
+#' `"Tag Number"`, `"Species"` and `"Main Stem Tag"` taken as the tag,
+#' determination and stem grouping (see [forplot_balance()]).
 #'
 #' On the **first execution**, the function reads voucher information from the
 #' input file, (i) creates a main folder (default: `"voucher_imgs"`) if it does
@@ -55,7 +58,7 @@
 #' voucher image folder to organize it in place.
 #'
 #' @param input_type Character. Input layout. Must be one of `"field_sheet"`,
-#' `"field_sheet_ti"`, `"fp_query_sheet"`, or `"monitora"`.
+#' `"field_sheet_ti"`, `"fp_query_sheet"`, `"monitora"`, or `"gigaflor"`.
 #'
 #' @param station_name Optional character or numeric. Station name or station
 #' identifier used to filter MONITORA spreadsheets when applicable. Ignored
@@ -107,7 +110,8 @@ forplot_vouchers <- function(fp_file_path = NULL,
                              input_type = c("field_sheet",
                                             "field_sheet_ti",
                                             "fp_query_sheet",
-                                            "monitora"),
+                                            "monitora",
+                                            "gigaflor"),
                              station_name = NULL,
                              verbose = TRUE,
                              header_row = NULL) {

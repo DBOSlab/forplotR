@@ -6,7 +6,8 @@
 \usage{
 forplot_map(
   fp_file_path = NULL,
-  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora",
+    "gigaflor"),
   vertex_coords = NULL,
   plot_size = 1,
   subplot_size = 10,
@@ -52,7 +53,8 @@ forplot_map(
 data in ForestPlots.net field-sheet, Query Library, or MONITORA format.}
 
 \item{input_type}{Input layout. One of \code{"field_sheet"},
-\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
+\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, \code{"monitora"}, or
+\code{"gigaflor"}.}
 
 \item{vertex_coords}{Plot reference coordinates. Accepted inputs are a data
 frame, a path to an Excel or CSV file, or a numeric vector of length 2.
@@ -66,12 +68,15 @@ interpreted as \code{c(lat, lon)} unless named with \code{lat}/\code{latitude}
 and \code{lon}/\code{longitude}. When several MONITORA stations are
 requested, supply one center per station: a named list, a data frame with
 one row per station (in the order of \code{station_name}), or a data frame
-with a station column.}
+with a station column. Optional for \code{"gigaflor"} (estimated from the
+trees' coordinates when \code{NULL}).}
 
 \item{plot_size}{Numeric scalar. Total plot size in hectares. Used for
 non-MONITORA inputs.}
 
-\item{subplot_size}{Numeric scalar. Side length of each subplot in meters.}
+\item{subplot_size}{Numeric scalar. Side length of each subplot in meters.
+Defaults to 10, or to 20 (GigaFlor protocol 1) when
+\code{input_type = "gigaflor"} and the argument is not given.}
 
 \item{plot_width_m}{Optional numeric scalar. Plot width in meters for
 non-MONITORA layouts. If omitted, dimensions are inferred from
@@ -191,7 +196,8 @@ character vector of paths when several MONITORA stations are mapped.
 \description{
 Generate an interactive HTML map of vouchered individuals in a forest plot
 using Leaflet. The function supports standard ForestPlots.net layouts defined
-by plot vertices and MONITORA layouts defined by a single central coordinate.
+by plot vertices, MONITORA layouts defined by a single central coordinate and
+GigaFlor field sheets, whose trees already carry their own coordinates.
 It harmonizes specimen records, converts local plot coordinates to geographic
 coordinates, draws plot geometry and subplot boundaries, and writes a
 shareable HTML map to disk.
@@ -246,6 +252,15 @@ plot metadata, then a header that may be bilingual
 that, by their fixed position in the template.}
 \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export converted internally to a field-sheet-like schema.}
 \item{\code{"monitora"}}{MONITORA layout converted internally and plotted using MONITORA geometry.}
+\item{\code{"gigaflor"}}{GigaFlor network field sheet (protocol 1: 25
+subplots of 20 x 20 m; see \code{\link[=forplot_balance]{forplot_balance()}}). Each tree is drawn at its
+own \code{X} (longitude) / \code{Y} (latitude) in decimal degrees, as
+given in the sheet. \code{vertex_coords} is optional: when it is
+\code{NULL}, the four plot corners, and so the subplot grid, are
+estimated from the trees' coordinates and their \code{T1} subplots
+with the plot dimensions (\code{plot_size}, \code{subplot_size}). Give
+\code{vertex_coords} to draw the grid from the corners marked in the
+survey instead. \code{subplot_size} defaults to 20 m.}
 }
 }
 

@@ -7,7 +7,8 @@
 forplot_balance(
   fp_file_path = NULL,
   language = c("en", "pt", "es", "fr", "ma", "pa"),
-  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora",
+    "gigaflor"),
   plot_size = 1,
   subplot_size = 10,
   plot_width_m = NULL,
@@ -51,13 +52,16 @@ field-sheet, Query Library, or MONITORA format.}
 \code{"ma"} (Mandarin), or \code{"pa"} (Panará).}
 
 \item{input_type}{Input layout. One of \code{"field_sheet"},
-\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
+\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, \code{"monitora"}, or
+\code{"gigaflor"}.}
 
 \item{plot_size}{Total plot size in hectares. Used for \code{"field_sheet"}
 and \code{"fp_query_sheet"} inputs. Ignored when
 \code{input_type = "monitora"}.}
 
-\item{subplot_size}{Side length of each subplot in meters.}
+\item{subplot_size}{Side length of each subplot in meters. Defaults to 10,
+or to 20 (GigaFlor protocol 1) when \code{input_type = "gigaflor"} and the
+argument is not given.}
 
 \item{plot_width_m}{Plot width in meters. Used for \code{"field_sheet"} and
 \code{"fp_query_sheet"} inputs. Ignored when
@@ -132,7 +136,8 @@ number to force it.}
 respectively: tree tag (\code{"New Tag No"}), stem group
 (\code{"New Stem Grouping"}), subplot (\code{"T1"}; for MONITORA, the
 subunit N/S/L/O), local X and Y coordinates (m), family, species
-(\code{"Original determination"}), diameter in mm (\code{"D"}), voucher,
+(\code{"Original determination"}), diameter in mm (\code{"D"}; in cm for
+\code{input_type = "gigaflor"}), voucher,
 and collection status. Use them when your file uses different column names.
 The default \code{NULL} keeps automatic detection. Matching ignores case,
 accents, and punctuation. A supplied column always overrides automatic
@@ -168,13 +173,14 @@ than 1, the function recursively processes each station and invisibly returns
 Generate specimen collection-balance maps and reports from
 \href{https://forestplots.net/}{ForestPlots.net} or
 \href{https://www.gov.br/icmbio/pt-br/assuntos/monitoramento/programa-monitora}{MONITORA program}
+or \href{https://robson-lima2023.github.io/page-gigaflor/}{GigaFlor network}
 field data. The function reads plot data, standardizes coordinates and
 specimen metadata, builds plot and subplot maps, and optionally exports
 HTML/PDF reports and an Excel summary workbook.
 }
 \details{
 Supported inputs include ForestPlots.net field sheets, Indigenous Land field
-sheets, Query Library exports, and MONITORA layouts. Depending on the selected
+sheets, Query Library exports, MONITORA layouts and GigaFlor field sheets. Depending on the selected
 \code{input_type}, the function:
 \enumerate{
 \item validates arguments and output directories;
@@ -203,6 +209,37 @@ plot metadata, then a header that may be bilingual
 that, by their fixed position in the template.}
 \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export, converted internally to field-sheet schema.}
 \item{\code{"monitora"}}{MONITORA layout, converted internally and plotted using MONITORA geometry.}
+\item{\code{"gigaflor"}}{GigaFlor network field sheet (see \emph{GigaFlor
+field sheets}).}
+}
+}
+
+\section{GigaFlor field sheets}{
+
+The \href{https://robson-lima2023.github.io/page-gigaflor/}{GigaFlor}
+spreadsheet is read from its \code{"Data"} worksheet (the first sheet when
+there is none), with the plot metadata (\code{"Plotcode:"},
+\code{"Plot Name:"}, \code{"Date:"}, \code{"Team:"}) above the header.
+It follows GigaFlor protocol 1: a 1-ha plot of 25 subplots of
+20 x 20 m (\code{T1}, numbered in serpentine order as in ForestPlots), each
+split into four 10 x 10 m quadrants (\code{T2}). With
+\code{input_type = "gigaflor"}, \code{subplot_size} defaults to 20 m.
+Differences from a ForestPlots field sheet are handled automatically:
+\itemize{
+\item \code{"Tag Number"} is the tree tag (\code{"New Tag No"}),
+\code{"Species"} the determination (\code{"Original determination"})
+and \code{"Main Stem Tag"} groups the stems of a multi-stemmed tree;
+\item \code{D} is in centimetres (converted to millimetres internally;
+taken from \code{"CAP (cm)"} / pi when empty);
+\item \code{X} and \code{Y} are the geographic coordinates of each tree
+in decimal degrees (\code{X} = longitude, \code{Y} = latitude). They are
+projected to metres and fitted onto the subplot grid by a rotation and a
+translation that bring each tree closest to the centre of its own
+\code{T1} subplot, which recovers the orientation of the plot on the
+ground. Trees are then drawn at that position inside their subplot
+(kept inside it when GPS error places them just outside). A warning is
+given when the coordinates fit the grid poorly. Trees without
+coordinates are drawn at the centre of their subplot.
 }
 }
 
@@ -279,6 +316,14 @@ forplot_balance(
 }
 
 \dontrun{
+# GigaFlor field sheet (protocol 1: 25 subplots of 20 x 20 m, X/Y in
+# decimal degrees, D in cm)
+forplot_balance(
+  "PNMT_01.xlsx",
+  input_type = "gigaflor",
+  dir = "path/to/output"
+)
+
 # Field sheet with non-standard column names
 forplot_balance(
   "my_plot.xlsx",

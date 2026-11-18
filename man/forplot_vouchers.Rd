@@ -7,7 +7,8 @@
 forplot_vouchers(
   fp_file_path = NULL,
   output_dir = file.path(tempdir(), "voucher_imgs"),
-  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+  input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora",
+    "gigaflor"),
   station_name = NULL,
   verbose = TRUE,
   header_row = NULL
@@ -23,7 +24,7 @@ will be organized. The default is a session temporary directory
 voucher image folder to organize it in place.}
 
 \item{input_type}{Character. Input layout. Must be one of \code{"field_sheet"},
-\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.}
+\code{"field_sheet_ti"}, \code{"fp_query_sheet"}, \code{"monitora"}, or \code{"gigaflor"}.}
 
 \item{station_name}{Optional character or numeric. Station name or station
 identifier used to filter MONITORA spreadsheets when applicable. Ignored
@@ -54,7 +55,10 @@ schema used elsewhere in the package. For \code{input_type = "fp_query_sheet"}
 and \code{input_type = "monitora"}, the function relies on the existing internal
 converters. For \code{input_type = "field_sheet_ti"}, it applies the same direct
 positional remapping used in the package workflow for Indigenous Land /
-Panará-style field sheets.
+Panará-style field sheets. For \code{input_type = "gigaflor"}, the GigaFlor
+network field sheet is read from its \code{"Data"} worksheet, with
+\code{"Tag Number"}, \code{"Species"} and \code{"Main Stem Tag"} taken as the tag,
+determination and stem grouping (see \code{\link[=forplot_balance]{forplot_balance()}}).
 
 On the \strong{first execution}, the function reads voucher information from the
 input file, (i) creates a main folder (default: \code{"voucher_imgs"}) if it does

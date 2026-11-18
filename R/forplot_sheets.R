@@ -44,9 +44,15 @@
 #'
 #' @param herb_file_path File path of the herbarium empty template dataset.
 #'
-#' @param input_type Type of input dataset. Options are "forestplots" (default)
-#' and "monitora". For \code{"monitora"}, the function converts the input table
-#' to a forestplots-like structure before filling the herbarium template.
+#' @param input_type Type of input dataset. Options are "forestplots" (default),
+#' "monitora" and "gigaflor". For \code{"monitora"}, the function converts the
+#' input table to a forestplots-like structure before filling the herbarium
+#' template. For \code{"gigaflor"} (GigaFlor network field sheet, read from
+#' its \code{"Data"} worksheet; see [forplot_balance()]), each specimen gets
+#' the latitude/longitude of its own tree (\code{Y}/\code{X} in decimal
+#' degrees in the sheet), \code{D} is read in cm, and the collector,
+#' additional collectors and collection date come from the \code{"Team:"} and
+#' \code{"Date:"} cells above the header.
 #'
 #' @param sheet Sheet index or name to read from the input Excel file.
 #'
@@ -99,9 +105,13 @@
 #' metadata. For \code{input_type = "monitora"}, this information is inferred
 #' from team-related columns when available.
 #'
-#' @param lat Latitude in decimal degrees of the collection site.
+#' @param lat Latitude in decimal degrees of the collection site. For
+#' \code{input_type = "gigaflor"} it is optional: each specimen takes its
+#' tree's latitude, and \code{lat} (or else the plot centre) is used only for
+#' trees without coordinates, the elevation and the locality check.
 #'
-#' @param long Longitude in decimal degrees of the collection site.
+#' @param long Longitude in decimal degrees of the collection site. Optional
+#' for \code{input_type = "gigaflor"} (see \code{lat}).
 #'
 #' @param alt Altitude in meters of the collection site. If \code{NULL},
 #' extract the altitude from geographic coordinates dataset. This requires
@@ -183,7 +193,7 @@
 
 forplot_sheets <- function(fp_file_path = NULL,
                            herb_file_path = NULL,
-                           input_type = c("forestplots", "monitora"),
+                           input_type = c("forestplots", "monitora", "gigaflor"),
                            sheet = 1,
                            header_row = NULL,
                            station_name = NULL,
@@ -248,6 +258,25 @@ forplot_sheets <- function(fp_file_path = NULL,
   if (identical(input_type, "forestplots")) {
     fp_sheet <- .read_forestplots_for_labels(fp_file_path, sheet = sheet,
                                              header_row = header_row)
+  } else if (identical(input_type, "gigaflor")) {
+    gf_loaded <- .harmonize_plot_input(fp_file_path, input_type = "gigaflor",
+                                       verbose = FALSE, require_spatial = FALSE,
+                                       header_row = header_row)
+    fp_sheet <- gf_loaded$fp_sheet
+    # ForestPlots columns the GigaFlor sheet does not have (LI, CI, ...)
+    for (cl in setdiff(.field_sheet_cols(), names(fp_sheet))) fp_sheet[[cl]] <- NA
+    tree_lat <- .parse_num(fp_sheet$Latitude)
+    tree_long <- .parse_num(fp_sheet$Longitude)
+    # plot centre stands in for lat/long (elevation, locality check, trees
+    # without coordinates) unless given
+    if (is.null(lat) || is.null(long)) {
+      if (!any(is.finite(tree_lat) & is.finite(tree_long))) {
+        stop("The GigaFlor sheet has no X/Y coordinates; supply 'lat' and 'long'.",
+             call. = FALSE)
+      }
+      if (is.null(lat)) lat <- mean(tree_lat, na.rm = TRUE)
+      if (is.null(long)) long <- mean(tree_long, na.rm = TRUE)
+    }
   } else if (identical(input_type, "monitora")) {
     fp_sheet <- .monitora_to_field_sheet_df(
       path = fp_file_path,
@@ -277,7 +306,20 @@ forplot_sheets <- function(fp_file_path = NULL,
   fullname <- paste0(foldername, "/", filename, ".xlsx")
 
   # Extract information for 'collector' and 'addcoll' before modifying the dataset
-  if (identical(input_type, "forestplots")) {
+  if (identical(input_type, "gigaflor")) {
+    team_members <- trimws(as.character(gf_loaded$team_members))
+    team_members <- team_members[!is.na(team_members) & nzchar(team_members)]
+    if (!length(team_members) && .safe_nzchar(gf_loaded$team)) {
+      team_members <- trimws(strsplit(gf_loaded$team, ",|;|&")[[1]])
+    }
+    if (is.null(collector)) {
+      collector <- if (length(team_members)) team_members[1] else NA_character_
+      if (!length(team_members)) warning("Could not infer collector metadata from the GigaFlor 'Team:' cell.")
+    }
+    if (is.null(addcoll)) {
+      addcoll <- if (length(team_members) > 1) paste(team_members[-1], collapse = ", ") else NA_character_
+    }
+  } else if (identical(input_type, "forestplots")) {
 
     if (is.null(collector) || is.null(addcoll)) {
 
@@ -432,6 +474,17 @@ forplot_sheets <- function(fp_file_path = NULL,
 
     colnames(fp_sheet) <- fp_sheet[1, ]
     fp_sheet <- fp_sheet[-1, ]
+  } else if (identical(input_type, "gigaflor")) {
+    cdate <- gf_loaded$census_date
+    if (inherits(cdate, "Date") && !is.na(cdate)) {
+      colldd <- format(cdate, "%d")
+      collmm <- format(cdate, "%m")
+      collyy <- format(cdate, "%Y")
+    } else {
+      warning("Could not read the collection date from the GigaFlor 'Date:' cell (dd/mm/yyyy).",
+              call. = FALSE)
+      colldd <- collmm <- collyy <- NA_character_
+    }
   } else if (identical(input_type, "monitora")) {
     plot_meta <- attr(fp_sheet, "plot_meta")
     if (is.null(plot_meta)) plot_meta <- list()
@@ -470,8 +523,32 @@ forplot_sheets <- function(fp_file_path = NULL,
     }
 
   }  else {
-    fp_sheet <- fp_sheet[!is.na(fp_sheet$Collected) & fp_sheet$Collected != "", , drop = FALSE]
+    keep_rows <- !is.na(fp_sheet$Collected) & fp_sheet$Collected != ""
+    fp_sheet <- fp_sheet[keep_rows, , drop = FALSE]
+    if (identical(input_type, "gigaflor")) {
+      tree_lat <- tree_lat[keep_rows]
+      tree_long <- tree_long[keep_rows]
+    }
   }
+
+  if (!nrow(fp_sheet)) {
+    stop("No collected specimens found (column 'Collected' is empty); nothing to write.",
+         call. = FALSE)
+  }
+
+  # Coordinates written on each label: the site's, or (GigaFlor) each tree's
+  lat_out <- lat
+  long_out <- long
+  if (identical(input_type, "gigaflor")) {
+    has_xy <- is.finite(tree_lat) & is.finite(tree_long)
+    lat_out <- ifelse(has_xy, round(tree_lat, 6), lat)
+    long_out <- ifelse(has_xy, round(tree_long, 6), long)
+    # X/Y were geographic coordinates, not a position within the subplot
+    fp_sheet$X <- NA
+    fp_sheet$Y <- NA
+  }
+
+  # D is in mm in every harmonized input (GigaFlor cm are converted on reading)
   fp_sheet$D <- as.numeric(fp_sheet$D)/10
   fp_sheet$'Census Notes' <- gsub("[.]$", "", fp_sheet$'Census Notes')
   fp_sheet$'Census Notes' <- .convert_to_lowercase(string=fp_sheet$'Census Notes')
@@ -498,8 +575,8 @@ forplot_sheets <- function(fp_file_path = NULL,
     herb_sheet$uc <- protectedarea
     herb_sheet$projeto <- project
     herb_sheet$locnotes <- locnotes
-    herb_sheet$latitude <- lat
-    herb_sheet$longitude <- long
+    herb_sheet$latitude <- lat_out
+    herb_sheet$longitude <- long_out
     herb_sheet$altprof <- alt
     notes <- "notes"
 
@@ -552,8 +629,8 @@ forplot_sheets <- function(fp_file_path = NULL,
     herb_sheet$MinorAdminName<- minorarea
     herb_sheet$LocalityName <- protectedarea
     herb_sheet$LocalityNotes <- locnotes
-    herb_sheet$Latitude <- lat
-    herb_sheet$Longitude <- long
+    herb_sheet$Latitude <- lat_out
+    herb_sheet$Longitude <- long_out
     herb_sheet$Elevation <- alt
     notes <- "DescriptionText"
 
@@ -604,8 +681,8 @@ forplot_sheets <- function(fp_file_path = NULL,
     herb_sheet[[column_map$protectedarea]] <- protectedarea
     herb_sheet[[column_map$locnotes]] <- locnotes
     herb_sheet[[column_map$project]] <- project
-    herb_sheet[[column_map$lat]] <- lat
-    herb_sheet[[column_map$long]] <- long
+    herb_sheet[[column_map$lat]] <- lat_out
+    herb_sheet[[column_map$long]] <- long_out
     herb_sheet[[column_map$alt]] <- alt
     notes <- column_map[["notes"]]
 
@@ -935,6 +1012,9 @@ forplot_sheets <- function(fp_file_path = NULL,
     t1_i <- .clean_text(fp_sheet$T1[i])
     x_i <- .fmt_num(fp_sheet$X[i])
     y_i <- .fmt_num(fp_sheet$Y[i])
+    # position within the subplot, when known (GigaFlor sheets give the
+    # tree's latitude/longitude instead, written in the coordinate fields)
+    xy_txt <- if (x_i != "" && y_i != "") paste0(", x = ", x_i, "m, y = ", y_i, "m") else ""
     d_i <- .fmt_num(fp_sheet$D[i])
 
     # English version
@@ -949,7 +1029,7 @@ forplot_sheets <- function(fp_file_path = NULL,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
           ifelse(tag_i != "", paste0("Individual #", tag_i), ""),
           ifelse(t1_i != "",
-                 paste0(" in the subplot ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
+                 paste0(" in the subplot ", t1_i, xy_txt, "."),
                  "")
         )
       } else {
@@ -961,7 +1041,7 @@ forplot_sheets <- function(fp_file_path = NULL,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
           ifelse(tag_i != "", paste0("Individual #", tag_i), ""),
           ifelse(t1_i != "",
-                 paste0(" in the subplot ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
+                 paste0(" in the subplot ", t1_i, xy_txt, "."),
                  "")
         )
       }
@@ -979,7 +1059,7 @@ forplot_sheets <- function(fp_file_path = NULL,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
           ifelse(tag_i != "", paste0("Indiv\u00edduo #", tag_i), ""),
           ifelse(t1_i != "",
-                 paste0(" na subparcela ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
+                 paste0(" na subparcela ", t1_i, xy_txt, "."),
                  "")
         )
       } else {
@@ -991,7 +1071,7 @@ forplot_sheets <- function(fp_file_path = NULL,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
           ifelse(tag_i != "", paste0("Indiv\u00edduo #", tag_i), ""),
           ifelse(t1_i != "",
-                 paste0(" na subparcela ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
+                 paste0(" na subparcela ", t1_i, xy_txt, "."),
                  "")
         )
       }
@@ -1009,7 +1089,7 @@ forplot_sheets <- function(fp_file_path = NULL,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
           ifelse(tag_i != "", paste0("Individuo #", tag_i), ""),
           ifelse(t1_i != "",
-                 paste0(" en la subparcelas ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
+                 paste0(" en la subparcelas ", t1_i, xy_txt, "."),
                  "")
         )
       } else {
@@ -1021,7 +1101,7 @@ forplot_sheets <- function(fp_file_path = NULL,
           ifelse(description_li != "" | tag_i != "" | t1_i != "", ". ", ""),
           ifelse(tag_i != "", paste0("Individuo #", tag_i), ""),
           ifelse(t1_i != "",
-                 paste0(" en la subparcelas ", t1_i, ", x = ", x_i, "m, y = ", y_i, "m."),
+                 paste0(" en la subparcelas ", t1_i, xy_txt, "."),
                  "")
         )
       }

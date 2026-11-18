@@ -1,5 +1,33 @@
 # forplotR (development version)
 
+- `forplot_balance()` reads GigaFlor network field sheets with
+  `input_type = "gigaflor"` (protocol 1: a 1-ha plot of 25 subplots of
+  20 x 20 m in `T1`, each split into four 10 x 10 m quadrants in `T2`).
+  `subplot_size` then defaults to 20 m. The sheet is read from its `"Data"`
+  worksheet; `"Tag Number"` is the tag, `"Species"` the determination and
+  `"Main Stem Tag"` groups the stems of a multi-stemmed tree. `D` is in
+  centimetres (converted to millimetres internally, or taken from
+  `"CAP (cm)"` / pi when empty). `X` and `Y` are the tree's longitude and
+  latitude in decimal degrees: they are projected to metres and fitted onto
+  the subplot grid by a rotation and translation (which recovers the
+  orientation of the plot on the ground), then drawn at that position inside
+  each tree's own subplot. A warning is given when the coordinates fit the
+  grid poorly. In the field report, the "X; Y" column of the subplot tables
+  shows the original longitude; latitude in decimal degrees. A `"No"` in
+  `Collected` (the template's Yes/No list) is not counted as collected.
+- `forplot_map()`, `forplot_sheets()` and `forplot_vouchers()` also accept
+  `input_type = "gigaflor"`. `forplot_map()` draws each tree at its own
+  coordinates; `vertex_coords` becomes optional, the plot corners (and so the
+  subplot grid) being estimated from the trees' coordinates, their `T1`
+  subplots and the plot dimensions (give `vertex_coords` to use the corners
+  marked in the survey). `forplot_sheets()` writes each tree's latitude and
+  longitude on its label (`lat`/`long` become optional), reads `D` in cm,
+  and takes the collector, additional collectors and collection date from
+  the `"Team:"` and `"Date:"` cells; label notes no longer print
+  `x = ...m, y = ...m` when the position within the subplot is unknown.
+  `forplot_sheets()` now stops with a clear message when no specimen is
+  marked as collected.
+
 - The field report in Panará (`language = "pa"`) is no longer all in
   Portuguese: its labels (title, team, date, individuals, families, with
   voucher, pending, palms, subplot, tag, DBH, species, checklist and others)

@@ -2553,6 +2553,9 @@
 #'   internally to the canonical field-sheet structure.
 #'   \item \code{"monitora"}: MONITORA spreadsheet converted internally to the
 #'   canonical field-sheet structure.
+#'   \item \code{"gigaflor"}: GigaFlor network field sheet (sheet "Data"),
+#'   read as a field sheet; D is converted from cm to mm and X/Y (decimal
+#'   degrees) are kept as `Longitude`/`Latitude` (see `.gigaflor_prepare()`).
 #' }
 #'
 #' The returned object is a list with four elements:
@@ -2594,7 +2597,7 @@
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(
     input_type,
-    c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora")
+    c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora", "gigaflor")
   )
 
   if (!is.character(fp_file_path) || length(fp_file_path) != 1L || !file.exists(fp_file_path)) {
@@ -2642,8 +2645,14 @@
       )
     },
 
+    # GigaFlor sheets share the field-sheet reader; their own columns and
+    # units are harmonized right after (.gigaflor_prepare)
+    "gigaflor" = ,
     "field_sheet" = {
-      raw <- .read_raw_table(fp_file_path)
+      raw <- .read_raw_table(
+        fp_file_path,
+        sheet = if (input_type == "gigaflor") .gigaflor_sheet(fp_file_path) else 1
+      )
 
       header_row_idx <- .resolve_header_row(
         raw, header_row = header_row, extra_targets = unname(col_map), fallback = 2L
@@ -2658,7 +2667,7 @@
 
       if (!has_meta && !isTRUE(has_user_meta)) {
         stop(
-          "The field_sheet input has no metadata row (Plotcode:, Plot Name:, Team:). ",
+          "The ", input_type, " input has no metadata row (Plotcode:, Plot Name:, Team:). ",
           "Add it to the sheet or supply `plot_name` and/or `plot_code`.",
           call. = FALSE
         )
@@ -2789,6 +2798,10 @@
       )
     }
   )
+
+  if (input_type == "gigaflor") {
+    out$fp_sheet <- .gigaflor_prepare(out$fp_sheet, verbose = verbose)
+  }
 
   core_cols <- c(
     "Family",
