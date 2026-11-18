@@ -715,6 +715,13 @@
   }
   out <- out[, dest_cols]
 
+  # Herbarium of each voucher (Darwin Core collectionCode), when present;
+  # forplot_crossdet() checks each voucher in that herbarium
+  cc_i <- which(gsub("[^a-z]", "", tolower(names(in_dat))) == "collectioncode")
+  if (length(cc_i) && nrow(in_dat) == nrow(out)) {
+    out$collectionCode <- as.character(in_dat[[cc_i[1]]])
+  }
+
   attr(out, "coord_mode") <- coord_mode
   attr(out, "sheet_name") <- sheet_used
   attr(out, "plot_meta") <- plot_meta

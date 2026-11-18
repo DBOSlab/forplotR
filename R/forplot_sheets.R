@@ -1,4 +1,4 @@
-#' Fill empty herbarium spreadsheet from forestplots-formatted data
+#' Fill empty herbarium spreadsheet from forest-plots-formatted spreadsheet
 #'
 #' @author Giulia Ottino & Domingos Cardoso
 #'

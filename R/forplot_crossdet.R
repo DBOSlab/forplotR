@@ -14,7 +14,10 @@
 #' package helper functions, and then matched to herbarium records using a
 #' normalized collector-name + collector-number identity key.
 #'
-#' Matching is restricted to the herbarium informed in \code{herbaria}.
+#' Matching is restricted to the herbarium informed in \code{herbaria} or, when
+#' \code{herbaria} is \code{NULL}, to the herbarium written for each voucher
+#' in the inventory column \code{collectionCode} (see \emph{Herbarium of each
+#' voucher}).
 #' Therefore, unlike broader duplicate-based determination comparison routines,
 #' this function focuses on checking whether an inventory voucher is already
 #' present in one selected herbarium and, if so, whether the determination in
@@ -29,8 +32,8 @@
 #'   \item Extract and normalize voucher identity from the inventory using the
 #'   existing package helper \code{.parse_census_identity()}.
 #'   \item Resolve local \code{occurrence.txt} files under \code{path}, or,
-#'   if needed, automatically discover and download the corresponding JABOT
-#'   DwC-A resource for the selected herbarium into a cache directory.
+#'   if needed, automatically download the JABOT DwC-A resource of the
+#'   selected herbarium(s) only into a cache directory.
 #'   \item Load the selected herbarium records into DuckDB.
 #'   \item Build normalized collector-number keys for herbarium records.
 #'   \item Match inventory vouchers to herbarium records by primary or fallback
@@ -77,13 +80,33 @@
 #' available, the function can automatically download the required JABOT archive
 #' for the selected herbarium and then proceed locally.
 #'
+#' @section Herbarium of each voucher:
+#' When \code{herbaria = NULL} (the default), the herbarium is read from the
+#' inventory column \code{collectionCode} (Darwin Core; the Index Herbariorum
+#' acronym of the herbarium where the voucher is deposited, e.g. \code{"RB"}),
+#' as in the GigaFlor field sheet. Only the herbaria named there are
+#' downloaded, and each voucher is checked against its own herbarium only.
+#' Vouchers without a \code{collectionCode} are left out with a message.
+#'
+#' When \code{herbaria} is given, every voucher is checked against those
+#' herbaria, whatever \code{collectionCode} says; this also finds duplicates
+#' of a voucher deposited in another herbarium.
+#'
+#' Archives are downloaded with [jabotR::jabot_download()]
+#' (\code{herbarium = } the selected codes) when the \pkg{jabotR} package is
+#' installed, and otherwise with the package's own JABOT IPT downloader, which
+#' is also used with \code{force_refresh = TRUE} or \code{resource_map}.
+#'
 #' @param fp_file_path Character scalar. Path to the inventory Excel file.
 #'
 #' @param input_type Character scalar. One of \code{"field_sheet"},
-#'   \code{"fp_query_sheet"}, or \code{"monitora"}.
+#'   \code{"fp_query_sheet"}, \code{"monitora"}, or \code{"gigaflor"}
+#'   (GigaFlor field sheet, read from its \code{"Data"} worksheet).
 #'
-#' @param herbaria Character scalar. One herbarium code to be checked in JABOT,
-#'   for example \code{"RB"}.
+#' @param herbaria Character vector of herbarium codes to be checked in JABOT,
+#'   for example \code{"RB"}, or \code{NULL} (default) to use the herbarium of
+#'   each voucher given in the inventory column \code{collectionCode} (see
+#'   \emph{Herbarium of each voucher}).
 #'
 #' @param collector_fallback Optional character scalar. Collector name used when
 #'   voucher strings contain only the collection number.
@@ -138,7 +161,8 @@
 #'   \item{diagnostics}{A summary table with counts and human-readable
 #'   interpretations of the diagnostic classes.}
 #'   \item{unmatched_inventory}{Inventory rows with a usable voucher identity
-#'   that were not found in the selected herbarium.}
+#'   that were not found in the selected herbarium; the \code{herbarium}
+#'   column gives the herbarium(s) where each was looked for.}
 #' }
 #'
 #' @examples
@@ -158,6 +182,10 @@
 #' fm <- file.path(tempdir(), "TUM.xlsx")
 #' openxlsx::write.xlsx(TUM, fm)
 #'
+#' # GigaFlor sheet: each voucher checked in the herbarium of its
+#' # collectionCode column (only those herbaria are downloaded)
+#' out3 <- forplot_crossdet("PNMT_01.xlsx", input_type = "gigaflor")
+#'
 #' out2 <- forplot_crossdet(
 #'   fp_file_path = fm,
 #'   input_type = "monitora",
@@ -173,8 +201,8 @@
 #' @export
 #'
 forplot_crossdet <- function(fp_file_path,
-                             input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-                             herbaria,
+                             input_type = c("field_sheet", "fp_query_sheet", "monitora", "gigaflor"),
+                             herbaria = NULL,
                              collector_fallback = NULL,
                              collector_codes = NULL,
                              station_name = NULL,
@@ -437,7 +465,13 @@ forplot_crossdet <- function(fp_file_path,
                                       input_type,
                                       sheet = NULL,
                                       station_name = NULL) {
-    input_type <- match.arg(tolower(input_type), c("field_sheet", "fp_query_sheet", "monitora"))
+    input_type <- match.arg(tolower(input_type), c("field_sheet", "fp_query_sheet", "monitora", "gigaflor"))
+
+    if (identical(input_type, "gigaflor")) {
+      out <- .harmonize_plot_input(fp_file_path, input_type = "gigaflor",
+                                   verbose = FALSE, require_spatial = FALSE)$fp_sheet
+      return(as.data.frame(out, stringsAsFactors = FALSE, check.names = FALSE))
+    }
 
     if (identical(input_type, "monitora")) {
       if (!exists(".monitora_to_field_sheet_df", mode = "function")) {
@@ -466,7 +500,7 @@ forplot_crossdet <- function(fp_file_path,
   }
 
   # Resolve local occurrence.txt files or automatically download the required JABOT archive.
-  .resolve_occurrence_files <- function(herbarium,
+  .resolve_occurrence_files <- function(herbaria,
                                         path = NULL,
                                         force_refresh = FALSE,
                                         verbose = FALSE,
@@ -506,48 +540,62 @@ forplot_crossdet <- function(fp_file_path,
       dir.create(base_dir, recursive = TRUE, showWarnings = FALSE)
     }
 
-    ipt_info <- .get_ipt_info(
-      herbarium = herbarium,
-      ipt = "jabot",
-      resource_map = resource_map
-    )
+    files_downloaded <- character(0)
+    todo <- herbaria
 
-    if (!nrow(ipt_info)) {
-      stop("No JABOT IPT resource was found for herbarium '", herbarium, "'.", call. = FALSE)
+    # jabotR::jabot_download(herbarium = codes) fetches only these herbaria
+    if (!isTRUE(force_refresh) && is.null(resource_map)) {
+      got <- .jabot_download_codes(todo, dir = base_dir, verbose = verbose)
+      files_downloaded <- unlist(got, use.names = FALSE)
+      todo <- setdiff(todo, names(got)[lengths(got) > 0])
     }
 
-    out_dirs <- character(0)
-
-    for (i in seq_len(nrow(ipt_info))) {
-      one_dir <- .download_dwca_one(
-        info_row = ipt_info[i, , drop = FALSE],
-        dir = base_dir,
-        verbose = verbose,
-        force_refresh = force_refresh
+    # The package's own JABOT IPT downloader for the rest
+    for (herbarium in todo) {
+      ipt_info <- .get_ipt_info(
+        herbarium = herbarium,
+        ipt = "jabot",
+        resource_map = resource_map
       )
 
-      if (!is.null(one_dir) && dir.exists(one_dir)) {
-        out_dirs <- c(out_dirs, one_dir)
+      if (!nrow(ipt_info)) {
+        stop("No JABOT IPT resource was found for herbarium '", herbarium, "'.", call. = FALSE)
       }
+
+      out_dirs <- character(0)
+
+      for (i in seq_len(nrow(ipt_info))) {
+        one_dir <- .download_dwca_one(
+          info_row = ipt_info[i, , drop = FALSE],
+          dir = base_dir,
+          verbose = verbose,
+          force_refresh = force_refresh
+        )
+
+        if (!is.null(one_dir) && dir.exists(one_dir)) {
+          out_dirs <- c(out_dirs, one_dir)
+        }
+      }
+
+      one_files <- unique(unlist(lapply(
+        out_dirs,
+        function(d) list.files(d, pattern = "^occurrence\\.txt$", recursive = TRUE, full.names = TRUE)
+      )))
+
+      if (!length(one_files)) {
+        stop(
+          "Automatic download ran, but no 'occurrence.txt' files were obtained for herbarium '",
+          herbarium, "'.",
+          call. = FALSE
+        )
+      }
+      files_downloaded <- c(files_downloaded, one_files)
     }
 
-    files_downloaded <- unique(unlist(lapply(
-      out_dirs,
-      function(d) list.files(d, pattern = "^occurrence\\.txt$", recursive = TRUE, full.names = TRUE)
-    )))
-
-    if (!length(files_downloaded)) {
-      stop(
-        "Automatic download ran, but no 'occurrence.txt' files were obtained for herbarium '",
-        herbarium, "'.",
-        call. = FALSE
-      )
-    }
-
-    files_downloaded
+    unique(files_downloaded)
   }
 
-  input_type <- match.arg(tolower(input_type), c("field_sheet", "fp_query_sheet", "monitora"))
+  input_type <- match.arg(tolower(input_type), c("field_sheet", "fp_query_sheet", "monitora", "gigaflor"))
 
   if (!is.character(fp_file_path) || length(fp_file_path) != 1L || !file.exists(fp_file_path)) {
     stop("`fp_file_path` must be a valid existing file.", call. = FALSE)
@@ -557,14 +605,13 @@ forplot_crossdet <- function(fp_file_path,
     stop("Required helper `.arg_check_herbarium()` was not found.", call. = FALSE)
   }
 
-  .arg_check_herbarium(herbaria)
-
-  herbaria <- unique(toupper(trimws(as.character(herbaria))))
-  if (length(herbaria) != 1L) {
-    stop("`herbaria` must contain exactly one herbarium code for this function.", call. = FALSE)
+  # NULL: the herbarium of each voucher comes from its collectionCode
+  per_voucher <- is.null(herbaria)
+  if (!per_voucher) {
+    .arg_check_herbarium(herbaria)
+    herbaria <- unique(toupper(trimws(as.character(herbaria))))
+    herbaria <- herbaria[nzchar(herbaria)]
   }
-
-  herbarium <- herbaria[1]
 
   for (pkg in c("DBI", "duckdb")) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -574,15 +621,6 @@ forplot_crossdet <- function(fp_file_path,
       )
     }
   }
-
-  # Resolve or download local JABOT occurrence files.
-  files <- .resolve_occurrence_files(
-    herbarium = herbarium,
-    path = path,
-    force_refresh = force_refresh,
-    verbose = verbose,
-    resource_map = resource_map
-  )
 
   # Read and standardize the inventory.
   inv <- .inventory_to_common_df(
@@ -617,6 +655,42 @@ forplot_crossdet <- function(fp_file_path,
   if (!nrow(inv)) {
     stop("No inventory rows remained after filtering.", call. = FALSE)
   }
+
+  # Herbarium where each voucher is looked for
+  inv_codes <- .inventory_collection_codes(inv)
+  if (per_voucher) {
+    no_code <- is.na(inv_codes)
+    if (all(no_code)) {
+      stop(
+        "No herbarium to check: supply `herbaria` (e.g. herbaria = \"RB\") or fill the ",
+        "inventory column `collectionCode` with the herbarium of each voucher.",
+        call. = FALSE
+      )
+    }
+    if (any(no_code)) {
+      message(sum(no_code), " voucher(s) without `collectionCode` were not checked; ",
+              "supply `herbaria` to check them in a given herbarium.")
+    }
+    inv <- inv[!no_code, , drop = FALSE]
+    inv$target_herbarium <- inv_codes[!no_code]
+    .arg_check_herbarium(unique(inv$target_herbarium))
+    herbaria <- sort(unique(inv$target_herbarium))
+    if (isTRUE(verbose)) {
+      message("Herbaria from `collectionCode`: ", paste(herbaria, collapse = ", "))
+    }
+  } else {
+    inv$target_herbarium <- NA_character_
+  }
+  herbarium <- paste(herbaria, collapse = ", ")
+
+  # Resolve or download local JABOT occurrence files (selected herbaria only).
+  files <- .resolve_occurrence_files(
+    herbaria = herbaria,
+    path = path,
+    force_refresh = force_refresh,
+    verbose = verbose,
+    resource_map = resource_map
+  )
 
   if (!exists(".parse_census_identity", mode = "function")) {
     stop("Required helper `.parse_census_identity()` was not found.", call. = FALSE)
@@ -758,7 +832,7 @@ forplot_crossdet <- function(fp_file_path,
     try(ins(f, d, "read_csv", "utf-8", "", ""), silent = TRUE)
   }
 
-  herb_q <- gsub("'", "''", herbarium)
+  herb_q <- paste(sprintf("'%s'", gsub("'", "''", herbaria)), collapse = ", ")
 
   # Restrict the working herbarium table to the selected herbarium only.
   DBI::dbExecute(con, paste0("
@@ -781,7 +855,7 @@ forplot_crossdet <- function(fp_file_path,
       dateIdentified,
       lower(regexp_replace(trim(COALESCE(recordNumber,'')), '[^0-9]', '', 'g')) AS recordNumber_clean
     FROM occ
-    WHERE upper(collectionCode) = '", herb_q, "';
+    WHERE upper(trim(collectionCode)) IN (", herb_q, ");
   "))
 
   n_loaded <- DBI::dbGetQuery(con, "SELECT COUNT(*) AS n FROM occ_selected;")$n
@@ -821,8 +895,7 @@ forplot_crossdet <- function(fp_file_path,
       stringsAsFactors = FALSE
     )
 
-    unmatched <- inv_ok[, c("Voucher", "inventory_family", "inventory_species", "collector_raw", "number_raw"), drop = FALSE]
-    names(unmatched) <- c("voucher", "inventory_family", "inventory_species", "collector", "record_number")
+    unmatched <- .unmatched_table(inv_ok, herbaria)
 
     if (isTRUE(save)) {
       .save_xlsx_three_sheets(matches, diagnostics, unmatched, dir, filename)
@@ -901,8 +974,7 @@ forplot_crossdet <- function(fp_file_path,
       stringsAsFactors = FALSE
     )
 
-    unmatched <- inv_ok[, c("Voucher", "inventory_family", "inventory_species", "collector_raw", "number_raw"), drop = FALSE]
-    names(unmatched) <- c("voucher", "inventory_family", "inventory_species", "collector", "record_number")
+    unmatched <- .unmatched_table(inv_ok, herbaria)
 
     if (isTRUE(save)) {
       .save_xlsx_three_sheets(matches, diagnostics, unmatched, dir, filename)
@@ -925,7 +997,7 @@ forplot_crossdet <- function(fp_file_path,
 
   # Use primary keys for all rows and fallback keys only when voucher strings are weak.
   inv_primary <- inv_ok[, c("Voucher", "inventory_family", "inventory_species", "inventory_det_canon",
-                            "collector_raw", "number_raw", "primary_key"), drop = FALSE]
+                            "collector_raw", "number_raw", "target_herbarium", "primary_key"), drop = FALSE]
   names(inv_primary)[names(inv_primary) == "primary_key"] <- "match_key"
   inv_primary$key_type <- rep(
     "primary",
@@ -935,7 +1007,7 @@ forplot_crossdet <- function(fp_file_path,
   inv_fallback <- inv_ok[
     inv_ok$voucher_is_numeric_only | is.na(inv_ok$collector_raw) | !nzchar(trimws(inv_ok$collector_raw)),
     c("Voucher", "inventory_family", "inventory_species", "inventory_det_canon",
-      "collector_raw", "number_raw", "fallback_key"),
+      "collector_raw", "number_raw", "target_herbarium", "fallback_key"),
     drop = FALSE
   ]
   names(inv_fallback)[names(inv_fallback) == "fallback_key"] <- "match_key"
@@ -953,6 +1025,13 @@ forplot_crossdet <- function(fp_file_path,
     by = c("match_key", "key_type"),
     all = FALSE
   )
+
+  # A voucher with a collectionCode is only matched in that herbarium
+  if (nrow(all_matches)) {
+    same_herb <- is.na(all_matches$target_herbarium) |
+      toupper(trimws(all_matches$collectionCode)) == all_matches$target_herbarium
+    all_matches <- all_matches[same_herb, , drop = FALSE]
+  }
 
   if (nrow(all_matches)) {
     # Prefer primary matches over fallback matches for the same voucher.
@@ -1063,13 +1142,8 @@ forplot_crossdet <- function(fp_file_path,
   # Inventory vouchers that were not matched in the selected herbarium.
   matched_vouchers <- if (nrow(all_matches)) unique(all_matches$Voucher) else character(0)
 
-  unmatched <- inv_ok[!(inv_ok$Voucher %in% matched_vouchers), c(
-    "Voucher", "inventory_family", "inventory_species", "collector_raw", "number_raw"
-  ), drop = FALSE]
-
-  names(unmatched) <- c(
-    "voucher", "inventory_family", "inventory_species", "collector", "record_number"
-  )
+  unmatched <- .unmatched_table(inv_ok[!(inv_ok$Voucher %in% matched_vouchers), , drop = FALSE],
+                               herbaria)
 
   # Summarize all match outcomes, including same_determination cases.
   if (nrow(all_matches)) {
@@ -1114,4 +1188,81 @@ forplot_crossdet <- function(fp_file_path,
     diagnostics = diagnostics,
     unmatched_inventory = unmatched
   ))
+}
+
+
+# collectionCode helpers ####
+
+#' Herbarium code of each inventory row (column `collectionCode`)
+#'
+#' Upper-case, trimmed; `NA` when the column is missing or the cell empty.
+#' @keywords internal
+#' @noRd
+.inventory_collection_codes <- function(inv) {
+  key <- gsub("[^a-z]", "", tolower(names(inv)))
+  i <- which(key == "collectioncode")
+  if (!length(i)) return(rep(NA_character_, nrow(inv)))
+  x <- toupper(trimws(as.character(inv[[i[1]]])))
+  x[is.na(x) | !nzchar(x)] <- NA_character_
+  x
+}
+
+
+#' Unmatched-inventory table of forplot_crossdet()
+#' @keywords internal
+#' @noRd
+.unmatched_table <- function(inv, herbaria) {
+  out <- inv[, c("Voucher", "inventory_family", "inventory_species", "collector_raw", "number_raw"),
+             drop = FALSE]
+  names(out) <- c("voucher", "inventory_family", "inventory_species", "collector", "record_number")
+  tgt <- if ("target_herbarium" %in% names(inv)) inv$target_herbarium else rep(NA_character_, nrow(inv))
+  out$herbarium <- ifelse(is.na(tgt), paste(herbaria, collapse = ", "), tgt)
+  out
+}
+
+
+#' Download selected JABOT herbaria with jabotR::jabot_download()
+#'
+#' Calls `jabotR::jabot_download(herbarium = codes, dir = dir)`, which
+#' downloads (or reuses, when the same archive version is already in `dir`)
+#' only these herbaria. Each archive folder holds a `<CODE>_Jabot.csv`
+#' summary, used here to find the `occurrence.txt` of every code.
+#'
+#' @return Named list (one element per code) of `occurrence.txt` paths;
+#'   empty when jabotR is not installed, offline mode is on, or the
+#'   download fails (the caller then uses the package's own downloader).
+#' @keywords internal
+#' @noRd
+.jabot_download_codes <- function(codes, dir, verbose = FALSE) {
+  if (!length(codes) || .forplotr_offline() ||
+      !requireNamespace("jabotR", quietly = TRUE)) {
+    return(list())
+  }
+  ok <- tryCatch({
+    jabotR::jabot_download(herbarium = codes, verbose = verbose, dir = dir)
+    TRUE
+  }, error = function(e) {
+    if (isTRUE(verbose)) {
+      message("jabotR::jabot_download() failed (", conditionMessage(e),
+              "); using the package's own JABOT downloader.")
+    }
+    FALSE
+  })
+  if (!ok) return(list())
+  .jabot_occurrence_files(codes, dir)
+}
+
+
+#' occurrence.txt of each herbarium code in a jabot_download() folder
+#' @keywords internal
+#' @noRd
+.jabot_occurrence_files <- function(codes, dir) {
+  summaries <- list.files(dir, pattern = "_Jabot\\.csv$", recursive = TRUE, full.names = TRUE)
+  code_of <- toupper(sub("_Jabot\\.csv$", "", basename(summaries)))
+  out <- lapply(stats::setNames(codes, codes), function(cd) {
+    dirs <- unique(dirname(summaries[code_of == toupper(cd)]))
+    f <- file.path(dirs, "occurrence.txt")
+    f[file.exists(f)]
+  })
+  out
 }

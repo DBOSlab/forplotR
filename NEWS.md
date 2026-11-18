@@ -65,6 +65,18 @@
   `x = ...m, y = ...m` when the position within the subplot is unknown.
   `forplot_sheets()` now stops with a clear message when no specimen is
   marked as collected.
+- `forplot_crossdet()`: `herbaria` is now optional. With `herbaria = NULL`
+  (the default) the herbarium of each voucher is read from the inventory
+  column `collectionCode` (Darwin Core; e.g. `"RB"`, as in the GigaFlor
+  sheet), only those herbaria are downloaded, and each voucher is checked
+  only in its own herbarium. Vouchers without a `collectionCode` are left out
+  with a message. Archives are downloaded with
+  `jabotR::jabot_download(herbarium = <codes>)` when jabotR is installed
+  (now in Suggests), falling back on the package's own JABOT downloader
+  (also used with `force_refresh = TRUE` or `resource_map`). An explicit
+  `herbaria` (now one or more codes) keeps the previous behaviour: every
+  voucher is checked there. `input_type = "gigaflor"` is accepted, and the
+  `unmatched_inventory` table gains a `herbarium` column.
 
 - The field report in Panará (`language = "pa"`) is no longer all in
   Portuguese: its labels (title, team, date, individuals, families, with

@@ -6,8 +6,8 @@
 \usage{
 forplot_crossdet(
   fp_file_path,
-  input_type = c("field_sheet", "fp_query_sheet", "monitora"),
-  herbaria,
+  input_type = c("field_sheet", "fp_query_sheet", "monitora", "gigaflor"),
+  herbaria = NULL,
   collector_fallback = NULL,
   collector_codes = NULL,
   station_name = NULL,
@@ -27,10 +27,13 @@ forplot_crossdet(
 \item{fp_file_path}{Character scalar. Path to the inventory Excel file.}
 
 \item{input_type}{Character scalar. One of \code{"field_sheet"},
-\code{"fp_query_sheet"}, or \code{"monitora"}.}
+\code{"fp_query_sheet"}, \code{"monitora"}, or \code{"gigaflor"}
+(GigaFlor field sheet, read from its \code{"Data"} worksheet).}
 
-\item{herbaria}{Character scalar. One herbarium code to be checked in JABOT,
-for example \code{"RB"}.}
+\item{herbaria}{Character vector of herbarium codes to be checked in JABOT,
+for example \code{"RB"}, or \code{NULL} (default) to use the herbarium of
+each voucher given in the inventory column \code{collectionCode} (see
+\emph{Herbarium of each voucher}).}
 
 \item{collector_fallback}{Optional character scalar. Collector name used when
 voucher strings contain only the collection number.}
@@ -86,7 +89,8 @@ classified as \code{same_determination} are omitted from this table.}
 \item{diagnostics}{A summary table with counts and human-readable
 interpretations of the diagnostic classes.}
 \item{unmatched_inventory}{Inventory rows with a usable voucher identity
-that were not found in the selected herbarium.}
+that were not found in the selected herbarium; the \code{herbarium}
+column gives the herbarium(s) where each was looked for.}
 }
 }
 \description{
@@ -100,7 +104,10 @@ These input files are first converted to a common internal schema using the
 package helper functions, and then matched to herbarium records using a
 normalized collector-name + collector-number identity key.
 
-Matching is restricted to the herbarium informed in \code{herbaria}.
+Matching is restricted to the herbarium informed in \code{herbaria} or, when
+\code{herbaria} is \code{NULL}, to the herbarium written for each voucher
+in the inventory column \code{collectionCode} (see \emph{Herbarium of each
+voucher}).
 Therefore, unlike broader duplicate-based determination comparison routines,
 this function focuses on checking whether an inventory voucher is already
 present in one selected herbarium and, if so, whether the determination in
@@ -115,8 +122,8 @@ common field-sheet-like structure.
 \item Extract and normalize voucher identity from the inventory using the
 existing package helper \code{.parse_census_identity()}.
 \item Resolve local \code{occurrence.txt} files under \code{path}, or,
-if needed, automatically discover and download the corresponding JABOT
-DwC-A resource for the selected herbarium into a cache directory.
+if needed, automatically download the JABOT DwC-A resource of the
+selected herbarium(s) only into a cache directory.
 \item Load the selected herbarium records into DuckDB.
 \item Build normalized collector-number keys for herbarium records.
 \item Match inventory vouchers to herbarium records by primary or fallback
@@ -163,6 +170,25 @@ This function works offline after download. If local DwC-A files are not
 available, the function can automatically download the required JABOT archive
 for the selected herbarium and then proceed locally.
 }
+\section{Herbarium of each voucher}{
+
+When \code{herbaria = NULL} (the default), the herbarium is read from the
+inventory column \code{collectionCode} (Darwin Core; the Index Herbariorum
+acronym of the herbarium where the voucher is deposited, e.g. \code{"RB"}),
+as in the GigaFlor field sheet. Only the herbaria named there are
+downloaded, and each voucher is checked against its own herbarium only.
+Vouchers without a \code{collectionCode} are left out with a message.
+
+When \code{herbaria} is given, every voucher is checked against those
+herbaria, whatever \code{collectionCode} says; this also finds duplicates
+of a voucher deposited in another herbarium.
+
+Archives are downloaded with \code{\link[jabotR:jabot_download]{jabotR::jabot_download()}}
+(\code{herbarium = } the selected codes) when the \pkg{jabotR} package is
+installed, and otherwise with the package's own JABOT IPT downloader, which
+is also used with \code{force_refresh = TRUE} or \code{resource_map}.
+}
+
 \examples{
 \dontrun{
 # Downloads the JABOT Darwin Core Archive of the selected herbarium
@@ -179,6 +205,10 @@ out1 <- forplot_crossdet(
 
 fm <- file.path(tempdir(), "TUM.xlsx")
 openxlsx::write.xlsx(TUM, fm)
+
+# GigaFlor sheet: each voucher checked in the herbarium of its
+# collectionCode column (only those herbaria are downloaded)
+out3 <- forplot_crossdet("PNMT_01.xlsx", input_type = "gigaflor")
 
 out2 <- forplot_crossdet(
   fp_file_path = fm,

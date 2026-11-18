@@ -258,6 +258,8 @@ testthat::test_that("forplot_crossdet can use auto-download branch via mocked IP
     .parse_census_identity = fake_identity_parser,
     .split_recordedby_people = function(recordedBy) "H. Medeiros",
     .collector_tokens_one = fake_collector_tokens_one,
+    # keep the test offline: no jabotR::jabot_download()
+    .jabot_download_codes = function(codes, dir, verbose = FALSE) list(),
     .herbaria_cache_paths = function() {
       list(
         cache_dir = cache_dir,

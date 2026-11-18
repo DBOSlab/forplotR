@@ -65,6 +65,7 @@ Suggests:
     DBI,
     duckdb,
     geodata,
+    jabotR,
     knitr,
     terra,
     testthat (>= 3.2.0),

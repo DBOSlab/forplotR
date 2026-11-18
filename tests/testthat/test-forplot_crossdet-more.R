@@ -56,6 +56,8 @@ testthat::skip_if_not_installed("duckdb")
   testthat::local_mocked_bindings(
     .fp_query_to_field_sheet_df = function(path, sheet = NULL) inv,
     .monitora_to_field_sheet_df = function(path, sheet = 1, station_name = NULL) inv,
+    # keep the tests offline: no jabotR::jabot_download()
+    .jabot_download_codes = function(codes, dir, verbose = FALSE) list(),
     .env = env
   )
   args <- utils::modifyList(
@@ -182,8 +184,8 @@ test_that("only_collected filters inventory rows", {
 
 test_that("forplot_crossdet stops on unusable input", {
   occ_dir <- .cd_write(.cd_occ(1))
-  expect_error(.cd_run(.cd_inv("Inga"), occ_dir, herbaria = c("RB", "K")),
-               "exactly one herbarium code")
+  # several herbaria are accepted; records of all of them are loaded
+  expect_type(.cd_run(.cd_inv("Inga"), occ_dir, herbaria = c("RB", "K")), "list")
   expect_error(.cd_run(.cd_inv("Inga", voucher = "sem numero"), occ_dir),
                "No usable voucher identity keys")
   expect_error(.cd_run(.cd_inv("Inga"), .cd_write(.cd_occ(1, collectionCode = "K"))),

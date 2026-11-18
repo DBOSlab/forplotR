@@ -2,7 +2,7 @@
 % Please edit documentation in R/forplot_sheets.R
 \name{forplot_sheets}
 \alias{forplot_sheets}
-\title{Fill empty herbarium spreadsheet from forestplots-formatted data}
+\title{Fill empty herbarium spreadsheet from forest-plots-formatted spreadsheet}
 \usage{
 forplot_sheets(
   fp_file_path = NULL,
