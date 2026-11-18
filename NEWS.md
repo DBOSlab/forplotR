@@ -77,6 +77,10 @@
   `herbaria` (now one or more codes) keeps the previous behaviour: every
   voucher is checked there. `input_type = "gigaflor"` is accepted, and the
   `unmatched_inventory` table gains a `herbarium` column.
+- GigaFlor sheets with bilingual headers (the Portuguese sheet, e.g.
+  `"Main Stem Tag | Placa do fuste principal"`,
+  `"collectionCode | Sigla do herbário"`) are read by their English side, and
+  `"Sim"` / `"Não"` in `Collected` are understood.
 
 - The field report in Panará (`language = "pa"`) is no longer all in
   Portuguese: its labels (title, team, date, individuals, families, with
