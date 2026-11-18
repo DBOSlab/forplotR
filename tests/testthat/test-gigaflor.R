@@ -254,3 +254,78 @@ test_that("forplot_vouchers() accepts GigaFlor sheets", {
   expect_true(dir.exists(file.path(img, "Fabaceae")))
   expect_true("Original determination" %in% names(out))
 })
+
+test_that("GigaFlor helpers cope with few or missing coordinates", {
+  skip_if_not_installed("openxlsx")
+  f <- tempfile(fileext = ".xlsx")
+  openxlsx::write.xlsx(data.frame(a = 1), f, sheetName = "Sheet1")
+  expect_identical(.gigaflor_sheet(f), 1L)
+
+  few <- data.frame(T1 = c(1, 2, 3), Longitude = c(-52.37, NA, NA),
+                    Latitude = c(1.19, NA, NA), X = NA, Y = NA)
+  expect_message(
+    out <- .gigaflor_local_xy(few, 20, 100, 100, verbose = TRUE),
+    "too few georeferenced stems"
+  )
+  expect_equal(out$X, rep(10, 3))
+  expect_message(.gigaflor_local_xy(few, 20, 100, 100, verbose = TRUE),
+                 "2 stem(s) without coordinates", fixed = TRUE)
+
+  # a mirrored plot (T1 numbered the other way round) is still fitted
+  s <- 20; nr <- 5
+  T1 <- rep(1:25, each = 3)
+  orig <- .t1_cell_origin(T1, s, nr)
+  gx <- -(orig[, 1] + 10 - 50); gy <- orig[, 2] + 10 - 50
+  mir <- data.frame(T1 = T1, Longitude = -52.37 + gx / 111000,
+                    Latitude = 1.19 + gy / 110600, X = NA, Y = NA)
+  expect_message(.gigaflor_local_xy(mir, 20, 100, 100, verbose = TRUE), "(mirrored)", fixed = TRUE)
+})
+
+test_that("forplot_sheets() explains GigaFlor sheets it cannot label", {
+  skip_if_not_installed("openxlsx")
+  cols <- c("family", "genus", "sp1", "number", "collector", "addcoll", "colldd",
+            "collmm", "collyy", "country", "majorarea", "minorarea", "uc", "projeto",
+            "locnotes", "latitude", "longitude", "altprof", "notes")
+  herb <- tempfile(fileext = ".xlsx")
+  openxlsx::write.xlsx(as.data.frame(stats::setNames(
+    replicate(length(cols), character(0), simplify = FALSE), cols)), herb)
+  edit_sheet <- function(f, fn) {
+    wb <- openxlsx::loadWorkbook(f)
+    fn(wb)
+    openxlsx::saveWorkbook(wb, f, overwrite = TRUE)
+  }
+  run <- function(f) suppressMessages(forplot_sheets(f, herb, input_type = "gigaflor",
+                                                     majorarea = "Amapa", alt = 300,
+                                                     validate_locality = FALSE,
+                                                     dir = withr::local_tempdir()))
+
+  # no tree coordinates and no lat/long
+  f1 <- tempfile(fileext = ".xlsx")
+  sim <- .make_gigaflor_sheet(f1, main_stem = FALSE)
+  n <- nrow(sim$dat)
+  edit_sheet(f1, function(wb) openxlsx::deleteData(wb, "Data", cols = 5:6, rows = 3:(n + 2),
+                                                   gridExpand = TRUE))
+  expect_error(run(f1), "no X/Y coordinates")
+
+  # no team and an unreadable date
+  f2 <- tempfile(fileext = ".xlsx")
+  .make_gigaflor_sheet(f2, main_stem = FALSE)
+  edit_sheet(f2, function(wb) {
+    openxlsx::writeData(wb, "Data", "Date: soon", startCol = 3, startRow = 1, colNames = FALSE)
+    openxlsx::writeData(wb, "Data", "Team:", startCol = 4, startRow = 1, colNames = FALSE)
+  })
+  w <- character()
+  h <- withCallingHandlers(run(f2), warning = function(cnd) {
+    w <<- c(w, conditionMessage(cnd)); invokeRestart("muffleWarning")
+  })
+  expect_true(any(grepl("collector metadata", w)))
+  expect_true(any(grepl("collection date", w)))
+  expect_true(all(is.na(h$colldd)))
+
+  # nothing collected
+  f3 <- tempfile(fileext = ".xlsx")
+  .make_gigaflor_sheet(f3, main_stem = FALSE)
+  edit_sheet(f3, function(wb) openxlsx::deleteData(wb, "Data", cols = 12, rows = 3:(n + 2),
+                                                   gridExpand = TRUE))
+  expect_error(run(f3), "No collected specimens")
+})

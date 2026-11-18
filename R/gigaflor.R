@@ -73,7 +73,7 @@
   # The template's Collected column is a Yes/No list: the package counts any
   # non-empty value as collected, so a negative answer becomes empty
   coll <- tolower(trimws(as.character(df$Collected)))
-  negative <- coll %in% c("no", "n", "não", "nao", "0", "false", "-")
+  negative <- coll %in% c("no", "n", "n\u00e3o", "nao", "0", "false", "-")
   df$Collected[negative] <- NA_character_
 
   # Geographic coordinates (decimal degrees)
