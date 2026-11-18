@@ -6,6 +6,8 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/DBOSlab/forplotR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DBOSlab/forplotR/actions/workflows/R-CMD-check.yaml)
+[![Test
+Coverage](https://github.com/DBOSlab/forplotR/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/DBOSlab/forplotR/actions/workflows/test-coverage.yaml)
 [![Codecov test
 coverage](https://codecov.io/gh/DBOSlab/forplotR/graph/badge.svg)](https://app.codecov.io/gh/DBOSlab/forplotR)
 [![License:
@@ -30,10 +32,10 @@ Install the development version from
 remotes::install_github("DBOSlab/forplotR")
 ```
 
-Saving HTML maps with `forplot_map()` uses [pandoc](https://pandoc.org/) when
-available (bundled with RStudio). The `forplot_balance()` report is a single
-HTML file that needs neither pandoc nor LaTeX; its PDF version is printed with
-Chrome, Chromium or Edge when one of them is installed.
+Saving HTML maps with `forplot_map()` uses [pandoc](https://pandoc.org/)
+when available (bundled with RStudio). The `forplot_balance()` report is
+a single HTML file that needs neither pandoc nor LaTeX; its PDF version
+is printed with Chrome, Chromium or Edge when one of them is installed.
 
 ## Main functions
 
@@ -89,7 +91,7 @@ forplot_sheets(fp, herb_file_path = "jabot_template.xlsx",
 exposure) into standardized, multilingual (`language = "en"`, `"pt"` or
 `"es"`) herbarium notes and merges them with free-text field notes:
 
-``` text
+```
 Tree, 24.83cm DBH, with peeling bark, small buttress roots, bark with tiny
 reddish plates, crown completely exposed to vertical and lateral light in a
 45 degree curve. Individual #3 in the subplot 1, x = 1.5m, y = 2.5m.
@@ -108,10 +110,10 @@ website](https://dboslab.github.io/forplotR-website/).
 
 ## Authors
 
-`forplotR` is the product of the master's degree of Giulia C. Ottino at the
-Escola Nacional de Botânica Tropical (ENBT/JBRJ), advised by Domingos Cardoso
-(JBRJ) and co-advised by Pedro Lage Viana (Instituto Nacional da Mata
-Atlântica, INMA).
+`forplotR` is the product of the master’s degree of Giulia C. Ottino at
+the Escola Nacional de Botânica Tropical (ENBT/JBRJ), advised by
+Domingos Cardoso (JBRJ) and co-advised by Pedro Lage Viana (Instituto
+Nacional da Mata Atlântica, INMA).
 
 ## Citation
 

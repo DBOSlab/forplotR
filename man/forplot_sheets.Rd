@@ -7,7 +7,7 @@
 forplot_sheets(
   fp_file_path = NULL,
   herb_file_path = NULL,
-  input_type = c("forestplots", "monitora"),
+  input_type = c("forestplots", "monitora", "gigaflor"),
   sheet = 1,
   header_row = NULL,
   station_name = NULL,
@@ -38,9 +38,15 @@ ForestPlots field sheet or a MONITORA spreadsheet, depending on the value of
 
 \item{herb_file_path}{File path of the herbarium empty template dataset.}
 
-\item{input_type}{Type of input dataset. Options are "forestplots" (default)
-and "monitora". For \code{"monitora"}, the function converts the input table
-to a forestplots-like structure before filling the herbarium template.}
+\item{input_type}{Type of input dataset. Options are "forestplots" (default),
+"monitora" and "gigaflor". For \code{"monitora"}, the function converts the
+input table to a forestplots-like structure before filling the herbarium
+template. For \code{"gigaflor"} (GigaFlor network field sheet, read from
+its \code{"Data"} worksheet; see \code{\link[=forplot_balance]{forplot_balance()}}), each specimen gets
+the latitude/longitude of its own tree (\code{Y}/\code{X} in decimal
+degrees in the sheet), \code{D} is read in cm, and the collector,
+additional collectors and collection date come from the \code{"Team:"} and
+\code{"Date:"} cells above the header.}
 
 \item{sheet}{Sheet index or name to read from the input Excel file.}
 
@@ -93,9 +99,13 @@ the function attempts to extract this information from the input dataset
 metadata. For \code{input_type = "monitora"}, this information is inferred
 from team-related columns when available.}
 
-\item{lat}{Latitude in decimal degrees of the collection site.}
+\item{lat}{Latitude in decimal degrees of the collection site. For
+\code{input_type = "gigaflor"} it is optional: each specimen takes its
+tree's latitude, and \code{lat} (or else the plot centre) is used only for
+trees without coordinates, the elevation and the locality check.}
 
-\item{long}{Longitude in decimal degrees of the collection site.}
+\item{long}{Longitude in decimal degrees of the collection site. Optional
+for \code{input_type = "gigaflor"} (see \code{lat}).}
 
 \item{alt}{Altitude in meters of the collection site. If \code{NULL},
 extract the altitude from geographic coordinates dataset. This requires

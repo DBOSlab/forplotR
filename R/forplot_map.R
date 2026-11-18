@@ -5,7 +5,8 @@
 #' @description
 #' Generate an interactive HTML map of vouchered individuals in a forest plot
 #' using Leaflet. The function supports standard ForestPlots.net layouts defined
-#' by plot vertices and MONITORA layouts defined by a single central coordinate.
+#' by plot vertices, MONITORA layouts defined by a single central coordinate and
+#' GigaFlor field sheets, whose trees already carry their own coordinates.
 #' It harmonizes specimen records, converts local plot coordinates to geographic
 #' coordinates, draws plot geometry and subplot boundaries, and writes a
 #' shareable HTML map to disk.
@@ -57,6 +58,15 @@
 #'   that, by their fixed position in the template.}
 #'   \item{\code{"fp_query_sheet"}}{ForestPlots.net Query Library export converted internally to a field-sheet-like schema.}
 #'   \item{\code{"monitora"}}{MONITORA layout converted internally and plotted using MONITORA geometry.}
+#'   \item{\code{"gigaflor"}}{GigaFlor network field sheet (protocol 1: 25
+#'   subplots of 20 x 20 m; see [forplot_balance()]). Each tree is drawn at its
+#'   own \code{X} (longitude) / \code{Y} (latitude) in decimal degrees, as
+#'   given in the sheet. \code{vertex_coords} is optional: when it is
+#'   \code{NULL}, the four plot corners, and so the subplot grid, are
+#'   estimated from the trees' coordinates and their \code{T1} subplots
+#'   with the plot dimensions (\code{plot_size}, \code{subplot_size}). Give
+#'   \code{vertex_coords} to draw the grid from the corners marked in the
+#'   survey instead. \code{subplot_size} defaults to 20 m.}
 #' }
 #'
 #' @section Side effects:
@@ -73,7 +83,8 @@
 #' data in ForestPlots.net field-sheet, Query Library, or MONITORA format.
 #'
 #' @param input_type Input layout. One of \code{"field_sheet"},
-#' \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, or \code{"monitora"}.
+#' \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, \code{"monitora"}, or
+#' \code{"gigaflor"}.
 #'
 #' @param vertex_coords Plot reference coordinates. Accepted inputs are a data
 #' frame, a path to an Excel or CSV file, or a numeric vector of length 2.
@@ -87,12 +98,15 @@
 #' and \code{lon}/\code{longitude}. When several MONITORA stations are
 #' requested, supply one center per station: a named list, a data frame with
 #' one row per station (in the order of \code{station_name}), or a data frame
-#' with a station column.
+#' with a station column. Optional for \code{"gigaflor"} (estimated from the
+#' trees' coordinates when \code{NULL}).
 #'
 #' @param plot_size Numeric scalar. Total plot size in hectares. Used for
 #' non-MONITORA inputs.
 #'
 #' @param subplot_size Numeric scalar. Side length of each subplot in meters.
+#' Defaults to 10, or to 20 (GigaFlor protocol 1) when
+#' \code{input_type = "gigaflor"} and the argument is not given.
 #'
 #' @param plot_width_m Optional numeric scalar. Plot width in meters for
 #' non-MONITORA layouts. If omitted, dimensions are inferred from
@@ -270,7 +284,7 @@
 #' @export
 
 forplot_map <- function(fp_file_path = NULL,
-                        input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"),
+                        input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora", "gigaflor"),
                         vertex_coords = NULL,
                         plot_size = 1,
                         subplot_size = 10,
@@ -312,7 +326,13 @@ forplot_map <- function(fp_file_path = NULL,
 
   # Arguments ####
   input_type <- tolower(trimws(as.character(input_type)))
-  input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora"))
+  input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora", "gigaflor"))
+  is_gigaflor <- input_type == "gigaflor"
+
+  # GigaFlor protocol 1: 20 x 20 m subplots unless told otherwise
+  if (is_gigaflor && missing(subplot_size)) {
+    subplot_size <- .gigaflor_protocols()[["1"]]$subplot_size
+  }
 
   # NULL keeps the forplotR logo alone (the header sits on top of the map)
   map_logos <- .resolve_report_logos(if (is.null(logos)) "forplotR" else logos, input_type)
@@ -365,7 +385,7 @@ forplot_map <- function(fp_file_path = NULL,
     stop("The provided 'fp_file_path' does not exist.", call. = FALSE)
   }
 
-  if (is.null(vertex_coords)) {
+  if (is.null(vertex_coords) && !is_gigaflor) {
     stop("`vertex_coords` must be provided.", call. = FALSE)
   }
 
@@ -492,6 +512,15 @@ forplot_map <- function(fp_file_path = NULL,
 
   } else {
     fp_clean <- fp_sheet
+    gigaflor_fit <- NULL
+    if (is_gigaflor) {
+      # decimal-degree X/Y -> metres within the subplot (originals kept in
+      # Longitude/Latitude for the markers)
+      fp_clean <- .gigaflor_local_xy(fp_clean, subplot_size = subplot_size,
+                                     plot_width_m = plot_width_m,
+                                     plot_length_m = plot_length_m, verbose = verbose)
+      gigaflor_fit <- attr(fp_clean, "gigaflor_fit")
+    }
     fp_clean$T1 <- .numify(fp_clean$T1)
     fp_clean$X <- .coerce_xy(fp_clean$X)
     fp_clean$Y <- .coerce_xy(fp_clean$Y)
@@ -518,6 +547,18 @@ forplot_map <- function(fp_file_path = NULL,
   }
 
   # Geographic coordinates and grid ####
+  if (is_gigaflor && is.null(vertex_coords)) {
+    # corners estimated from the trees' coordinates and their T1 subplots
+    vertex_coords <- .gigaflor_vertices(gigaflor_fit, plot_width_m, plot_length_m)
+    if (verbose) {
+      message("Plot corners estimated from the GigaFlor tree coordinates:\n",
+              paste(sprintf("  (%g, %g) m: lat %.6f, lon %.6f",
+                            c(0, 0, plot_width_m, plot_width_m),
+                            c(0, plot_length_m, 0, plot_length_m),
+                            vertex_coords$latitude, vertex_coords$longitude),
+                    collapse = "\n"))
+    }
+  }
   vertex_coords <- .parse_vertex_coords(vertex_coords)
 
   grid_polys <- list()
@@ -564,7 +605,7 @@ forplot_map <- function(fp_file_path = NULL,
   } else {
     if (nrow(vertex_coords) != 4L) {
       stop(
-        "For 'field_sheet' and 'fp_query_sheet' you must provide FOUR plot corners in ",
+        "For '", input_type, "' you must provide FOUR plot corners in ",
         "'vertex_coords' (", nrow(vertex_coords), " given).",
         call. = FALSE
       )
@@ -578,8 +619,18 @@ forplot_map <- function(fp_file_path = NULL,
     .check_vertex_geometry(p1, p2, p3, p4, plot_width_m, plot_length_m)
 
     ll <- .get_latlon_mat(fp_coords$draw_x, fp_coords$draw_y, p1, p2, p3, p4)
-    fp_coords$Latitude <- ll[, "lat"]
-    fp_coords$Longitude <- ll[, "lon"]
+    if (is_gigaflor) {
+      # GigaFlor trees keep the coordinates written in the sheet; only trees
+      # without them are placed from their position in the subplot
+      gps_lat <- .numify(fp_coords$Latitude)
+      gps_lon <- .numify(fp_coords$Longitude)
+      has_gps <- is.finite(gps_lat) & is.finite(gps_lon)
+      fp_coords$Latitude <- ifelse(has_gps, gps_lat, ll[, "lat"])
+      fp_coords$Longitude <- ifelse(has_gps, gps_lon, ll[, "lon"])
+    } else {
+      fp_coords$Latitude <- ll[, "lat"]
+      fp_coords$Longitude <- ll[, "lon"]
+    }
 
     n_cols <- plot_geometry$n_cols
     n_rows <- plot_geometry$n_rows

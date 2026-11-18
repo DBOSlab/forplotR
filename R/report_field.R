@@ -304,9 +304,16 @@
 }
 
 # Plain coordinate as typed (2, 7.5) without trailing zeros.
-.fr_coord <- function(x) {
+.fr_coord <- function(x, digits = 2) {
   x <- .fr_num(x)
-  ifelse(is.finite(x), format(round(x, 2), trim = TRUE, drop0trailing = TRUE), "\u2013")
+  out <- rep("\u2013", length(x))
+  ok <- is.finite(x)
+  out[ok] <- if (digits > 2) {
+    sprintf(paste0("%.", digits, "f"), x[ok])   # decimal degrees: fixed width
+  } else {
+    format(round(x[ok], digits), trim = TRUE, drop0trailing = TRUE)
+  }
+  out
 }
 
 .fr_read_asset <- function(name) {
@@ -351,14 +358,19 @@
   tag <- trimws(as.character(get_col("New Tag No")))
   tag[is.na(tag)] <- ""
 
+  # GigaFlor sheets: X/Y were given as longitude/latitude (decimal degrees)
+  # and converted to metres for the maps; the tables show the original values
+  xy_degrees <- all(c("Longitude", "Latitude") %in% names(d)) &&
+    any(is.finite(.fr_num(d$Longitude)) & is.finite(.fr_num(d$Latitude)))
+
   trees <- data.frame(
     tag = tag,
     fam = fam,
     spp = sp,
     dbh = .fr_num(get_col("D")) / 10,
     st = st,
-    x_raw = get_col("X"),
-    y_raw = get_col("Y"),
+    x_raw = if (xy_degrees) get_col("Longitude") else get_col("X"),
+    y_raw = if (xy_degrees) get_col("Latitude") else get_col("Y"),
     stringsAsFactors = FALSE
   )
 
@@ -433,7 +445,7 @@
   if (is.null(cells$sx0)) { cells$sx0 <- cells$x0; cells$sy0 <- cells$y0 }
   if (is.null(trees$sgx)) { trees$sgx <- trees$gx; trees$sgy <- trees$gy }
   list(cells = cells, trees = trees, cell_size = cell_size, extent = extent,
-       grid_extent = grid_extent, kind = kind)
+       grid_extent = grid_extent, kind = kind, xy_degrees = xy_degrees)
 }
 
 
@@ -1076,8 +1088,11 @@
   # subplot pages ----
   legend_sm <- paste0('<p class="leg sm"><i class="k-todo"></i>', tr[["leg_pending"]], ' <i class="k-ok"></i>', tr[["leg_voucher"]],
                       if (hp) paste0(' <i class="k-palm"></i>', tr[["leg_palm"]]) else "", '</p>')
+  xy_degrees <- isTRUE(lay$xy_degrees)
+  xy_unit <- if (xy_degrees) "\u00b0 (long.; lat.)" else "m"
+  xy_digits <- if (xy_degrees) 6L else 2L
   th <- paste0('<thead><tr><th>', tr[["tag"]], '</th><th>', tr[["species"]], '</th><th class="r">', tr[["dbh"]], '<small>cm</small></th>',
-               '<th class="r">X; Y<small>m</small></th><th class="f">', tr[["new_dbh"]], '</th><th class="f s">', tr[["st"]],
+               '<th class="r">X; Y<small>', xy_unit, '</small></th><th class="f">', tr[["new_dbh"]], '</th><th class="f s">', tr[["st"]],
                '</th><th class="f">', tr[["coll_no"]], '</th><th class="f n">', tr[["notes"]], '</th></tr></thead>')
   by_cell <- split(d, factor(d$cell, levels = c$id))
   sub_page <- function(i) {
@@ -1091,7 +1106,7 @@
     rows <- if (nrow(sd)) paste(sprintf(
       '<tr id="%s" data-tag="%s" class="r-%s"><td class="tag">%s</td><td><i>%s</i><small>%s</small></td><td class="r">%s</td><td class="r xy">%s; %s</td><td class="f"></td><td class="f s"></td><td class="f"></td><td class="f n"></td></tr>',
       sd$row_id, .fr_esc(sd$tag), sd$st, .fr_esc(sd$tag), .fr_esc(sd$spp), .fr_esc(sd$fam), .fr_fmt(sd$dbh),
-      .fr_coord(sd$x_raw), .fr_coord(sd$y_raw)), collapse = "") else sprintf('<tr><td colspan="8" class="none">%s</td></tr>', tr[["no_stems"]])
+      .fr_coord(sd$x_raw, xy_digits), .fr_coord(sd$y_raw, xy_digits)), collapse = "") else sprintf('<tr><td colspan="8" class="none">%s</td></tr>', tr[["no_stems"]])
     todo <- sd[sd$st == "todo", , drop = FALSE]
     title <- paste(tr[["subplot"]], .fr_esc(ci$label))
     paste0(
