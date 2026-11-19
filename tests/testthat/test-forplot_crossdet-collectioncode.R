@@ -183,3 +183,60 @@ testthat::test_that("GigaFlor sheets are cross-checked through their collectionC
   out <- suppressMessages(forplot_crossdet(fp, input_type = "gigaflor", path = td))
   testthat::expect_setequal(out$matches$voucher, c("HM100", "HM101"))
 })
+
+testthat::test_that("jabot_download() fetches the herbaria and its folders are read", {
+  testthat::skip_if_not_installed("jabotR")
+  withr::local_options(forplotR.offline = FALSE)
+  td <- withr::local_tempdir()
+  asked <- NULL
+  testthat::local_mocked_bindings(
+    jabot_download = function(herbarium, verbose = FALSE, dir = ".", ...) {
+      asked <<- herbarium
+      for (cd in herbarium) .cc_write_herbarium(dir, cd, .cc_occ(cd, "100", "Ocotea", "pulchella"))
+      invisible(NULL)
+    },
+    .package = "jabotR"
+  )
+  got <- .jabot_download_codes(c("RB", "INPA"), td)
+  testthat::expect_identical(asked, c("RB", "INPA"))
+  testthat::expect_named(got, c("RB", "INPA"))
+  testthat::expect_true(all(lengths(got) == 1L))
+  testthat::expect_identical(.jabot_download_codes(character(0), td), list())
+})
+
+testthat::test_that("a failing jabot_download() falls back quietly, or with a message when verbose", {
+  testthat::skip_if_not_installed("jabotR")
+  withr::local_options(forplotR.offline = FALSE)
+  td <- withr::local_tempdir()
+  testthat::local_mocked_bindings(
+    jabot_download = function(...) stop("server down"),
+    .package = "jabotR"
+  )
+  testthat::expect_silent(got <- .jabot_download_codes("RB", td))
+  testthat::expect_identical(got, list())
+  testthat::expect_message(
+    .jabot_download_codes("RB", td, verbose = TRUE),
+    "server down.*own JABOT downloader"
+  )
+})
+
+testthat::test_that("verbose runs name the herbaria taken from collectionCode", {
+  fp <- withr::local_tempfile(fileext = ".xlsx"); file.create(fp)
+  td <- withr::local_tempdir()
+  .cc_write_herbarium(td, "RB", .cc_occ("RB", "100", "Ocotea", "pulchella"))
+  .cc_write_herbarium(td, "INPA", .cc_occ("INPA", "101", "Ocotea", "glomerata"))
+  .cc_mocks()
+  msgs <- testthat::capture_messages(
+    forplot_crossdet(fp, input_type = "field_sheet", path = td, verbose = TRUE)
+  )
+  testthat::expect_true(any(grepl("Herbaria from `collectionCode`: INPA, RB", msgs, fixed = TRUE)))
+})
+
+testthat::test_that("unmatched vouchers without a target herbarium list the herbaria checked", {
+  inv <- data.frame(Voucher = "HM1", inventory_family = "Lauraceae",
+                    inventory_species = "Ocotea indet", collector_raw = "H. Medeiros",
+                    number_raw = "1", stringsAsFactors = FALSE)
+  out <- .unmatched_table(inv, c("RB", "INPA"))
+  testthat::expect_identical(out$herbarium, "RB, INPA")
+  testthat::expect_identical(out$record_number, "1")
+})
