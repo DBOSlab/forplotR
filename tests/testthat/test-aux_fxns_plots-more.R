@@ -122,6 +122,17 @@ test_that("standardised coordinates are used when local ones are absent", {
   expect_true(all(is.na(out$T2)))
 })
 
+test_that("the herbarium of each voucher (collectionCode) is kept from a query", {
+  skip_if_not_installed("writexl")
+  path <- .ap_write(list(Data = .ap_query(
+    `Standardised SubPlot T1` = c("1", "2"),
+    `Standardised X` = c("1.5", "2"), `Standardised Y` = c("3", "4"),
+    `collectionCode | Sigla do herbario` = c("RB", "INPA")
+  )))
+  out <- .fp_query_to_field_sheet_df(path)
+  expect_identical(out$collectionCode, c("RB", "INPA"))
+})
+
 test_that("FP query conversion reports unusable coordinates", {
   skip_if_not_installed("writexl")
   none <- .ap_write(list(Data = .ap_query(Other = c("a", "b"))))
