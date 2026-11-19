@@ -1072,6 +1072,10 @@
 
 #' Build a JABOT specimen URL
 #'
+#' Link to the JABOT image viewer ("regua") of a specimen, built from its
+#' catalogue number (numero de tombo). The viewer accepts the number with or
+#' without the herbarium prefix (e.g. `"RB01601078"` or `"1601078"`).
+#'
 #' @param catalogNumber Character scalar.
 #' @param herbarium Character scalar.
 #'
@@ -1091,12 +1095,11 @@
   }
 
   paste0(
-    "https://catalogo-ucs-brasil.jbrj.gov.br/regua/visualizador.php",
-    "?codtestemunho=",
-    utils::URLencode(cat_str, reserved = TRUE),
-    "&colbot=",
-    herb_str,
-    "&db=Jabot&r=true"
+    "https://jabot.jbrj.gov.br/v2/regua/visualizador.php",
+    "?r=true&colbot=",
+    tolower(herb_str),
+    "&codtestemunho=",
+    utils::URLencode(cat_str, reserved = TRUE)
   )
 }
 

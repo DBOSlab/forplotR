@@ -1,5 +1,9 @@
 # forplotR (development version)
 
+- `forplot_map()`: the "Herbarium image" link of JABOT vouchers opens the
+  specimen again. JABOT moved its image viewer, so the link now points to
+  `https://jabot.jbrj.gov.br/v2/regua/visualizador.php`, built from the
+  herbarium and the catalogue number (`colbot` and `codtestemunho`).
 - The species chart of `forplot_balance()` is now two charts: the species with
   the most individuals (the simple ranking used before the IVI chart, now with
   the first 15 species and the same taxon rule as the IVI: a name within its
