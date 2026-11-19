@@ -27,8 +27,8 @@ forplot_sheets(
   alt = NULL,
   add_census_notes = TRUE,
   validate_locality = TRUE,
-  dir = file.path(tempdir(), "Results_herb_label"),
-  filename = "plot_to_herb_sheet"
+  dir = NULL,
+  filename = NULL
 )
 }
 \arguments{
@@ -123,11 +123,16 @@ Needs internet access and the suggested packages \pkg{geodata} and
 the validation is skipped with a warning.}
 
 \item{dir}{Output directory. The file is saved within a subfolder named
-after the current date. The default writes to a session temporary directory
-(\code{tempdir()}), which is deleted when the R session ends; supply a path
-to keep the output.}
+after the current date (\code{YYYY-MM-DD}). The default \code{NULL} writes to
+a folder in the session temporary directory (\code{tempdir()}), named in
+the language of the call (\code{"herbarium_labels"}, or
+\code{"etiquetas_herbario"} in Portuguese, Panara and Spanish), which is
+deleted when the R session ends; supply a path to keep the output.}
 
-\item{filename}{Name of the output file. Default is \strong{plot_to_herb_sheet}.}
+\item{filename}{Name of the output file. Default \code{NULL} uses
+\strong{plot_to_herb_sheet} in English, \code{"planilha_herbario"} in Portuguese
+and Panara, \code{"planilla_herbario"} in Spanish and
+\code{"feuille_herbier"} in French.}
 }
 \value{
 A data frame in herbarium format with the processed data from the

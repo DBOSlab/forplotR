@@ -756,3 +756,22 @@ test_that("filtered plot data replacement remains compatible with ggplot2", {
     2
   )
 })
+
+test_that("dir = NULL writes to a folder of tempdir() named in the language", {
+  testthat::local_mocked_bindings(
+    .harmonize_plot_input = function(...) stop("TEST_STOP_AFTER_HARMONIZE", call. = FALSE),
+    .package = "forplotR"
+  )
+  def <- file.path(tempdir(), "resultados")
+  existed <- dir.exists(def)
+  withr::defer(if (!existed) unlink(def, recursive = TRUE))
+  expect_error(
+    forplotR::forplot_balance(
+      fp_file_path = "dummy.xlsx", input_type = "field_sheet", language = "pa",
+      subplot_size = 10, render_html = FALSE, render_pdf = FALSE,
+      write_xlsx = FALSE, verbose = FALSE, dir = NULL
+    ),
+    "TEST_STOP_AFTER_HARMONIZE"
+  )
+  expect_true(dir.exists(file.path(def, format(Sys.Date(), "%Y-%m-%d"))))
+})

@@ -23,7 +23,7 @@ forplot_balance(
   render_pdf = TRUE,
   write_xlsx = TRUE,
   verbose = TRUE,
-  dir = file.path(tempdir(), "Results_map_plot"),
+  dir = NULL,
   filename = NULL,
   logos = NULL,
   header_row = NULL,
@@ -106,9 +106,11 @@ messages during input harmonization, coordinate computation, map generation,
 and report rendering.}
 
 \item{dir}{Output directory. A date-stamped subfolder in the format
-\code{ddMonYYYY} is created inside this directory. The default writes to a
-session temporary directory (\code{tempdir()}), which is deleted when the R
-session ends; supply a path to keep the outputs.}
+\code{YYYY-MM-DD} is created inside this directory. The default \code{NULL}
+writes to a folder in the session temporary directory (\code{tempdir()}),
+named "results" in the language of the call ("resultados" in Portuguese,
+Panara and Spanish), which is deleted when the R session ends; supply a path
+to keep the outputs.}
 
 \item{filename}{Prefix of the names of the output files, without
 extension. The default \code{NULL} uses the word for "plot" in the report

@@ -19,6 +19,7 @@ test_that("Panara uses the Portuguese names and Mandarin the English ones", {
 
 test_that("file names are snake_case ASCII and unique within each language", {
   d <- .file_name_dict()
+  d <- d[d$key != "tree", ]  # "Tree" is a word inside voucher folder names
   for (lg in c("en", "pt", "es", "fr")) {
     expect_true(all(grepl("^[a-z0-9]+(_[a-z0-9]+)*$", d[[lg]])), info = lg)
     expect_false(anyDuplicated(d[[lg]]) > 0, info = lg)
@@ -106,4 +107,10 @@ test_that("forplot_balance names every output after the language", {
     html <- paste(readLines(r$res$html_report, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
     expect_true(grepl(sprintf('data-print-name="%s"', .out_name("report", lg, pre)), html, fixed = TRUE))
   }
+})
+
+test_that("the word 'Tree' of voucher folders exists in every language, as ASCII", {
+  expect_identical(.tree_words(), c("Tree", "Arvore", "Arbol", "Arbre"))
+  expect_identical(.out_name("tree", "pa"), "Arvore")
+  expect_identical(.out_name("tree", "ma"), "Tree")
 })

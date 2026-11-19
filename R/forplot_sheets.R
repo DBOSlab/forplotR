@@ -129,11 +129,16 @@
 #' the validation is skipped with a warning.
 #'
 #' @param dir Output directory. The file is saved within a subfolder named
-#' after the current date. The default writes to a session temporary directory
-#' (\code{tempdir()}), which is deleted when the R session ends; supply a path
-#' to keep the output.
+#' after the current date (\code{YYYY-MM-DD}). The default \code{NULL} writes to
+#' a folder in the session temporary directory (\code{tempdir()}), named in
+#' the language of the call (\code{"herbarium_labels"}, or
+#' \code{"etiquetas_herbario"} in Portuguese, Panara and Spanish), which is
+#' deleted when the R session ends; supply a path to keep the output.
 #'
-#' @param filename Name of the output file. Default is **plot_to_herb_sheet**.
+#' @param filename Name of the output file. Default \code{NULL} uses
+#' **plot_to_herb_sheet** in English, \code{"planilha_herbario"} in Portuguese
+#' and Panara, \code{"planilla_herbario"} in Spanish and
+#' \code{"feuille_herbier"} in French.
 #'
 #' @return A data frame in herbarium format with the processed data from the
 #' input dataset.
@@ -213,8 +218,8 @@ forplot_sheets <- function(fp_file_path = NULL,
                            alt = NULL,
                            add_census_notes = TRUE,
                            validate_locality = TRUE,
-                           dir = file.path(tempdir(), "Results_herb_label"),
-                           filename =  "plot_to_herb_sheet") {
+                           dir = NULL,
+                           filename = NULL) {
 
   # early file checks ----
   if (is.null(fp_file_path) || !is.character(fp_file_path) || length(fp_file_path) != 1 || !nzchar(fp_file_path)) {
@@ -245,6 +250,8 @@ forplot_sheets <- function(fp_file_path = NULL,
   }
 
   # Apply defensive functions
+  if (is.null(dir)) dir <- file.path(tempdir(), .out_name("herb_dir", language))
+  if (is.null(filename)) filename <- .out_name("herb_sheet", language)
   dir <- .arg_check_dir(dir)
   majorarea <- .arg_check_majorarea(majorarea, country)
   .arg_check_minorarea(minorarea)
@@ -299,7 +306,7 @@ forplot_sheets <- function(fp_file_path = NULL,
   }
 
   # Creating the directory to save the file based on the current date
-  foldername <- paste0(dir, "/", format(Sys.time(), "%d%b%Y"))
+  foldername <- paste0(dir, "/", format(Sys.Date(), "%Y-%m-%d"))
 
   if (!dir.exists(foldername)) dir.create(foldername, recursive = TRUE)
 

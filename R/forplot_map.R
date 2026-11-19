@@ -71,9 +71,12 @@
 #'
 #' @section Side effects:
 #' The function writes an HTML file named
-#' \code{Results_<ddMonYYYY>_<filename>.html} in \code{dir} (the working
-#' directory by default). When voucher images are linked rather than embedded, they are
-#' copied to a \code{<filename>_vouchers} folder next to the HTML file; keep
+#' \code{<results>_<YYYY-MM-DD>_<filename>.html} in \code{dir} (the working
+#' directory by default), where \code{<results>} is "results" in the language
+#' of the map ("resultados" in Portuguese, Panara and Spanish, "resultats" in
+#' French). When voucher images are linked rather than embedded, they are
+#' copied to a \code{<filename>_vouchers} folder (\code{_testemunhos} in
+#' Portuguese and Panara) next to the HTML file; keep
 #' both together when sharing the map. When \code{herbaria_lookup = TRUE}, it
 #' may also build or refresh a local herbarium index from DwC-A downloads and
 #' may remove downloaded archives at the end of the run depending on
@@ -122,7 +125,9 @@
 #' a folder named \code{"GCO_123"}) and contain one or more image files.
 #'
 #' @param filename Character scalar. Basename for the output HTML file, without
-#' extension.
+#' extension. Default \code{NULL} uses "plot_map" in the language of the map
+#' (\code{"mapa_parcela"} in Portuguese, Panara and Spanish,
+#' \code{"carte_parcelle"} in French).
 #'
 #' @param station_name Character vector or \code{NULL}. For
 #' \code{input_type = "monitora"}, the station(s) to map. When more than one
@@ -291,7 +296,7 @@ forplot_map <- function(fp_file_path = NULL,
                         plot_width_m = NULL,
                         plot_length_m = NULL,
                         voucher_imgs = NULL,
-                        filename = "plot_map",
+                        filename = NULL,
                         station_name = NULL,
                         collector = NULL,
                         collector_map = NULL,
@@ -348,6 +353,7 @@ forplot_map <- function(fp_file_path = NULL,
     }
   }
 
+  if (is.null(filename)) filename <- .out_name("map_default", language)
   if (!is.character(filename) || length(filename) != 1L || !nzchar(trimws(filename))) {
     stop("`filename` must be a single non-empty character string.", call. = FALSE)
   }
@@ -400,7 +406,7 @@ forplot_map <- function(fp_file_path = NULL,
         input_type = "monitora",
         vertex_coords = .vertex_for_station(vertex_coords, stations, i),
         voucher_imgs = voucher_imgs,
-        filename = paste0(filename, "_station_", stations[i]),
+        filename = paste0(filename, "_", .out_name("station", language), "_", stations[i]),
         station_name = stations[i],
         collector = collector,
         collector_map = collector_map,
@@ -453,7 +459,8 @@ forplot_map <- function(fp_file_path = NULL,
   }
 
   # Output paths ####
-  output_file <- paste0("Results_", format(Sys.time(), "%d%b%Y_"), filename, ".html")
+  output_file <- paste0(.out_name("results", language), "_", format(Sys.Date(), "%Y-%m-%d"), "_",
+                        filename, ".html")
 
   if (is.null(dir)) {
     foldername <- tempdir()
@@ -743,14 +750,20 @@ forplot_map <- function(fp_file_path = NULL,
 
     if (length(img_index)) {
       # forplot_vouchers() names folders "<Voucher>_Tree#<tag>" (or "Tree#<tag>"
-      # without voucher) for collected trees, and "<Voucher>" otherwise.
-      # Try the tree-specific name first, then the bare voucher.
+      # without voucher) for collected trees, and "<Voucher>" otherwise; "Tree"
+      # is in the language of that call (Arvore, Arbol, Arbre). Try the
+      # tree-specific name in any language first, then the bare voucher.
       vch <- as.character(fp_coords$Voucher)
       vch[is.na(vch)] <- ""
       tag <- as.character(fp_coords[["New Tag No"]])
       tag[is.na(tag)] <- ""
 
-      key_tree <- ifelse(nzchar(tag), .norm_nm(paste0(vch, " Tree#", tag)), "")
+      key_tree <- rep("", length(vch))
+      for (tree_word in .tree_words()) {
+        k <- ifelse(nzchar(tag), .norm_nm(paste0(vch, " ", tree_word, "#", tag)), "")
+        take <- !nzchar(key_tree) & nzchar(k) & k %in% names(img_index)
+        key_tree[take] <- k[take]
+      }
       key_vch <- .norm_nm(vch)
       key_vch[!nzchar(trimws(vch))] <- ""
 
@@ -767,7 +780,7 @@ forplot_map <- function(fp_file_path = NULL,
         img_index[used_keys],
         embed = embed_voucher_imgs,
         out_dir = foldername,
-        asset_dirname = paste0(filename, "_vouchers")
+        asset_dirname = .out_name("map_vouchers", language, filename)
       )
 
       for (k in used_keys) {

@@ -1357,7 +1357,7 @@ test_that("forplot_map creates a Leaflet htmlwidget and requests self-contained 
   expect_s3_class(saved$widget, "leaflet")
   expect_true(isTRUE(saved$selfcontained))
   expect_true(file.exists(saved$file))
-  expect_true(grepl("^Results_", basename(saved$file)))
+  expect_true(grepl("^results_", basename(saved$file)))
   expect_true(endsWith(saved$file, "_widget_contract.html"))
 
   expect_identical(

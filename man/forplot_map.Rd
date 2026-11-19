@@ -14,7 +14,7 @@ forplot_map(
   plot_width_m = NULL,
   plot_length_m = NULL,
   voucher_imgs = NULL,
-  filename = "plot_map",
+  filename = NULL,
   station_name = NULL,
   collector = NULL,
   collector_map = NULL,
@@ -92,7 +92,9 @@ voucher image subfolders. Each subfolder must be named after a voucher
 a folder named \code{"GCO_123"}) and contain one or more image files.}
 
 \item{filename}{Character scalar. Basename for the output HTML file, without
-extension.}
+extension. Default \code{NULL} uses "plot_map" in the language of the map
+(\code{"mapa_parcela"} in Portuguese, Panara and Spanish,
+\code{"carte_parcelle"} in French).}
 
 \item{station_name}{Character vector or \code{NULL}. For
 \code{input_type = "monitora"}, the station(s) to map. When more than one
@@ -267,9 +269,12 @@ survey instead. \code{subplot_size} defaults to 20 m.}
 \section{Side effects}{
 
 The function writes an HTML file named
-\code{Results_<ddMonYYYY>_<filename>.html} in \code{dir} (the working
-directory by default). When voucher images are linked rather than embedded, they are
-copied to a \code{<filename>_vouchers} folder next to the HTML file; keep
+\code{<results>_<YYYY-MM-DD>_<filename>.html} in \code{dir} (the working
+directory by default), where \code{<results>} is "results" in the language
+of the map ("resultados" in Portuguese, Panara and Spanish, "resultats" in
+French). When voucher images are linked rather than embedded, they are
+copied to a \code{<filename>_vouchers} folder (\code{_testemunhos} in
+Portuguese and Panara) next to the HTML file; keep
 both together when sharing the map. When \code{herbaria_lookup = TRUE}, it
 may also build or refresh a local herbarium index from DwC-A downloads and
 may remove downloaded archives at the end of the run depending on

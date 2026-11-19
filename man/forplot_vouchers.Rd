@@ -6,12 +6,13 @@
 \usage{
 forplot_vouchers(
   fp_file_path = NULL,
-  output_dir = file.path(tempdir(), "voucher_imgs"),
+  output_dir = NULL,
   input_type = c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora",
     "gigaflor"),
   station_name = NULL,
   verbose = TRUE,
-  header_row = NULL
+  header_row = NULL,
+  language = c("en", "pt", "es", "fr", "ma", "pa")
 )
 }
 \arguments{
@@ -19,9 +20,9 @@ forplot_vouchers(
 in one of the supported plot-data layouts.}
 
 \item{output_dir}{Character. Root directory in which voucher image folders
-will be organized. The default is a session temporary directory
-(\code{tempdir()}), which is deleted when the R session ends; point it to your
-voucher image folder to organize it in place.}
+will be organized. The default \code{NULL} is a folder in the session temporary
+directory (\code{tempdir()}), which is deleted when the R session ends; point it
+to your voucher image folder to organize it in place.}
 
 \item{input_type}{Character. Input layout. Must be one of \code{"field_sheet"},
 \code{"field_sheet_ti"}, \code{"fp_query_sheet"}, \code{"monitora"}, or \code{"gigaflor"}.}
@@ -37,6 +38,13 @@ processing.}
 default \code{NULL} finds it automatically (see \code{\link[=detect_header_row]{detect_header_row()}}),
 which copes with sheets that start with rows of plot metadata. Give a
 number to force it.}
+
+\item{language}{Language of the folder names: \code{"en"} (default), \code{"pt"},
+\code{"es"}, \code{"fr"}, \code{"ma"} or \code{"pa"}. The folder of a collected tree is
+\code{"<Voucher> Tree#<tag>"} in English and \code{"<Voucher> Arvore#<tag>"} in
+Portuguese and Panara (\code{"Arbol"} in Spanish, \code{"Arbre"} in French; Mandarin
+uses the English names). \code{\link[=forplot_map]{forplot_map()}} finds the images whatever the
+language of the folders.}
 }
 \value{
 Invisibly returns the harmonized field-sheet data frame used
@@ -61,7 +69,8 @@ network field sheet is read from its \code{"Data"} worksheet, with
 determination and stem grouping (see \code{\link[=forplot_balance]{forplot_balance()}}).
 
 On the \strong{first execution}, the function reads voucher information from the
-input file, (i) creates a main folder (default: \code{"voucher_imgs"}) if it does
+input file, (i) creates a main folder (default: \code{"voucher_imgs"}, named in
+the language of the call, e.g. \code{"imagens_testemunhos"} in Portuguese) if it does
 not already exist, and (ii) for each voucher treated as collected, creates a
 nested directory structure following the format \code{Family/Genus/Voucher}, where
 voucher images can be stored.

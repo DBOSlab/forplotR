@@ -152,7 +152,7 @@ test_that("several MONITORA stations produce one map each", {
     dir = withr::local_tempdir(), filename = "mon"
   ))
   expect_length(out, 2L)
-  expect_true(all(grepl("_mon_station_EA-[12]\\.html$", out)))
+  expect_true(all(grepl("_mon_station_EA-[12][.]html$", out)))
   expect_identical(stations_seen, c("EA-1", "EA-2"))
 })
 
@@ -248,4 +248,27 @@ test_that("small HTML helpers handle edge cases", {
 
   expect_identical(.map_ui_labels("xx"), .map_ui_labels("en"))
   expect_false(identical(.map_ui_labels("fr"), .map_ui_labels("en")))
+})
+
+test_that("map file and voucher folder are named in the language of the map", {
+  saved <- .mm_mock_save()
+  testthat::local_mocked_bindings(.harmonize_plot_input = .mm_fp_loaded)
+  out_dir <- withr::local_tempdir()
+  imgs <- withr::local_tempdir()
+  # folder written by forplot_vouchers(language = "pt") for voucher V1, tag 1
+  dir.create(file.path(imgs, "V1_Arvore#1"))
+  writeBin(as.raw(1:10), file.path(imgs, "V1_Arvore#1", "a.png"))
+
+  out <- suppressMessages(forplot_map(
+    .mm_input(), vertex_coords = .mm_vertices(), plot_size = 0.01,
+    subplot_size = 10, voucher_imgs = imgs, dir = out_dir, language = "pt"
+  ))
+  expect_match(basename(out), "^resultados_[0-9]{4}-[0-9]{2}-[0-9]{2}_mapa_parcela[.]html$")
+  expect_true(file.exists(file.path(out_dir, "mapa_parcela_testemunhos", "v1arvore1", "a.png")))
+
+  out_en <- suppressMessages(forplot_map(
+    .mm_input(), vertex_coords = .mm_vertices(), plot_size = 0.01,
+    subplot_size = 10, voucher_imgs = NULL, dir = out_dir
+  ))
+  expect_match(basename(out_en), "^results_[0-9]{4}-[0-9]{2}-[0-9]{2}_plot_map[.]html$")
 })

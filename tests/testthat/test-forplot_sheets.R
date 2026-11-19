@@ -135,7 +135,7 @@ test_that("forplot_sheets writes the spreadsheet inside a date-stamped folder of
   written <- list.files(fx$dir, pattern = "^rus01_labels\\.xlsx$",
                         recursive = TRUE, full.names = TRUE)
   expect_length(written, 1L)
-  expect_identical(basename(dirname(written)), format(Sys.time(), "%d%b%Y"))
+  expect_identical(basename(dirname(written)), format(Sys.Date(), "%Y-%m-%d"))
 
   back <- openxlsx::read.xlsx(written)
   expect_equal(nrow(back), nrow(out))
@@ -357,4 +357,14 @@ test_that("missing spatial packages skip validation and elevation with an instal
   expect_true(any(grepl("install.packages(c(\"geodata\", \"terra\"))", warnings, fixed = TRUE)))
   expect_true(any(grepl("locality validation skipped", warnings)))
   expect_true(all(is.na(out$altprof)))
+})
+
+test_that("dir and filename default to names in the language of the call", {
+  fx <- .sheets_fixtures()
+  def <- file.path(tempdir(), "etiquetas_herbario")
+  existed <- dir.exists(def)
+  withr::defer(if (!existed) unlink(def, recursive = TRUE))
+  suppressMessages(.run_sheets(fx, dir = NULL, language = "pt"))
+  written <- file.path(def, format(Sys.Date(), "%Y-%m-%d"), "planilha_herbario.xlsx")
+  expect_true(file.exists(written))
 })
