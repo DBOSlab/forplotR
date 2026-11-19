@@ -1108,7 +1108,7 @@ test_that("URL builders create valid JABOT and REFLORA links", {
   expect_true(is.character(url3) && length(url3) == 1)
 
   expect_match(url1, "codtestemunho=12345")
-  expect_match(url1, "colbot=RB")
+  expect_match(url1, "colbot=rb")
 
   expect_equal(
     url2,

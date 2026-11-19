@@ -1,5 +1,9 @@
 # forplotR (development version)
 
+- `forplot_map()`: the "Herbarium image" link of JABOT vouchers opens the
+  specimen again. JABOT moved its image viewer, so the link now points to
+  `https://jabot.jbrj.gov.br/v2/regua/visualizador.php`, built from the
+  herbarium and the catalogue number (`colbot` and `codtestemunho`).
 - Output names follow the language of the call in every function, not only
   in `forplot_balance()`, from the same dictionary (`R/i18n_files.R`):
   Portuguese for `"pt"` and `"pa"`, Spanish, French, and English for `"en"`

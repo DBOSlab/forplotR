@@ -425,7 +425,7 @@ test_that(".resolve_links_from_index uses fallback keys and skips invalid hits",
 
   j <- .resolve_links_from_index(idx, 1:4, "jabot", fp, parsed)
   expect_identical(j$resolved, c(TRUE, FALSE, TRUE, FALSE))
-  expect_match(j$links[1], "codtestemunho=RB1&")
+  expect_match(j$links[1], "codtestemunho=RB1'")
 
   r <- .resolve_links_from_index(idx, 1:4, "reflora", fp, parsed)
   # Row 3 has an occurrenceID but no numeric block, so no REFLORA URL
@@ -454,4 +454,11 @@ test_that(".parse_census_identity keeps going when some vouchers have no collect
   expect_equal(nrow(out), 3L)
   expect_false(anyNA(out$primary_key[1]))
   expect_true(all(is.na(out$primary_key[2:3])))
+})
+
+test_that("JABOT links open the image viewer of the specimen by its catalogue number", {
+  expect_identical(
+    .make_jabot_url(" RB01601078 ", "rb"),
+    "https://jabot.jbrj.gov.br/v2/regua/visualizador.php?r=true&colbot=rb&codtestemunho=RB01601078"
+  )
 })
