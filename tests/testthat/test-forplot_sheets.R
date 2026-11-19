@@ -358,3 +358,13 @@ test_that("missing spatial packages skip validation and elevation with an instal
   expect_true(any(grepl("locality validation skipped", warnings)))
   expect_true(all(is.na(out$altprof)))
 })
+
+test_that("dir and filename default to names in the language of the call", {
+  fx <- .sheets_fixtures()
+  def <- file.path(tempdir(), "etiquetas_herbario")
+  existed <- dir.exists(def)
+  withr::defer(if (!existed) unlink(def, recursive = TRUE))
+  suppressMessages(.run_sheets(fx, dir = NULL, language = "pt"))
+  written <- file.path(def, format(Sys.Date(), "%Y-%m-%d"), "planilha_herbario.xlsx")
+  expect_true(file.exists(written))
+})
