@@ -1,5 +1,22 @@
 # forplotR (development version)
 
+- Output names follow the language of the call in every function, not only
+  in `forplot_balance()`, from the same dictionary (`R/i18n_files.R`):
+  Portuguese for `"pt"` and `"pa"`, Spanish, French, and English for `"en"`
+  and `"ma"`, never a mix of Portuguese and English.
+  - `forplot_map()`: `results_<YYYY-MM-DD>_<filename>.html`
+    (`resultados_...` in Portuguese), default `filename` "plot_map" /
+    "mapa_parcela", station maps `<filename>_estacao_<n>` and the voucher
+    image folder `<filename>_testemunhos` in Portuguese.
+  - `forplot_vouchers()` gains `language`: default folder
+    `imagens_testemunhos` and tree folders `"<Voucher> Arvore#<tag>"` in
+    Portuguese (`Arbol`, `Arbre` in Spanish and French). `forplot_map()`
+    finds the images whatever the language of the folders.
+  - `forplot_sheets()`: default folder `etiquetas_herbario` and file
+    `planilha_herbario` in Portuguese.
+  - `forplot_balance()`: default folder `resultados` in Portuguese.
+  - Date-stamped names use `YYYY-MM-DD`; the month abbreviation used before
+    (`19Nov2026`, `19nov2026`) changed with the locale of the computer.
 - The species chart of `forplot_balance()` is now two charts: the species with
   the most individuals (the simple ranking used before the IVI chart, now with
   the first 15 species and the same taxon rule as the IVI: a name within its

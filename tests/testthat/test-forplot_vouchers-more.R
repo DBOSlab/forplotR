@@ -62,3 +62,23 @@ test_that("voucher helpers normalize collection flags and genus", {
                    c(TRUE, TRUE))
   expect_identical(.clean_path_component(c("a/b:c", NA)), c("a_b_c", ""))
 })
+
+test_that("forplot_vouchers names folders in the language of the call", {
+  input <- withr::local_tempfile(fileext = ".xlsx")
+  file.create(input)
+  out_dir <- withr::local_tempdir()
+  testthat::local_mocked_bindings(
+    .harmonize_plot_input = function(...) list(fp_sheet = .vo_sheet())
+  )
+  res <- suppressMessages(forplot_vouchers(input, output_dir = out_dir, language = "pt"))
+  expect_true(dir.exists(file.path(out_dir, "Fabaceae", "Inga", "V1_Arvore#1")))
+  expect_identical(res$Voucher[1], "V.1 Arvore#1")
+
+  # default folder in tempdir(), named in the language
+  def <- file.path(tempdir(), "imagens_testemunhos")
+  withr::defer(unlink(def, recursive = TRUE))
+  suppressMessages(forplot_vouchers(input, language = "pa"))
+  expect_true(dir.exists(file.path(def, "Fabaceae", "Inga", "V1_Arvore#1")))
+
+  expect_error(forplot_vouchers(input, output_dir = out_dir, language = "xx"))
+})

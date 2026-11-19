@@ -135,7 +135,7 @@ test_that("forplot_sheets writes the spreadsheet inside a date-stamped folder of
   written <- list.files(fx$dir, pattern = "^rus01_labels\\.xlsx$",
                         recursive = TRUE, full.names = TRUE)
   expect_length(written, 1L)
-  expect_identical(basename(dirname(written)), format(Sys.time(), "%d%b%Y"))
+  expect_identical(basename(dirname(written)), format(Sys.Date(), "%Y-%m-%d"))
 
   back <- openxlsx::read.xlsx(written)
   expect_equal(nrow(back), nrow(out))

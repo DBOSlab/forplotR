@@ -1,8 +1,9 @@
 # Names of output files ####
 # Authors: Giulia Ottino & Domingos Cardoso
 #
-# The one place where the names of the files written by forplot_balance() are
-# defined. A file name is "<prefix>_<suffix>.<ext>", where the suffix comes
+# The one place where the names of the files written by the package are
+# defined (forplot_balance(), forplot_map(), forplot_vouchers() and
+# forplot_sheets()). A file name is "<prefix>_<suffix>.<ext>", where the suffix comes
 # from the table below in the language of the call. Names are snake_case ASCII
 # (no accents, no spaces) so that they work in URLs. Panara ("pa") uses the
 # Portuguese names; Mandarin ("ma") uses the English names, because Chinese
@@ -31,7 +32,17 @@
     chart_species_ivi     = c("species_ivi",                  "especies_ivi",                        "especies_ivi",                        "especes_ivi"),
     chart_family_ivi      = c("families_ivi",                 "familias_ivi",                        "familias_ivi",                        "familles_ivi"),
     chart_dbh_classes     = c("dbh_classes",                  "classes_dap",                         "clases_dap",                          "classes_dhp"),
-    balance_xlsx          = c("collection_balance",           "balanco_coleta",                      "balance_colecta",                     "bilan_collecte")
+    balance_xlsx          = c("collection_balance",           "balanco_coleta",                      "balance_colecta",                     "bilan_collecte"),
+    # forplot_map()
+    results               = c("results",                      "resultados",                          "resultados",                          "resultats"),
+    map_default           = c("plot_map",                     "mapa_parcela",                        "mapa_parcela",                        "carte_parcelle"),
+    map_vouchers          = c("vouchers",                     "testemunhos",                         "testigos",                            "temoins"),
+    # forplot_vouchers(); "tree" names the folder "<Voucher> <tree>#<tag>"
+    voucher_imgs          = c("voucher_imgs",                 "imagens_testemunhos",                 "imagenes_testigos",                   "images_temoins"),
+    tree                  = c("Tree",                         "Arvore",                              "Arbol",                               "Arbre"),
+    # forplot_sheets()
+    herb_dir              = c("herbarium_labels",             "etiquetas_herbario",                  "etiquetas_herbario",                  "etiquettes_herbier"),
+    herb_sheet            = c("plot_to_herb_sheet",           "planilha_herbario",                   "planilla_herbario",                   "feuille_herbier")
   )
   m <- do.call(rbind, rows)
   data.frame(key = rownames(m), en = m[, 1], pt = m[, 2], es = m[, 3], fr = m[, 4],
@@ -66,4 +77,19 @@
   if (!is.null(prefix) && nzchar(prefix)) out <- paste0(prefix, "_", out)
   if (!is.null(ext) && nzchar(ext)) out <- paste0(out, ".", ext)
   out
+}
+
+
+#' The word "Tree" of voucher folders in every language
+#'
+#' `forplot_vouchers()` names the folder of a collected tree
+#' "<Voucher> <Tree>#<tag>" in the language of the call; `forplot_map()`
+#' accepts any of them when it links the images.
+#'
+#' @return Character vector, English first.
+#' @keywords internal
+#' @noRd
+.tree_words <- function() {
+  d <- .file_name_dict()
+  unique(unlist(d[d$key == "tree", c("en", "pt", "es", "fr")], use.names = FALSE))
 }

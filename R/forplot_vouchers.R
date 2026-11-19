@@ -20,7 +20,8 @@
 #' determination and stem grouping (see [forplot_balance()]).
 #'
 #' On the **first execution**, the function reads voucher information from the
-#' input file, (i) creates a main folder (default: `"voucher_imgs"`) if it does
+#' input file, (i) creates a main folder (default: `"voucher_imgs"`, named in
+#' the language of the call, e.g. `"imagens_testemunhos"` in Portuguese) if it does
 #' not already exist, and (ii) for each voucher treated as collected, creates a
 #' nested directory structure following the format `Family/Genus/Voucher`, where
 #' voucher images can be stored.
@@ -53,9 +54,9 @@
 #' in one of the supported plot-data layouts.
 #'
 #' @param output_dir Character. Root directory in which voucher image folders
-#' will be organized. The default is a session temporary directory
-#' (`tempdir()`), which is deleted when the R session ends; point it to your
-#' voucher image folder to organize it in place.
+#' will be organized. The default `NULL` is a folder in the session temporary
+#' directory (`tempdir()`), which is deleted when the R session ends; point it
+#' to your voucher image folder to organize it in place.
 #'
 #' @param input_type Character. Input layout. Must be one of `"field_sheet"`,
 #' `"field_sheet_ti"`, `"fp_query_sheet"`, `"monitora"`, or `"gigaflor"`.
@@ -71,6 +72,13 @@
 #' default \code{NULL} finds it automatically (see [detect_header_row()]),
 #' which copes with sheets that start with rows of plot metadata. Give a
 #' number to force it.
+#'
+#' @param language Language of the folder names: `"en"` (default), `"pt"`,
+#' `"es"`, `"fr"`, `"ma"` or `"pa"`. The folder of a collected tree is
+#' `"<Voucher> Tree#<tag>"` in English and `"<Voucher> Arvore#<tag>"` in
+#' Portuguese and Panara (`"Arbol"` in Spanish, `"Arbre"` in French; Mandarin
+#' uses the English names). [forplot_map()] finds the images whatever the
+#' language of the folders.
 #'
 #' @return Invisibly returns the harmonized field-sheet data frame used
 #' internally to organize the voucher directories.
@@ -106,7 +114,7 @@
 #'
 #' @export
 forplot_vouchers <- function(fp_file_path = NULL,
-                             output_dir = file.path(tempdir(), "voucher_imgs"),
+                             output_dir = NULL,
                              input_type = c("field_sheet",
                                             "field_sheet_ti",
                                             "fp_query_sheet",
@@ -114,8 +122,12 @@ forplot_vouchers <- function(fp_file_path = NULL,
                                             "gigaflor"),
                              station_name = NULL,
                              verbose = TRUE,
-                             header_row = NULL) {
+                             header_row = NULL,
+                             language = c("en", "pt", "es", "fr", "ma", "pa")) {
   input_type <- match.arg(input_type)
+  language <- match.arg(tolower(trimws(as.character(language))),
+                        c("en", "pt", "es", "fr", "ma", "pa"))
+  if (is.null(output_dir)) output_dir <- file.path(tempdir(), .out_name("voucher_imgs", language))
 
   if (is.null(fp_file_path) || !file.exists(fp_file_path)) {
     stop("Please provide a valid Excel file path.", call. = FALSE)
@@ -186,11 +198,12 @@ forplot_vouchers <- function(fp_file_path = NULL,
     nzchar(trimws(fp_sheet$Voucher))
 
   rows <- has_tag & is_collected_yes
+  tree_word <- .out_name("tree", language)
 
   fp_sheet$Voucher[rows] <- ifelse(
     has_voucher[rows],
-    paste0(fp_sheet$Voucher[rows], " Tree#", fp_sheet$`New Tag No`[rows]),
-    paste0("Tree#", fp_sheet$`New Tag No`[rows])
+    paste0(fp_sheet$Voucher[rows], " ", tree_word, "#", fp_sheet$`New Tag No`[rows]),
+    paste0(tree_word, "#", fp_sheet$`New Tag No`[rows])
   )
 
   if (!dir.exists(output_dir)) {
