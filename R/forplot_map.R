@@ -1017,7 +1017,9 @@ forplot_map <- function(fp_file_path = NULL,
         speciesLabel = unname(tr["hover_species"]),
         statusLabel = unname(tr["status"]),
         imagery = list(lat = (south + north) / 2, lon = (west + east) / 2,
-                       nativeZoom = init_zoom, maxProbeZoom = 20L)
+                       nativeZoom = init_zoom, maxProbeZoom = 20L),
+        grid = list(cellMetres = if (input_type == "monitora") 10 else subplot_size,
+                    minLabelPx = .fp_map_min_label_px)
       )
     )
 
@@ -1040,6 +1042,13 @@ forplot_map <- function(fp_file_path = NULL,
 #' @keywords internal
 #' @noRd
 .fp_map_init_max_zoom <- 17L
+
+#' Subplot labels are hidden while a subplot is drawn smaller than this
+#' (in pixels), when they would cover the cell and each other.
+#'
+#' @keywords internal
+#' @noRd
+.fp_map_min_label_px <- 24
 
 #' Map-specific interface labels
 #'
@@ -1467,7 +1476,9 @@ forplot_map <- function(fp_file_path = NULL,
                  otf = "font/otf", eot = "application/vnd.ms-fontobject",
                  "application/octet-stream")
   raw <- readBin(path, what = "raw", n = file.info(path)$size)
-  paste0("data:", mime, ";base64,", jsonlite::base64_enc(raw))
+  # base64_enc() wraps lines every 76 characters; a line break inside a CSS
+  # url("...") string makes the browser drop the rest of the stylesheet
+  paste0("data:", mime, ";base64,", gsub("[\r\n]", "", jsonlite::base64_enc(raw)))
 }
 
 #' Build the HTML for a photo carousel
@@ -1622,6 +1633,7 @@ forplot_map <- function(fp_file_path = NULL,
   color: rgba(255,255,255,0.85) !important; font-size: 10px !important;
   font-weight: 600 !important; text-shadow: 0 0 3px rgba(0,0,0,0.8);
 }
+.fp-hide-grid-labels .fp-grid-label { display: none; }
 .fp-hover { font-size: 12px; padding: 3px 7px; border-radius: 6px; }
 
 .fp-legend { border-radius: 10px !important; box-shadow: 0 2px 10px rgba(0,0,0,0.18) !important;
@@ -1752,6 +1764,24 @@ function(el, x, data) {
       });
     });
   })(data.imagery);
+
+  /* Subplot labels only when the cells are large enough to hold them */
+  (function(g) {
+    if (!g || !g.cellMetres) return;
+    var box = map.getContainer();
+    function cellPx() {
+      var c = map.getCenter();
+      var dLat = g.cellMetres / 111320;
+      return Math.abs(map.latLngToContainerPoint([c.lat + dLat, c.lng]).y -
+                      map.latLngToContainerPoint(c).y);
+    }
+    function toggle() {
+      if (cellPx() < g.minLabelPx) L.DomUtil.addClass(box, 'fp-hide-grid-labels');
+      else L.DomUtil.removeClass(box, 'fp-hide-grid-labels');
+    }
+    map.on('zoomend', toggle);
+    toggle();
+  })(data.grid);
 
   function natSort(a, b) { return String(a).localeCompare(String(b), undefined, {numeric: true}); }
   function mk(tag, cls, txt) {
