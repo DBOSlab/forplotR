@@ -1019,7 +1019,8 @@ forplot_map <- function(fp_file_path = NULL,
         imagery = list(lat = (south + north) / 2, lon = (west + east) / 2,
                        nativeZoom = init_zoom, maxProbeZoom = 20L),
         grid = list(cellMetres = if (input_type == "monitora") 10 else subplot_size,
-                    minLabelPx = .fp_map_min_label_px)
+                    minLabelPx = .fp_map_min_label_px),
+        markers = as.list(.fp_map_marker_size)
       )
     )
 
@@ -1049,6 +1050,26 @@ forplot_map <- function(fp_file_path = NULL,
 #' @keywords internal
 #' @noRd
 .fp_map_min_label_px <- 24
+
+#' Marker size on the map: `.dbh_radius()` gives each tree a relative radius
+#' (3-10, by the square root of DBH); on the map one unit is `metres` metres,
+#' so markers grow and shrink with the plot, kept between `min_px` and
+#' `max_px` pixels so they stay clickable and never cover the whole subplot.
+#'
+#' @keywords internal
+#' @noRd
+.fp_map_marker_size <- c(metres = 0.2, min_px = 3, max_px = 30)
+
+#' Marker radius in pixels at a given map scale (mirrors the page script)
+#'
+#' @param rel Relative radius from `.dbh_radius()`.
+#' @param px_per_m Pixels per metre at the current zoom.
+#'
+#' @keywords internal
+#' @noRd
+.fp_marker_px <- function(rel, px_per_m, size = .fp_map_marker_size) {
+  pmin(pmax(rel * size[["metres"]] * px_per_m, size[["min_px"]]), size[["max_px"]])
+}
 
 #' Map-specific interface labels
 #'
@@ -1772,8 +1793,7 @@ function(el, x, data) {
     function cellPx() {
       var c = map.getCenter();
       var dLat = g.cellMetres / 111320;
-      return Math.abs(map.latLngToContainerPoint([c.lat + dLat, c.lng]).y -
-                      map.latLngToContainerPoint(c).y);
+      return Math.abs(map.project([c.lat + dLat, c.lng]).y - map.project(c).y);
     }
     function toggle() {
       if (cellPx() < g.minLabelPx) L.DomUtil.addClass(box, 'fp-hide-grid-labels');
@@ -1830,6 +1850,24 @@ function(el, x, data) {
   var collect = function(l) { if (l instanceof L.CircleMarker && l.getPopup && l.getPopup()) markers.push(l); };
   if (grp) grp.eachLayer(collect); else map.eachLayer(collect);
   if (!markers.length) return;
+
+  /* Marker radius in metres, so it follows the zoom, within min/max pixels */
+  (function(sz) {
+    if (!sz || !sz.metres) return;
+    markers.forEach(function(m) { m._fpRel = m.getRadius(); });
+    function pxPerMetre() {
+      var c = map.getCenter();
+      return Math.abs(map.project([c.lat + 100 / 111320, c.lng]).y - map.project(c).y) / 100;
+    }
+    function resize() {
+      var k = sz.metres * pxPerMetre();
+      markers.forEach(function(m) {
+        m.setRadius(Math.min(sz.max_px, Math.max(sz.min_px, m._fpRel * k)));
+      });
+    }
+    map.on('zoomend', resize);
+    resize();
+  })(data.markers);
 
   var parser = new DOMParser();
   var famCount = {}, spCount = {}, subCount = {}, stCount = {}, sp2fam = {};
