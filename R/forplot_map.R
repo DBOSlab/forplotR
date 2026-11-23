@@ -869,6 +869,10 @@ forplot_map <- function(fp_file_path = NULL,
   grp_specimens <- ui$specimens
   grp_grid <- ui$grid
 
+  # Esri imagery stops at zoom 17 in many remote areas (deeper levels return
+  # "Map data not yet available" tiles); the map opens no closer than that and
+  # the page raises the satellite's native zoom where Esri has deeper imagery
+  init_zoom <- .fp_map_init_max_zoom
   tile_opts <- function(native) leaflet::providerTileOptions(maxNativeZoom = native, maxZoom = 22)
 
   map <- leaflet::leaflet(
@@ -876,7 +880,7 @@ forplot_map <- function(fp_file_path = NULL,
     options = leaflet::leafletOptions(minZoom = 2, maxZoom = 22)
   ) %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
-                              options = tile_opts(18)) %>%
+                              options = tile_opts(init_zoom)) %>%
     leaflet::addProviderTiles(leaflet::providers$OpenStreetMap, group = "OSM Street",
                               options = tile_opts(19)) %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street",
@@ -890,8 +894,8 @@ forplot_map <- function(fp_file_path = NULL,
         title = ui$back_to_plot,
         onClick = leaflet::JS(
           sprintf(
-            "function(btn, map){ map.fitBounds([[%.8f, %.8f], [%.8f, %.8f]], {padding:[25,25]}); }",
-            south, west, north, east
+            "function(btn, map){ map.fitBounds([[%.8f, %.8f], [%.8f, %.8f]], {padding:[25,25], maxZoom:%d}); }",
+            south, west, north, east, init_zoom
           )
         )
       )
@@ -997,7 +1001,8 @@ forplot_map <- function(fp_file_path = NULL,
       position = "bottomleft",
       options = leaflet::layersControlOptions(collapsed = TRUE, autoZIndex = TRUE)
     ) %>%
-    leaflet::fitBounds(lng1 = west, lat1 = south, lng2 = east, lat2 = north) %>%
+    leaflet::fitBounds(lng1 = west, lat1 = south, lng2 = east, lat2 = north,
+                       options = list(padding = c(25, 25), maxZoom = init_zoom)) %>%
     htmlwidgets::prependContent(htmltools::tags$style(htmltools::HTML(.forplot_map_css()))) %>%
     htmlwidgets::onRender(
       .forplot_map_js(),
@@ -1010,7 +1015,9 @@ forplot_map <- function(fp_file_path = NULL,
         subplotLabel = unname(tr["subplot"]),
         familyLabel = unname(tr["hover_family"]),
         speciesLabel = unname(tr["hover_species"]),
-        statusLabel = unname(tr["status"])
+        statusLabel = unname(tr["status"]),
+        imagery = list(lat = (south + north) / 2, lon = (west + east) / 2,
+                       nativeZoom = init_zoom, maxProbeZoom = 20L)
       )
     )
 
@@ -1026,6 +1033,13 @@ forplot_map <- function(fp_file_path = NULL,
 
 
 # Helpers ####
+
+#' Closest zoom the map opens at (and returns to with the "back to plot"
+#' button). Esri World Imagery has photos down to this level almost everywhere.
+#'
+#' @keywords internal
+#' @noRd
+.fp_map_init_max_zoom <- 17L
 
 #' Map-specific interface labels
 #'
@@ -1700,6 +1714,44 @@ forplot_map <- function(fp_file_path = NULL,
 function(el, x, data) {
   var map = this;
   var T = data.labels;
+
+  /* Satellite: use the deepest Esri level that has photos at the plot, so
+     closer zooms enlarge real imagery instead of 'Map data not yet available' */
+  (function(im) {
+    if (!im || !window.fetch || !window.Promise) return;
+    var sat = [];
+    var grab = function(l) {
+      if (!(l instanceof L.TileLayer)) return;
+      var u = String(l._url || '').replace('{variant}', l.options.variant || '');
+      if (/World_Imagery/.test(u)) { l._fpBase = u.split('/tile/')[0]; sat.push(l); }
+    };
+    map.eachLayer(grab);
+    if (map.layerManager && map.layerManager.getLayerGroup) {
+      var g = map.layerManager.getLayerGroup('Satellite', false);
+      if (g) g.eachLayer(grab);
+    }
+    if (!sat.length) return;
+    var base = sat[0]._fpBase;
+    var lat = im.lat * Math.PI / 180, levels = [];
+    for (var z = im.nativeZoom + 1; z <= im.maxProbeZoom; z++) levels.push(z);
+    Promise.all(levels.map(function(z) {
+      var n = Math.pow(2, z);
+      var col = Math.floor((im.lon + 180) / 360 * n);
+      var row = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * n);
+      return fetch(base + '/tilemap/' + z + '/' + row + '/' + col + '/1/1')
+        .then(function(r) { return r.json(); })
+        .then(function(j) { return j && j.data && j.data[0] === 1 ? z : 0; })
+        .catch(function() { return 0; });
+    })).then(function(found) {
+      var best = im.nativeZoom;
+      for (var i = 0; i < found.length && found[i] === best + 1; i++) best = found[i];
+      if (best === im.nativeZoom) return;
+      sat.forEach(function(l) {
+        l.options.maxNativeZoom = best;
+        if (l._map) l._resetView();
+      });
+    });
+  })(data.imagery);
 
   function natSort(a, b) { return String(a).localeCompare(String(b), undefined, {numeric: true}); }
   function mk(tag, cls, txt) {
