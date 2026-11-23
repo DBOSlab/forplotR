@@ -1,5 +1,28 @@
 # forplotR (development version)
 
+- `forplot_map()` zoom and subplot fixes:
+  - The map opens framing the plot no closer than zoom 17, and the "back to
+    plot" button uses the same limit. Before, it opened at zoom 19-20, where
+    Esri World Imagery has no photos in many areas ("Map data not yet
+    available"). The page asks Esri for the deepest level with photos at the
+    plot and enlarges that imagery at closer zooms instead of showing grey
+    tiles.
+  - Subplot labels (1-100, N1-N10, S1-S10, L1-L10, O1-O10) stay on their
+    cells at every zoom. Without pandoc (the website, webR) the map was made
+    self-contained with line-wrapped base64 data URIs, and a line break
+    inside a CSS `url("...")` made the browser drop the rest of the leaflet
+    stylesheet, so the labels stacked in a column. Labels are hidden while a
+    subplot is drawn smaller than 24 px.
+  - Markers grow and shrink with the zoom: the radius by DBH is read in
+    metres on the ground (up to 2 m for the thickest tree) and kept between
+    3 and 30 px, so markers no longer pile up when zooming out or shrink
+    against the plot when zooming in.
+- The field report and the map can link to each other:
+  `forplot_balance(map_url = "map.html")` puts a large "Open the interactive
+  map" button on the first page of the report (and a "Map" link in its top
+  bar, not printed in the PDF), and `forplot_map(report_url = "index.html")`
+  puts a "Back to the report" button in the map header. Both default to
+  `NULL` (no link).
 - `forplot_map()`: the "Herbarium image" link of JABOT vouchers opens the
   specimen again. JABOT moved its image viewer, so the link now points to
   `https://jabot.jbrj.gov.br/v2/regua/visualizador.php`, built from the
