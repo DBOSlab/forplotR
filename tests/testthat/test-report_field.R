@@ -1,4 +1,4 @@
-# Field report of forplot_balance() (R/report_field.R)
+# Field report of forplot_balance() (R/aux_fxns_report.R)
 
 .rus01_coords <- function() {
   fp <- withr::local_tempfile(fileext = ".xlsx", .local_envir = parent.frame())
