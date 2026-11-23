@@ -225,6 +225,13 @@
 #' @param colname_census_year MONITORA only. Column with the census year or
 #' date. Only the most recent census is plotted.
 #'
+#' @param report_url Optional link to the field report made by
+#' [forplot_balance()] for the same plot, as a path relative to the map file
+#' (e.g. \code{"index.html"}) or a full URL. When given, the map header shows a
+#' "Back to the report" button. Pass the matching \code{map_url} to
+#' [forplot_balance()] so each page links to the other. The default
+#' \code{NULL} adds no button.
+#'
 #' @return Invisibly returns the path to the generated HTML file, or a
 #' character vector of paths when several MONITORA stations are mapped.
 #'
@@ -327,9 +334,11 @@ forplot_map <- function(fp_file_path = NULL,
                         colname_voucher = NULL,
                         colname_collected = NULL,
                         colname_station = NULL,
-                        colname_census_year = NULL) {
+                        colname_census_year = NULL,
+                        report_url = NULL) {
 
   # Arguments ####
+  report_url <- .arg_check_link_url(report_url, "report_url")
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora", "gigaflor"))
   is_gigaflor <- input_type == "gigaflor"
@@ -850,6 +859,10 @@ forplot_map <- function(fp_file_path = NULL,
     } else "",
     "</div>",
     partners_html,
+    if (!is.null(report_url)) {
+      paste0("<a class='fp-report-link' href='", esc(report_url), "'>&larr; ",
+             esc(ui$back_to_report), "</a>")
+    } else "",
     "</div></div>"
   )
 
@@ -1089,7 +1102,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Search family, species, tag or voucher",
       filters = "Filters", showing = "Showing", of = "of",
       reset = "Reset filters", all = "All", none = "None",
-      back_to_plot = "Back to plot", specimens = "Specimens",
+      back_to_plot = "Back to plot", back_to_report = "Back to the report",
+      specimens = "Specimens",
       grid = "Subplot Grid", tag = "Tag", dbh = "DBH (cm)",
       no_results = "No individuals match the filters."
     ),
@@ -1100,7 +1114,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Buscar fam\u00edlia, esp\u00e9cie, placa ou voucher",
       filters = "Filtros", showing = "Mostrando", of = "de",
       reset = "Limpar filtros", all = "Todos", none = "Nenhum",
-      back_to_plot = "Voltar \u00e0 parcela", specimens = "Indiv\u00edduos",
+      back_to_plot = "Voltar \u00e0 parcela", back_to_report = "Voltar ao relat\u00f3rio",
+      specimens = "Indiv\u00edduos",
       grid = "Grade de subparcelas", tag = "Placa", dbh = "DAP (cm)",
       no_results = "Nenhum indiv\u00edduo corresponde aos filtros."
     ),
@@ -1111,7 +1126,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Buscar familia, especie, placa o voucher",
       filters = "Filtros", showing = "Mostrando", of = "de",
       reset = "Restablecer filtros", all = "Todos", none = "Ninguno",
-      back_to_plot = "Volver a la parcela", specimens = "Individuos",
+      back_to_plot = "Volver a la parcela", back_to_report = "Volver al informe",
+      specimens = "Individuos",
       grid = "Cuadr\u00edcula de subparcelas", tag = "Placa", dbh = "DAP (cm)",
       no_results = "Ning\u00fan individuo coincide con los filtros."
     ),
@@ -1122,7 +1138,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Rechercher famille, esp\u00e8ce, \u00e9tiquette ou voucher",
       filters = "Filtres", showing = "Affichage", of = "sur",
       reset = "R\u00e9initialiser", all = "Tous", none = "Aucun",
-      back_to_plot = "Retour \u00e0 la parcelle", specimens = "Individus",
+      back_to_plot = "Retour \u00e0 la parcelle", back_to_report = "Retour au rapport",
+      specimens = "Individus",
       grid = "Grille des sous-parcelles", tag = "\u00c9tiquette", dbh = "DHP (cm)",
       no_results = "Aucun individu ne correspond aux filtres."
     )
@@ -1649,6 +1666,10 @@ forplot_map <- function(fp_file_path = NULL,
 .fp-sub { font-size: 13px; color: #4B5563; margin-top: 2px; }
 .fp-stats { font-size: 12px; color: #374151; margin-top: 4px; }
 .fp-ico { font-size: 18px; line-height: 26px; }
+.fp-report-link { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 8px;
+                  background: #0E3B2C; color: #fff !important; font-size: 13px; font-weight: 600;
+                  text-decoration: none; }
+.fp-report-link:hover, .fp-report-link:focus-visible { background: #1F6B47; }
 
 .fp-grid-label {
   color: rgba(255,255,255,0.85) !important; font-size: 10px !important;

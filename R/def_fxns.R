@@ -515,3 +515,21 @@
   }
   df
 }
+
+
+#' Check a link between the map and the report
+#'
+#' `NULL` (no link) or one non-empty string: a relative path such as
+#' `"map.html"` or a full URL.
+#'
+#' @return `NULL` or the trimmed string.
+#' @keywords internal
+#' @noRd
+.arg_check_link_url <- function(x, arg) {
+  if (is.null(x)) return(NULL)
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(trimws(x))) {
+    stop("`", arg, "` must be NULL or a single non-empty character string ",
+         "(a relative path such as \"map.html\" or a URL).", call. = FALSE)
+  }
+  trimws(x)
+}

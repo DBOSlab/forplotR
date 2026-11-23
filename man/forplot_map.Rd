@@ -45,7 +45,8 @@ forplot_map(
   colname_voucher = NULL,
   colname_collected = NULL,
   colname_station = NULL,
-  colname_census_year = NULL
+  colname_census_year = NULL,
+  report_url = NULL
 )
 }
 \arguments{
@@ -190,6 +191,13 @@ filter by \code{station_name} and as the plot code.}
 
 \item{colname_census_year}{MONITORA only. Column with the census year or
 date. Only the most recent census is plotted.}
+
+\item{report_url}{Optional link to the field report made by
+\code{\link[=forplot_balance]{forplot_balance()}} for the same plot, as a path relative to the map file
+(e.g. \code{"index.html"}) or a full URL. When given, the map header shows a
+"Back to the report" button. Pass the matching \code{map_url} to
+\code{\link[=forplot_balance]{forplot_balance()}} so each page links to the other. The default
+\code{NULL} adds no button.}
 }
 \value{
 Invisibly returns the path to the generated HTML file, or a
