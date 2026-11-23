@@ -258,6 +258,14 @@
 #' @param colname_census_year MONITORA only. Column with the census year or
 #' date. Only the most recent census is plotted.
 #'
+#' @param map_url Optional link to the interactive map made by
+#' [forplot_map()] for the same plot, as a path relative to the report file
+#' (e.g. \code{"map.html"}) or a full URL. When given, the report opens with a
+#' large "Open the interactive map" button on its first page and a "Map" link
+#' in the top bar; neither is printed in the PDF. Pass the matching
+#' \code{report_url} to [forplot_map()] for the way back. The default
+#' \code{NULL} adds no link.
+#'
 #' @return Invisibly returns a list with paths to generated outputs:
 #' \describe{
 #'   \item{html_report}{Path to the rendered HTML report, or \code{NULL} if not generated.}
@@ -378,9 +386,11 @@ forplot_balance <- function(fp_file_path = NULL,
                             colname_voucher = NULL,
                             colname_collected = NULL,
                             colname_station = NULL,
-                            colname_census_year = NULL) {
+                            colname_census_year = NULL,
+                            map_url = NULL) {
 
   header_row <- .arg_check_header_row(header_row)
+  map_url <- .arg_check_link_url(map_url, "map_url")
 
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora", "gigaflor"))
@@ -647,7 +657,8 @@ forplot_balance <- function(fp_file_path = NULL,
       plot_area_ha = if (!is.null(plot_geometry)) plot_geometry$plot_width_m * plot_geometry$plot_length_m / 10000 else NULL,
       phyto = balance$dashboard$phytosoc,
       logos = report_logos,
-      print_name = tools::file_path_sans_ext(basename(final_pdf))
+      print_name = tools::file_path_sans_ext(basename(final_pdf)),
+      map_url = map_url
     )
     if (isTRUE(render_html)) {
       html_report <- final_html

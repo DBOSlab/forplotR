@@ -40,7 +40,8 @@ forplot_balance(
   colname_voucher = NULL,
   colname_collected = NULL,
   colname_station = NULL,
-  colname_census_year = NULL
+  colname_census_year = NULL,
+  map_url = NULL
 )
 }
 \arguments{
@@ -161,6 +162,14 @@ filter by \code{station_name} and as the plot code.}
 
 \item{colname_census_year}{MONITORA only. Column with the census year or
 date. Only the most recent census is plotted.}
+
+\item{map_url}{Optional link to the interactive map made by
+\code{\link[=forplot_map]{forplot_map()}} for the same plot, as a path relative to the report file
+(e.g. \code{"map.html"}) or a full URL. When given, the report opens with a
+large "Open the interactive map" button on its first page and a "Map" link
+in the top bar; neither is printed in the PDF. Pass the matching
+\code{report_url} to \code{\link[=forplot_map]{forplot_map()}} for the way back. The default
+\code{NULL} adds no link.}
 }
 \value{
 Invisibly returns a list with paths to generated outputs:

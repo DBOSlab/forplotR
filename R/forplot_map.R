@@ -225,6 +225,13 @@
 #' @param colname_census_year MONITORA only. Column with the census year or
 #' date. Only the most recent census is plotted.
 #'
+#' @param report_url Optional link to the field report made by
+#' [forplot_balance()] for the same plot, as a path relative to the map file
+#' (e.g. \code{"index.html"}) or a full URL. When given, the map header shows a
+#' "Back to the report" button. Pass the matching \code{map_url} to
+#' [forplot_balance()] so each page links to the other. The default
+#' \code{NULL} adds no button.
+#'
 #' @return Invisibly returns the path to the generated HTML file, or a
 #' character vector of paths when several MONITORA stations are mapped.
 #'
@@ -327,9 +334,11 @@ forplot_map <- function(fp_file_path = NULL,
                         colname_voucher = NULL,
                         colname_collected = NULL,
                         colname_station = NULL,
-                        colname_census_year = NULL) {
+                        colname_census_year = NULL,
+                        report_url = NULL) {
 
   # Arguments ####
+  report_url <- .arg_check_link_url(report_url, "report_url")
   input_type <- tolower(trimws(as.character(input_type)))
   input_type <- match.arg(input_type, c("field_sheet", "field_sheet_ti", "fp_query_sheet", "monitora", "gigaflor"))
   is_gigaflor <- input_type == "gigaflor"
@@ -850,6 +859,10 @@ forplot_map <- function(fp_file_path = NULL,
     } else "",
     "</div>",
     partners_html,
+    if (!is.null(report_url)) {
+      paste0("<a class='fp-report-link' href='", esc(report_url), "'>&larr; ",
+             esc(ui$back_to_report), "</a>")
+    } else "",
     "</div></div>"
   )
 
@@ -869,6 +882,10 @@ forplot_map <- function(fp_file_path = NULL,
   grp_specimens <- ui$specimens
   grp_grid <- ui$grid
 
+  # Esri imagery stops at zoom 17 in many remote areas (deeper levels return
+  # "Map data not yet available" tiles); the map opens no closer than that and
+  # the page raises the satellite's native zoom where Esri has deeper imagery
+  init_zoom <- .fp_map_init_max_zoom
   tile_opts <- function(native) leaflet::providerTileOptions(maxNativeZoom = native, maxZoom = 22)
 
   map <- leaflet::leaflet(
@@ -876,7 +893,7 @@ forplot_map <- function(fp_file_path = NULL,
     options = leaflet::leafletOptions(minZoom = 2, maxZoom = 22)
   ) %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldImagery, group = "Satellite",
-                              options = tile_opts(18)) %>%
+                              options = tile_opts(init_zoom)) %>%
     leaflet::addProviderTiles(leaflet::providers$OpenStreetMap, group = "OSM Street",
                               options = tile_opts(19)) %>%
     leaflet::addProviderTiles(leaflet::providers$Esri.WorldStreetMap, group = "ESRI Street",
@@ -890,8 +907,8 @@ forplot_map <- function(fp_file_path = NULL,
         title = ui$back_to_plot,
         onClick = leaflet::JS(
           sprintf(
-            "function(btn, map){ map.fitBounds([[%.8f, %.8f], [%.8f, %.8f]], {padding:[25,25]}); }",
-            south, west, north, east
+            "function(btn, map){ map.fitBounds([[%.8f, %.8f], [%.8f, %.8f]], {padding:[25,25], maxZoom:%d}); }",
+            south, west, north, east, init_zoom
           )
         )
       )
@@ -997,7 +1014,8 @@ forplot_map <- function(fp_file_path = NULL,
       position = "bottomleft",
       options = leaflet::layersControlOptions(collapsed = TRUE, autoZIndex = TRUE)
     ) %>%
-    leaflet::fitBounds(lng1 = west, lat1 = south, lng2 = east, lat2 = north) %>%
+    leaflet::fitBounds(lng1 = west, lat1 = south, lng2 = east, lat2 = north,
+                       options = list(padding = c(25, 25), maxZoom = init_zoom)) %>%
     htmlwidgets::prependContent(htmltools::tags$style(htmltools::HTML(.forplot_map_css()))) %>%
     htmlwidgets::onRender(
       .forplot_map_js(),
@@ -1010,7 +1028,12 @@ forplot_map <- function(fp_file_path = NULL,
         subplotLabel = unname(tr["subplot"]),
         familyLabel = unname(tr["hover_family"]),
         speciesLabel = unname(tr["hover_species"]),
-        statusLabel = unname(tr["status"])
+        statusLabel = unname(tr["status"]),
+        imagery = list(lat = (south + north) / 2, lon = (west + east) / 2,
+                       nativeZoom = init_zoom, maxProbeZoom = 20L),
+        grid = list(cellMetres = if (input_type == "monitora") 10 else subplot_size,
+                    minLabelPx = .fp_map_min_label_px),
+        markers = as.list(.fp_map_marker_size)
       )
     )
 
@@ -1026,6 +1049,40 @@ forplot_map <- function(fp_file_path = NULL,
 
 
 # Helpers ####
+
+#' Closest zoom the map opens at (and returns to with the "back to plot"
+#' button). Esri World Imagery has photos down to this level almost everywhere.
+#'
+#' @keywords internal
+#' @noRd
+.fp_map_init_max_zoom <- 17L
+
+#' Subplot labels are hidden while a subplot is drawn smaller than this
+#' (in pixels), when they would cover the cell and each other.
+#'
+#' @keywords internal
+#' @noRd
+.fp_map_min_label_px <- 24
+
+#' Marker size on the map: `.dbh_radius()` gives each tree a relative radius
+#' (3-10, by the square root of DBH); on the map one unit is `metres` metres,
+#' so markers grow and shrink with the plot, kept between `min_px` and
+#' `max_px` pixels so they stay clickable and never cover the whole subplot.
+#'
+#' @keywords internal
+#' @noRd
+.fp_map_marker_size <- c(metres = 0.2, min_px = 3, max_px = 30)
+
+#' Marker radius in pixels at a given map scale (mirrors the page script)
+#'
+#' @param rel Relative radius from `.dbh_radius()`.
+#' @param px_per_m Pixels per metre at the current zoom.
+#'
+#' @keywords internal
+#' @noRd
+.fp_marker_px <- function(rel, px_per_m, size = .fp_map_marker_size) {
+  pmin(pmax(rel * size[["metres"]] * px_per_m, size[["min_px"]]), size[["max_px"]])
+}
 
 #' Map-specific interface labels
 #'
@@ -1045,7 +1102,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Search family, species, tag or voucher",
       filters = "Filters", showing = "Showing", of = "of",
       reset = "Reset filters", all = "All", none = "None",
-      back_to_plot = "Back to plot", specimens = "Specimens",
+      back_to_plot = "Back to plot", back_to_report = "Back to the report",
+      specimens = "Specimens",
       grid = "Subplot Grid", tag = "Tag", dbh = "DBH (cm)",
       no_results = "No individuals match the filters."
     ),
@@ -1056,7 +1114,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Buscar fam\u00edlia, esp\u00e9cie, placa ou voucher",
       filters = "Filtros", showing = "Mostrando", of = "de",
       reset = "Limpar filtros", all = "Todos", none = "Nenhum",
-      back_to_plot = "Voltar \u00e0 parcela", specimens = "Indiv\u00edduos",
+      back_to_plot = "Voltar \u00e0 parcela", back_to_report = "Voltar ao relat\u00f3rio",
+      specimens = "Indiv\u00edduos",
       grid = "Grade de subparcelas", tag = "Placa", dbh = "DAP (cm)",
       no_results = "Nenhum indiv\u00edduo corresponde aos filtros."
     ),
@@ -1067,7 +1126,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Buscar familia, especie, placa o voucher",
       filters = "Filtros", showing = "Mostrando", of = "de",
       reset = "Restablecer filtros", all = "Todos", none = "Ninguno",
-      back_to_plot = "Volver a la parcela", specimens = "Individuos",
+      back_to_plot = "Volver a la parcela", back_to_report = "Volver al informe",
+      specimens = "Individuos",
       grid = "Cuadr\u00edcula de subparcelas", tag = "Placa", dbh = "DAP (cm)",
       no_results = "Ning\u00fan individuo coincide con los filtros."
     ),
@@ -1078,7 +1138,8 @@ forplot_map <- function(fp_file_path = NULL,
       search = "Rechercher famille, esp\u00e8ce, \u00e9tiquette ou voucher",
       filters = "Filtres", showing = "Affichage", of = "sur",
       reset = "R\u00e9initialiser", all = "Tous", none = "Aucun",
-      back_to_plot = "Retour \u00e0 la parcelle", specimens = "Individus",
+      back_to_plot = "Retour \u00e0 la parcelle", back_to_report = "Retour au rapport",
+      specimens = "Individus",
       grid = "Grille des sous-parcelles", tag = "\u00c9tiquette", dbh = "DHP (cm)",
       no_results = "Aucun individu ne correspond aux filtres."
     )
@@ -1453,7 +1514,9 @@ forplot_map <- function(fp_file_path = NULL,
                  otf = "font/otf", eot = "application/vnd.ms-fontobject",
                  "application/octet-stream")
   raw <- readBin(path, what = "raw", n = file.info(path)$size)
-  paste0("data:", mime, ";base64,", jsonlite::base64_enc(raw))
+  # base64_enc() wraps lines every 76 characters; a line break inside a CSS
+  # url("...") string makes the browser drop the rest of the stylesheet
+  paste0("data:", mime, ";base64,", gsub("[\r\n]", "", jsonlite::base64_enc(raw)))
 }
 
 #' Build the HTML for a photo carousel
@@ -1603,11 +1666,16 @@ forplot_map <- function(fp_file_path = NULL,
 .fp-sub { font-size: 13px; color: #4B5563; margin-top: 2px; }
 .fp-stats { font-size: 12px; color: #374151; margin-top: 4px; }
 .fp-ico { font-size: 18px; line-height: 26px; }
+.fp-report-link { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 8px;
+                  background: #0E3B2C; color: #fff !important; font-size: 13px; font-weight: 600;
+                  text-decoration: none; }
+.fp-report-link:hover, .fp-report-link:focus-visible { background: #1F6B47; }
 
 .fp-grid-label {
   color: rgba(255,255,255,0.85) !important; font-size: 10px !important;
   font-weight: 600 !important; text-shadow: 0 0 3px rgba(0,0,0,0.8);
 }
+.fp-hide-grid-labels .fp-grid-label { display: none; }
 .fp-hover { font-size: 12px; padding: 3px 7px; border-radius: 6px; }
 
 .fp-legend { border-radius: 10px !important; box-shadow: 0 2px 10px rgba(0,0,0,0.18) !important;
@@ -1701,6 +1769,61 @@ function(el, x, data) {
   var map = this;
   var T = data.labels;
 
+  /* Satellite: use the deepest Esri level that has photos at the plot, so
+     closer zooms enlarge real imagery instead of 'Map data not yet available' */
+  (function(im) {
+    if (!im || !window.fetch || !window.Promise) return;
+    var sat = [];
+    var grab = function(l) {
+      if (!(l instanceof L.TileLayer)) return;
+      var u = String(l._url || '').replace('{variant}', l.options.variant || '');
+      if (/World_Imagery/.test(u)) { l._fpBase = u.split('/tile/')[0]; sat.push(l); }
+    };
+    map.eachLayer(grab);
+    if (map.layerManager && map.layerManager.getLayerGroup) {
+      var g = map.layerManager.getLayerGroup('Satellite', false);
+      if (g) g.eachLayer(grab);
+    }
+    if (!sat.length) return;
+    var base = sat[0]._fpBase;
+    var lat = im.lat * Math.PI / 180, levels = [];
+    for (var z = im.nativeZoom + 1; z <= im.maxProbeZoom; z++) levels.push(z);
+    Promise.all(levels.map(function(z) {
+      var n = Math.pow(2, z);
+      var col = Math.floor((im.lon + 180) / 360 * n);
+      var row = Math.floor((1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * n);
+      return fetch(base + '/tilemap/' + z + '/' + row + '/' + col + '/1/1')
+        .then(function(r) { return r.json(); })
+        .then(function(j) { return j && j.data && j.data[0] === 1 ? z : 0; })
+        .catch(function() { return 0; });
+    })).then(function(found) {
+      var best = im.nativeZoom;
+      for (var i = 0; i < found.length && found[i] === best + 1; i++) best = found[i];
+      if (best === im.nativeZoom) return;
+      sat.forEach(function(l) {
+        l.options.maxNativeZoom = best;
+        if (l._map) l._resetView();
+      });
+    });
+  })(data.imagery);
+
+  /* Subplot labels only when the cells are large enough to hold them */
+  (function(g) {
+    if (!g || !g.cellMetres) return;
+    var box = map.getContainer();
+    function cellPx() {
+      var c = map.getCenter();
+      var dLat = g.cellMetres / 111320;
+      return Math.abs(map.project([c.lat + dLat, c.lng]).y - map.project(c).y);
+    }
+    function toggle() {
+      if (cellPx() < g.minLabelPx) L.DomUtil.addClass(box, 'fp-hide-grid-labels');
+      else L.DomUtil.removeClass(box, 'fp-hide-grid-labels');
+    }
+    map.on('zoomend', toggle);
+    toggle();
+  })(data.grid);
+
   function natSort(a, b) { return String(a).localeCompare(String(b), undefined, {numeric: true}); }
   function mk(tag, cls, txt) {
     var e = document.createElement(tag);
@@ -1748,6 +1871,24 @@ function(el, x, data) {
   var collect = function(l) { if (l instanceof L.CircleMarker && l.getPopup && l.getPopup()) markers.push(l); };
   if (grp) grp.eachLayer(collect); else map.eachLayer(collect);
   if (!markers.length) return;
+
+  /* Marker radius in metres, so it follows the zoom, within min/max pixels */
+  (function(sz) {
+    if (!sz || !sz.metres) return;
+    markers.forEach(function(m) { m._fpRel = m.getRadius(); });
+    function pxPerMetre() {
+      var c = map.getCenter();
+      return Math.abs(map.project([c.lat + 100 / 111320, c.lng]).y - map.project(c).y) / 100;
+    }
+    function resize() {
+      var k = sz.metres * pxPerMetre();
+      markers.forEach(function(m) {
+        m.setRadius(Math.min(sz.max_px, Math.max(sz.min_px, m._fpRel * k)));
+      });
+    }
+    map.on('zoomend', resize);
+    resize();
+  })(data.markers);
 
   var parser = new DOMParser();
   var famCount = {}, spCount = {}, subCount = {}, stCount = {}, sp2fam = {};

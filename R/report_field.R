@@ -180,6 +180,8 @@
     col_spp         = c("Spp.", "Spp.", "Spp.", "Esp.", "\u79cd\u6570"),
     col_sub         = c("Subpl.", "Subp.", "Subp.", "S.-p.", "\u5b50\u6837\u5730"),
     no_dbh          = c("No valid diameters: relative dominance and basal area are not available, so IVI = RD + RF.", "Sem di\u00e2metros v\u00e1lidos: domin\u00e2ncia relativa e \u00e1rea basal indispon\u00edveis, ent\u00e3o IVI = DR + FR.", "Sin di\u00e1metros v\u00e1lidos: dominancia relativa y \u00e1rea basal no disponibles, por lo que IVI = DR + FR.", "Pas de diam\u00e8tres valides : dominance relative et surface terri\u00e8re indisponibles, donc IVI = DR + FR.", "\u65e0\u6709\u6548\u80f8\u5f84\uff1a\u76f8\u5bf9\u663e\u8457\u5ea6\u548c\u80f8\u9ad8\u65ad\u9762\u79ef\u4e0d\u53ef\u7528\uff0c\u56e0\u6b64 IVI = RD + RF\u3002"),
+    open_map        = c("Open the interactive map", "Abrir o mapa interativo", "Abrir el mapa interactivo", "Ouvrir la carte interactive", "\u6253\u5f00\u4ea4\u4e92\u5f0f\u5730\u56fe"),
+    map_short       = c("Map", "Mapa", "Mapa", "Carte", "\u5730\u56fe"),
     print_pdf       = c("Print or save as PDF", "Imprimir ou salvar em PDF", "Imprimir o guardar como PDF", "Imprimer ou enregistrer en PDF", "\u6253\u5370\u6216\u4fdd\u5b58\u4e3a PDF")
   )
   langs <- c("en", "pt", "es", "fr", "ma")
@@ -956,7 +958,7 @@
 #' @noRd
 .field_report_html <- function(lay, meta, language = "en", highlight_palms = TRUE,
                                plot_area_ha = NULL, phyto = NULL, logos = NULL,
-                               print_name = NULL) {
+                               print_name = NULL, map_url = NULL) {
   tr <- .field_report_strings(language)
   d <- lay$trees
   c <- lay$cells
@@ -1012,6 +1014,11 @@
     sprintf('<li><a href="#map-todo">%s<span>%d</span></a></li>', tr[["pending"]], n_todo),
     if (hp) sprintf('<li><a href="#map-palm">%s<span>%d</span></a></li>', tr[["palms"]], n_palm) else "")
 
+  # link to the interactive map made by forplot_map(), when given
+  has_map <- length(map_url) == 1L && !is.na(map_url) && nzchar(map_url)
+  map_href <- if (has_map) .fr_esc(map_url) else ""
+  map_cta <- if (has_map) sprintf('<p class="map-cta"><a href="%s">%s &rarr;</a></p>', map_href, tr[["open_map"]]) else ""
+
   summary_html <- paste0(
     '<section class="page cover" id="summary">',
     .fr_logos_html(logos),
@@ -1019,7 +1026,7 @@
     sprintf('<p class="kicker">%s%s</p>', tr[["doc_title"]], census),
     sprintf('<h1>%s <span>%s</span></h1>', pn, pc),
     sprintf('<p class="meta">%s%s%s</p>', size_txt, date_txt, if (nzchar(ver)) paste0(" \u00b7 forplotR ", ver) else ""),
-    team_txt, '</header>',
+    team_txt, map_cta, '</header>',
     '<dl class="kpi">',
     kpi(tr[["individuals"]], n_all, sprintf(tr[["in_subplots"]], sum(c$n > 0))),
     kpi(tr[["families"]], fam_id, paste0(tr[["identified"]], if (n_indet > 0) fn_no("indet") else "")),
@@ -1154,6 +1161,7 @@
     sprintf('<body data-not-found="%s" data-sub-prefix="%s"%s>', .fr_esc(tr[["not_found"]]), sub_prefix,
             if (length(print_name) && nzchar(print_name)) sprintf(' data-print-name="%s"', .fr_esc(print_name)) else ""),
     '<div class="bar"><a href="#summary" class="brand">', if (nzchar(pc)) pc else tr[["index"]], '</a>',
+    if (has_map) sprintf('<a href="%s" class="to-map">%s &#8599;</a>', map_href, tr[["map_short"]]) else "",
     '<a href="#map-all">', tr[["maps"]], '</a><a href="#route">', tr[["route_short"]], '</a>', if (nzchar(phyto_html)) paste0('<a href="#phyto">', tr[["phyto_short"]], '</a>') else "", '<a href="#checklist">', tr[["checklist"]], '</a>',
     sprintf('<form class="find" onsubmit="return false"><input id="find" type="search" placeholder="%s" aria-label="%s" autocomplete="off"></form>',
             .fr_esc(sprintf(tr[["find_ph"]], first_lbl)), .fr_esc(tr[["find_label"]])),
@@ -1171,11 +1179,11 @@
 .write_field_report <- function(file, fp_coords, input_type, subplot_size,
                                 plot_width_m, plot_length_m, highlight_palms,
                                 meta, language, plot_area_ha = NULL, phyto = NULL,
-                                logos = NULL, print_name = NULL) {
+                                logos = NULL, print_name = NULL, map_url = NULL) {
   lay <- .field_report_layout(fp_coords, input_type, subplot_size,
                               plot_width_m, plot_length_m, highlight_palms)
   html <- .field_report_html(lay, meta, language, highlight_palms, plot_area_ha, phyto,
-                             logos = logos, print_name = print_name)
+                             logos = logos, print_name = print_name, map_url = map_url)
   con <- file(file, open = "wb")
   on.exit(close(con), add = TRUE)
   writeBin(charToRaw(enc2utf8(html)), con)
