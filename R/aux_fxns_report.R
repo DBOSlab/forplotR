@@ -1,3 +1,237 @@
+# =============================================================================
+# Auxiliary functions for the field report and self-contained HTML pages
+# (forplot_balance() and forplot_map())
+# Authors: Giulia Ottino & Domingos Cardoso
+# =============================================================================
+
+
+
+#===============================================================================
+# Data preparation for forplot_balance()
+#===============================================================================
+
+#' Prepare all data and plots for the collection-balance report
+#'
+#' Pure data-preparation step of [forplot_balance()]: takes the harmonized
+#' input returned by `.harmonize_plot_input()` and computes the plot
+#' coordinates, the static whole-plot maps exported as PNG and the dashboard
+#' (species and family charts). It writes nothing to disk. The field report
+#' itself is built from `fp_coords` by `.write_field_report()`.
+#'
+#' @param fp_loaded List returned by `.harmonize_plot_input()`.
+#' @param input_type Canonical input type.
+#' @param language Canonical language code.
+#' @param plot_size,subplot_size,plot_width_m,plot_length_m Plot geometry, as
+#'   resolved by [forplot_balance()] (`plot_width_m`/`plot_length_m` are `NULL`
+#'   for MONITORA).
+#' @param plot_geometry Result of `.resolve_plot_geometry()` or `NULL`.
+#' @param highlight_palms Logical.
+#' @param plot_name,plot_code,plot_census_no,team User overrides for the plot
+#'   metadata (`NULL` keeps what was read from the file).
+#' @param verbose Logical.
+#'
+#' @return A list with:
+#' \describe{
+#'   \item{fp_coords}{Cleaned individuals with plot coordinates.}
+#'   \item{plots}{Static ggplots: `base`, `collected`, `uncollected`, `palms`,
+#'     `priority` (each may be `NULL`).}
+#'   \item{dashboard}{Result of `.prepare_report_dashboard()`.}
+#'   \item{metadata}{Resolved `plot_name`, `plot_code`, `plot_census_no_fp`,
+#'     `team`.}
+#' }
+#'
+#' @keywords internal
+#' @noRd
+.prepare_balance_data <- function(fp_loaded,
+                                  input_type,
+                                  language,
+                                  plot_size,
+                                  subplot_size,
+                                  plot_width_m = NULL,
+                                  plot_length_m = NULL,
+                                  plot_geometry = NULL,
+                                  highlight_palms = TRUE,
+                                  plot_name = NULL,
+                                  plot_code = NULL,
+                                  plot_census_no = NULL,
+                                  team = NULL,
+                                  verbose = TRUE) {
+
+  # Metadata: user arguments override what was read from the file ----------
+  meta <- .resolve_balance_metadata(
+    fp_loaded = fp_loaded,
+    plot_name = plot_name,
+    plot_code = plot_code,
+    plot_census_no = plot_census_no,
+    team = team
+  )
+  plot_name <- meta$plot_name
+  plot_code <- meta$plot_code
+
+  fp_clean <- .clean_fp_data(fp_loaded$fp_sheet)
+
+  # Coordinates -------------------------------------------------------------
+  if (verbose) {
+    message("Computing plot coordinates...")
+  }
+  if (input_type == "monitora") {
+    fp_coords <- .compute_monitora_geometry(fp_clean, keep_only_cell = FALSE)
+  } else {
+    fp_coords <- .compute_global_coordinates(
+      fp_clean = fp_clean,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m
+    )
+  }
+
+  fp_coords <- fp_coords %>%
+    dplyr::mutate(
+      diameter = (D / 100) * 2,
+      `New Tag No` = trimws(as.character(`New Tag No`))
+    )
+
+  subplot_labels <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    subplot_labels <- tibble::tibble(T1 = sort(unique(fp_coords$T1))) %>%
+      dplyr::mutate(
+        T1 = suppressWarnings(as.numeric(T1)),
+        n_subplots_per_col = floor(plot_length_m / subplot_size),
+        col_index = (T1 - 1) %/% n_subplots_per_col,
+        row_index = (T1 - 1) %% n_subplots_per_col,
+        subplot_y = dplyr::if_else(
+          col_index %% 2 == 0,
+          row_index * subplot_size,
+          (n_subplots_per_col - 1 - row_index) * subplot_size
+        ),
+        subplot_x = col_index * subplot_size,
+        center_x = subplot_x + subplot_size / 2,
+        center_y = subplot_y + subplot_size / 2
+      ) %>%
+      dplyr::select(T1, center_x, center_y)
+  }
+
+  # Whole-plot maps (PNG exports) -------------------------------------------
+  if (verbose) {
+    message("Building plot maps...")
+  }
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    base_plot_static <- .build_fp_base_plot(
+      fp_coords = fp_coords,
+      subplot_labels = subplot_labels,
+      subplot_size = subplot_size,
+      plot_width_m = plot_width_m,
+      plot_length_m = plot_length_m,
+      plot_name = plot_name,
+      plot_code = plot_code,
+      highlight_palms = highlight_palms,
+      language = language
+    )
+  } else {
+    base_plot_static <- .build_monitora_base_plot(
+      fp_coords = fp_coords,
+      plot_name = plot_name,
+      plot_code = plot_code,
+      highlight_palms = highlight_palms,
+      language = language
+    )
+  }
+
+  collected_plot <- NULL
+  uncollected_plot <- NULL
+  palms_plot <- NULL
+
+  if (any(!is.na(fp_coords$Collected))) {
+    collected_plot <- base_plot_static + (fp_coords %>% dplyr::filter(!is.na(Collected) & Family != "Arecaceae"))
+  }
+  if (any(is.na(fp_coords$Collected))) {
+    uncollected_plot <- base_plot_static + (fp_coords %>% dplyr::filter(is.na(Collected) & Family != "Arecaceae"))
+  }
+  if (any(fp_coords$Family %in% "Arecaceae")) {
+    palms_plot <- base_plot_static + (fp_coords %>% dplyr::filter(is.na(Collected) & Family == "Arecaceae"))
+  }
+
+  # Priority subplots (ForestPlots layouts only) ----------------------------
+  priority_plot <- NULL
+
+  if (input_type %in% c("field_sheet", "field_sheet_ti", "fp_query_sheet")) {
+    priority_obj <- .prioritize_uncollected_subplots(
+      fp_coords = fp_coords,
+      exclude_palms = TRUE
+    )
+
+    if (!is.null(priority_obj$priority_table) && nrow(priority_obj$priority_table) > 0) {
+      priority_plot <- .build_uncollected_priority_plot(
+        fp_coords = fp_coords,
+        priority_obj = priority_obj,
+        subplot_size = subplot_size,
+        plot_width_m = plot_width_m,
+        plot_length_m = plot_length_m,
+        plot_name = plot_name,
+        plot_code = plot_code,
+        language = language
+      )
+    }
+  }
+
+  dashboard_obj <- .prepare_report_dashboard(
+    fp_sheet = fp_coords,
+    input_type = input_type,
+    plot_size_ha = plot_size,
+    subplot_size_m = subplot_size,
+    language = language
+  )
+
+  list(
+    fp_coords = fp_coords,
+    plots = list(
+      base = base_plot_static,
+      collected = collected_plot,
+      uncollected = uncollected_plot,
+      palms = palms_plot,
+      priority = priority_plot
+    ),
+    dashboard = dashboard_obj,
+    metadata = meta
+  )
+}
+
+
+#' Resolve plot metadata: user arguments override values read from the file
+#'
+#' @keywords internal
+#' @noRd
+.resolve_balance_metadata <- function(fp_loaded,
+                                      plot_name = NULL,
+                                      plot_code = NULL,
+                                      plot_census_no = NULL,
+                                      team = NULL) {
+  pick <- function(user, from_file, default) {
+    if (.safe_nzchar(user)) {
+      trimws(user)
+    } else if (.safe_nzchar(from_file)) {
+      trimws(from_file)
+    } else {
+      default
+    }
+  }
+
+  list(
+    plot_name = pick(plot_name, fp_loaded$plot_name, "Unknown Plot"),
+    plot_code = pick(plot_code, fp_loaded$plot_code, ""),
+    plot_census_no_fp = pick(plot_census_no, fp_loaded$census_no_fp, "1"),
+    team = pick(team, fp_loaded$team, ""),
+    census_date = if (inherits(fp_loaded$census_date, "Date")) fp_loaded$census_date else as.Date(NA)
+  )
+}
+
+
+#===============================================================================
+# Field report HTML and PDF
+#===============================================================================
+
 # Field report for forplot_balance() ####
 # Authors: Giulia Ottino & Domingos Cardoso
 #
@@ -1265,4 +1499,168 @@
     return(NULL)
   }
   pdf_abs
+}
+
+
+#===============================================================================
+# Self-contained HTML without pandoc
+#===============================================================================
+
+# Self-contained HTML widgets without pandoc
+# Author: Giulia Ottino & Domingos Cardoso
+
+
+#' Save an htmlwidget as a single self-contained HTML file
+#'
+#' Uses `htmlwidgets::saveWidget(selfcontained = TRUE)` when pandoc is
+#' available. Otherwise (for example when forplotR runs in the browser through
+#' webR, where pandoc does not exist) the widget is saved with its
+#' dependencies in a temporary folder and every local script, stylesheet,
+#' image and font is embedded in the page, which gives the same single-file
+#' result.
+#'
+#' @param widget An htmlwidget.
+#' @param file Output HTML path.
+#' @param title Page title.
+#'
+#' @return `file`, invisibly.
+#'
+#' @keywords internal
+#' @noRd
+.save_widget_selfcontained <- function(widget, file, title = NULL) {
+  if (isTRUE(suppressWarnings(rmarkdown::pandoc_available()))) {
+    htmlwidgets::saveWidget(widget, file = file, selfcontained = TRUE, title = title)
+    return(invisible(file))
+  }
+
+  tmp <- tempfile("fp_widget_")
+  dir.create(tmp)
+  on.exit(unlink(tmp, recursive = TRUE, force = TRUE), add = TRUE)
+  page <- file.path(tmp, "index.html")
+  htmlwidgets::saveWidget(widget, file = page, selfcontained = FALSE,
+                          libdir = "lib", title = title)
+
+  html <- .inline_html_resources(page)
+  con <- file(file, open = "wb")
+  on.exit(close(con), add = TRUE, after = FALSE)
+  writeBin(charToRaw(enc2utf8(html)), con)
+  invisible(file)
+}
+
+
+#' Embed the local resources referenced by an HTML page
+#'
+#' Scripts and stylesheets become inline `<script>` and `<style>` blocks;
+#' other local files referenced through `src` or `href` (images, attachments)
+#' become data URIs. `url()` references inside stylesheets are embedded as
+#' data URIs as well. Remote URLs and missing files are left untouched.
+#'
+#' @param page Path to the HTML file.
+#'
+#' @return The self-contained HTML as a single string.
+#'
+#' @keywords internal
+#' @noRd
+.inline_html_resources <- function(page) {
+  base <- dirname(page)
+  html <- .read_text_file(page)
+
+  local_file <- function(ref, dir) {
+    if (grepl("^([a-z][a-z0-9+.-]*:|//|#)", ref, ignore.case = TRUE)) return(NULL)
+    path <- file.path(dir, utils::URLdecode(sub("[?#].*$", "", ref)))
+    if (file.exists(path) && !dir.exists(path)) path else NULL
+  }
+
+  # <script src="..."></script>  ->  inline script
+  html <- .gsub_callback(
+    '<script([^>]*?)\\ssrc="([^"]+)"([^>]*)>\\s*</script>', html,
+    function(m) {
+      path <- local_file(m[3], base)
+      if (is.null(path)) return(m[1])
+      # "\\\\" in the replacement is one literal backslash: </script -> <\/script
+      js <- gsub("</script", "<\\\\/script", .read_text_file(path), ignore.case = TRUE)
+      paste0("<script", m[2], m[4], ">", js, "</script>")
+    }
+  )
+
+  # <link ... rel="stylesheet" ... href="..."> -> inline style
+  html <- .gsub_callback(
+    '<link\\b[^>]*>', html,
+    function(m) {
+      tag <- m[1]
+      if (!grepl('rel="stylesheet"', tag, fixed = TRUE)) return(tag)
+      href <- sub('.*\\bhref="([^"]+)".*', "\\1", tag)
+      path <- local_file(href, base)
+      if (is.null(path)) return(tag)
+      paste0("<style>", .inline_css_urls(.read_text_file(path), dirname(path)), "</style>")
+    }
+  )
+
+  # Any other local src/href (images, htmlwidgets attachments) -> data URI
+  .gsub_callback(
+    '\\b(src|href)="([^"]+)"', html,
+    function(m) {
+      path <- local_file(m[3], base)
+      if (is.null(path)) return(m[1])
+      paste0(m[2], '="', .file_data_uri(path), '"')
+    }
+  )
+}
+
+
+#' Embed `url()` references of a stylesheet as data URIs
+#'
+#' @keywords internal
+#' @noRd
+.inline_css_urls <- function(css, dir) {
+  .gsub_callback(
+    "url\\(\\s*['\"]?([^'\")]+)['\"]?\\s*\\)", css,
+    function(m) {
+      ref <- trimws(m[2])
+      if (grepl("^([a-z][a-z0-9+.-]*:|//|#)", ref, ignore.case = TRUE)) return(m[1])
+      path <- file.path(dir, utils::URLdecode(sub("[?#].*$", "", ref)))
+      if (!file.exists(path) || dir.exists(path)) return(m[1])
+      paste0('url("', .file_data_uri(path), '")')
+    }
+  )
+}
+
+
+#' Replace every regex match with the result of a function
+#'
+#' `fun` receives a character vector: the whole match followed by the
+#' capture groups.
+#'
+#' @keywords internal
+#' @noRd
+.gsub_callback <- function(pattern, x, fun) {
+  m <- gregexpr(pattern, x, perl = TRUE)[[1]]
+  if (m[1] == -1) return(x)
+  starts <- as.integer(m)
+  lens <- attr(m, "match.length")
+  cap_s <- attr(m, "capture.start")
+  cap_l <- attr(m, "capture.length")
+
+  out <- character(0)
+  pos <- 1L
+  for (i in seq_along(starts)) {
+    whole <- substr(x, starts[i], starts[i] + lens[i] - 1L)
+    groups <- if (is.null(cap_s)) character(0) else
+      substring(x, cap_s[i, ], cap_s[i, ] + cap_l[i, ] - 1L)
+    out <- c(out, substr(x, pos, starts[i] - 1L), fun(c(whole, groups)))
+    pos <- starts[i] + lens[i]
+  }
+  paste0(c(out, substr(x, pos, nchar(x))), collapse = "")
+}
+
+
+#' Read a text file as a single UTF-8 string
+#'
+#' @keywords internal
+#' @noRd
+.read_text_file <- function(path) {
+  raw <- readBin(path, what = "raw", n = file.info(path)$size)
+  txt <- rawToChar(raw)
+  Encoding(txt) <- "UTF-8"
+  txt
 }

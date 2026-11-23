@@ -1,5 +1,10 @@
 # forplotR (development version)
 
+- Internal helpers grouped by role: the field report, its data preparation and
+  the self-contained HTML writer are now in `R/aux_fxns_report.R`; header-row
+  detection and `read_plot_sheet()` and friends in `R/aux_fxns_plots.R`; the
+  dictionary of output file names in `R/globals.R`. No change in behaviour.
+
 - `forplot_map()` zoom and subplot fixes:
   - The map opens framing the plot no closer than zoom 17, and the "back to
     plot" button uses the same limit. Before, it opened at zoom 19-20, where
@@ -28,7 +33,7 @@
   `https://jabot.jbrj.gov.br/v2/regua/visualizador.php`, built from the
   herbarium and the catalogue number (`colbot` and `codtestemunho`).
 - Output names follow the language of the call in every function, not only
-  in `forplot_balance()`, from the same dictionary (`R/i18n_files.R`):
+  in `forplot_balance()`, from the same dictionary (`R/globals.R`):
   Portuguese for `"pt"` and `"pa"`, Spanish, French, and English for `"en"`
   and `"ma"`, never a mix of Portuguese and English.
   - `forplot_map()`: `results_<YYYY-MM-DD>_<filename>.html`
@@ -60,7 +65,7 @@
   the dictionary's "most abundant species" now titles the ranking; the IVI
   species chart has no equivalent in the dictionary and stays in Portuguese.
 - Output files of `forplot_balance()` are named in the language of the call,
-  from one dictionary of file names (`R/i18n_files.R`): Portuguese for `"pt"`
+  from one dictionary of file names (`R/globals.R`): Portuguese for `"pt"`
   and `"pa"`, Spanish, French, and English for `"en"` and `"ma"` (Chinese
   characters cannot be used in file names). Names are snake_case ASCII. Old
   and new names (English): `_full_report` (unchanged), `_general`,
